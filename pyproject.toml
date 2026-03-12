@@ -1,0 +1,17 @@
+[build-system]
+requires = ["hatchling", "hatch-requirements-txt"]
+build-backend = "hatchling.build"
+
+[project]
+name= "reuman"
+version = "0.0.1"
+authors = [
+{name = "Oliver"},
+]
+description = "Add function"
+readme = "README.md"
+license = "MIT"
+dynamic = ["dependencies"]
+
+[tool.hatch.metadata.hooks.requirements_txt]
+files = ["requirements.txt"]

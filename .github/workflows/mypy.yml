@@ -1,0 +1,28 @@
+name: Type Check
+
+on:
+  workflow_dispatch:
+  pull_request:
+    branches:
+      - main
+
+jobs:
+  mypy:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        python-version: ["3.10.11"]
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v5
+      - name: Python ${{ matrix.python-version }}
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+          cache: "pip"
+      - name: Install
+        run: |
+          pip install -e .
+          pip install -r requirements_dev.txt
+      - name: Run mypy
+        run: mypy reuman
