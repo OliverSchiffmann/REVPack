@@ -1,4 +1,3 @@
 ty #responsible for language server provider
 ruff #formatter
-mypy #tool for typechecking
 pdoc #for documentation
