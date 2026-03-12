@@ -1,6 +1,6 @@
 from __future__ import annotations
 from enum import Enum
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, TypedDict
 from ._agent import AgentEnum, BaseAgent
 from .message import Message, MessageType
 from .product import ProductEnum
@@ -22,7 +22,16 @@ class CustomerStatesEnum(str, Enum):
     WANTS_ANY = "wants_any"
 
 
-product_params = {
+class ProductDetails(TypedDict):
+    lifespan: tuple[int, int]
+    advertising_effectiveness: float
+    wom_threshold: float
+    wants_state: CustomerStatesEnum
+    uses_state: CustomerStatesEnum
+    buy_message: MessageType
+
+
+product_params: dict[ProductEnum, ProductDetails] = {
     ProductEnum.V: {
         "lifespan": (
             17,
@@ -42,7 +51,7 @@ product_params = {
         "uses_state": CustomerStatesEnum.USES_REMAN,
         "buy_message": MessageType.BUY_R,
     },
-}  # need to add states here and in next()
+}
 
 
 class Customer(BaseAgent):
