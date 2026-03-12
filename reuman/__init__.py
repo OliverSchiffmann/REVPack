@@ -2,7 +2,6 @@
 .. include: ../README.md
 """
 
-from .add import add
-from .divide import divide
+from .world import World
 
-__all__ = ["add", "divide"]
+__all__ = ["World"]
