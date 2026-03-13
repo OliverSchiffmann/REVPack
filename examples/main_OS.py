@@ -14,11 +14,15 @@ import os
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Run Economic Feasibility Model")
     parser.add_argument(
-        "--scenario_file", type=str, default="scenarios", help="Name of the scenario file to pull 'SCENARIOS' dict from",
+        "--scenario_file", type=str, default="examples/scenarios.py", help="Name of the scenario file to pull 'SCENARIOS' dict from",
     )
     parser.add_argument(
         # "--scenario", type=int, default="Default", help="Name of the scenario to run",
-        "--scenario", type=int, default=0, help="Number of the scenario to run"
+        "--scenario", type=str, default="Default", help="Number of the scenario to run"
+    )
+    # Defaults to plotting the output results, if you add the argument then it won't plot
+    parser.add_argument(
+        "--no_plot", action="store_true", help="Do you want to plot the results?"
     )
     args = parser.parse_args()
     
@@ -135,9 +139,10 @@ if __name__ == "__main__":
     print("-" * 40)
     print(f"NET PROFIT (€):      {profit:+,.2f}")
     print("-" * 40)
+    
 
-    plot = False
-    if plot:
+
+    if not args.no_plot:
         fig, (ax1, ax2, ax3) = plt.subplots(nrows=3, ncols=1, sharex=True, figsize=(10, 8))
 
         colours = [

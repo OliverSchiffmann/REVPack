@@ -55,7 +55,7 @@ all_scenarios = {}
 # --- 3. Construct the Nested Dictionary Output ---
 
 for i in range(NUM_SCENARIOS):
-    scenario_id = i + 1
+    scenario_id = f"{i + 1}"
     all_scenarios[scenario_id] = {
         "description": f"Scenario {scenario_id}",
         "main": {
