@@ -2,4 +2,3 @@ docs/
 __pycache__
 .venv
 .REVVenv
-examples/parameterSweepStudy/logs

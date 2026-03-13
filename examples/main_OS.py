@@ -24,13 +24,16 @@ if __name__ == "__main__":
     
     # Import the SCENARIOS dictionary from the specified file
 
+    # Check if the scenario file exists at the specified path
     if not os.path.exists(args.scenario_file):
         raise FileNotFoundError(f"Scenario file '{args.scenario_file}' not found.")
 
+    # Load the scenario from the provided file path as a python module
     spec = importlib.util.spec_from_file_location("scenario_module", args.scenario_file)
     if spec and spec.loader:
         scenario_module = importlib.util.module_from_spec(spec)
         spec.loader.exec_module(scenario_module)
+        # Ensure the module contains the 'SCENARIOS' dict
         if hasattr(scenario_module, "SCENARIOS"):
             SCENARIOS = scenario_module.SCENARIOS
         else:
@@ -38,6 +41,7 @@ if __name__ == "__main__":
     else:
         raise ImportError(f"Could not load scenario file '{args.scenario_file}'.")
 
+    # Validate that the requested scenario key exists in the dictionary
     if args.scenario not in SCENARIOS:
         raise ValueError(
             f"Scenario '{args.scenario}' not found. Options are: {list(SCENARIOS.keys())}"

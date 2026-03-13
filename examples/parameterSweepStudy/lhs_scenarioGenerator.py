@@ -34,30 +34,6 @@ def lhs_numeric(min_val, max_val, num_samples, is_int=False):
     random.shuffle(samples)
     return samples
 
-def lhs_categorical(choices, num_samples):
-    """
-    Generates Latin Hypercube samples mapped to discrete categories or booleans.
-
-    Args:
-        choices (list): A list of possible categorical values or booleans.
-        num_samples (int): Number of samples to generate.
-
-    Returns:
-        list: A list of sampled choices.
-    """
-    # Generate standard continuous LHS between 0 and 1
-    base_lhs = lhs_numeric(0, 1, num_samples, is_int=False)
-    samples = []
-    
-    for val in base_lhs:
-        # Map the [0, 1) value to an index in the choices list
-        idx = int(val * len(choices))
-        # Failsafe for floating point edge cases (e.g., exactly 1.0)
-        idx = min(idx, len(choices) - 1)
-        samples.append(choices[idx])
-        
-    return samples
-
 # --- 2. Define Parameters and Run LHS ---
 
 # Set exactly how many scenarios you want in your sweep
@@ -66,14 +42,12 @@ NUM_SCENARIOS = 50
 # Generate the independent LHS arrays for each parameter
 sweep_data = {
     # Continuous/Integer ranges (min, max, samples, is_int)
-    "simulation_length": lhs_numeric(1000, 2000, NUM_SCENARIOS, is_int=True),
-    "BtoB_population": lhs_numeric(50, 200, NUM_SCENARIOS, is_int=True),
-    "manufacture_delay": lhs_numeric(2, 10, NUM_SCENARIOS, is_int=True),
-    "core_acceptance_rate": lhs_numeric(0.3, 0.9, NUM_SCENARIOS, is_int=False),
-    "patience": lhs_numeric(5, 20, NUM_SCENARIOS, is_int=True),
-    
-    # Categorical/Boolean choices
-    "enable_reman": lhs_categorical([True, False], NUM_SCENARIOS)
+    'manufacture_delay':lhs_numeric(1,10, NUM_SCENARIOS, is_int=True),
+    'remanufacture_delay':lhs_numeric(1,10, NUM_SCENARIOS, is_int=True),
+    'unit_production_cost_V':lhs_numeric(1, 10000, NUM_SCENARIOS, is_int=True),
+    'unit_production_cost_R':lhs_numeric(1, 10000, NUM_SCENARIOS, is_int=True),
+    'core_acceptance_rate':lhs_numeric(0, 1, NUM_SCENARIOS, is_int=False),
+    'patience':lhs_numeric(1, 10, NUM_SCENARIOS, is_int=True),
 }
 
 all_scenarios = {}
@@ -85,17 +59,17 @@ for i in range(NUM_SCENARIOS):
     all_scenarios[scenario_id] = {
         "description": f"Scenario {scenario_id}",
         "main": {
-            "simulation_length": sweep_data["simulation_length"][i],
-            "BtoB_population": sweep_data["BtoB_population"][i],
+            "simulation_length": 1200,
+            "BtoB_population": 100,
             "seed": 1, 
-            "enable_reman": sweep_data["enable_reman"][i],
+            "enable_reman": True,
         },
         "oem": {
             "manufacture_delay": sweep_data["manufacture_delay"][i],
-            "remanufacture_delay": 3,
+            "remanufacture_delay": sweep_data["remanufacture_delay"][i],
             "virgin_stock": 10,
-            "unit_production_cost_V": 1000.0,
-            "unit_production_cost_R": 200.0,
+            "unit_production_cost_V": sweep_data["unit_production_cost_V"][i],
+            "unit_production_cost_R": sweep_data["unit_production_cost_R"][i],
             "core_acceptance_rate": sweep_data["core_acceptance_rate"][i],
         },
         "customer": {
