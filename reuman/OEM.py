@@ -93,7 +93,7 @@ class OEM(BaseAgent):
 
         return False
 
-    def return_proudct(self, rng) -> None:
+    def return_product(self, rng) -> None:
         self._total_cores_collected += 1
         if rng.random() < self._core_acceptance_rate:
             self._core_stock += 1
