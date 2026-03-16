@@ -38,7 +38,7 @@ def lhs_numeric(min_val, max_val, num_samples, is_int=False):
 if __name__ == "__main__":
 
     # Set exactly how many scenarios you want in your sweep
-    NUM_SCENARIOS = 50
+    NUM_SCENARIOS = 1000
 
     # Generate the independent LHS arrays for each parameter
     sweep_data = {
