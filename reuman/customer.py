@@ -139,7 +139,7 @@ class Customer(BaseAgent):
                     self._state = product_params[product_to_rebuy]["wants_state"]
                     self._end_of_life_day = -1
                     if ProductEnum.R in self._world.get_active_products():
-                        self._oem.return_proudct(rng)
+                        self._oem.return_product(rng)
                     else:
                         pass
 

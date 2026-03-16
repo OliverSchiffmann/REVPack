@@ -6,7 +6,9 @@ build-backend = "hatchling.build"
 name= "reuman"
 version = "0.0.1"
 authors = [
-{name = "Oliver"},
+{name = 
+"Oliver Schiffmann",
+"Robert Ballantyne"},
 ]
 description = "Add function"
 readme = "README.md"
