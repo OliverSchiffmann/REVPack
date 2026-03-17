@@ -5,9 +5,6 @@ from ._agent import AgentEnum, BaseAgent
 from .message import Message, MessageType
 from .product import ProductEnum
 
-
-patience: int = 10
-
 if TYPE_CHECKING:
     from .world import World
     from .OEM import OEM
@@ -59,15 +56,17 @@ class Customer(BaseAgent):
     _oem: OEM
     _patience: int
     _end_of_patience_day: int
+    _config: dict
 
     def __init__(self, id: int, world: World, oem: OEM, config: dict):
         self._state = CustomerStatesEnum.POTENTIAL_USER
+        self._config = config
         self._delivery_day = -1
         self._end_of_life_day = -1
         self._active_product = None
         super().__init__(id=id, type=AgentEnum.CUSTOMER, world=world)
         self._oem = oem
-        self._patience = patience
+        self._patience = self._config["patience"]
         self._end_of_patience_day = -1
 
     def next(self, rng):
@@ -162,7 +161,9 @@ class Customer(BaseAgent):
         self._active_product = product
         self._delivery_day = -1
         self._end_of_patience_day = -1
-
-        lifespan_range = product_params[product]["lifespan"]
+        
+        # lifespan_range = product_params[product]["lifespan"]
+        lifespan_mean = self._config["mean_lifetime"]
+        lifespan_range = (lifespan_mean - 3, lifespan_mean + 3)
         lifespan = rng.integers(*lifespan_range)
         self._end_of_life_day = self._world.now() + lifespan

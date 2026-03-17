@@ -49,6 +49,7 @@ if __name__ == "__main__":
         'unit_production_cost_R':lhs_numeric(1, 10000, NUM_SCENARIOS, is_int=True),
         'core_acceptance_rate':lhs_numeric(0, 1, NUM_SCENARIOS, is_int=False),
         'patience':lhs_numeric(1, 20, NUM_SCENARIOS, is_int=True),
+        'mean_lifetime':lhs_numeric(5, 100, NUM_SCENARIOS, is_int=True),
     }
 
     all_scenarios = {}
@@ -75,6 +76,7 @@ if __name__ == "__main__":
             },
             "customer": {
                 "patience": sweep_data["patience"][i],
+                "mean_lifetime": sweep_data["mean_lifetime"][i],
             },
         }
 

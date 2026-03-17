@@ -95,9 +95,9 @@ if __name__ == "__main__":
         # print(f"---------")
         # print(f"Day {world.now()}:\n")
 
-        print(
-            f"Potential users: {world._num_potential_users},\n Wanting Virgin: {world._num_wants[ProductEnum.V]}, Using Virgin: {world._num_uses[ProductEnum.V]}\n Wanting Reman: {world._num_wants[ProductEnum.R]}, Using Reman: {world._num_uses[ProductEnum.R]}\n, Want Any: {world._num_wants_any}"
-        )
+        # print(
+        #     f"Potential users: {world._num_potential_users},\n Wanting Virgin: {world._num_wants[ProductEnum.V]}, Using Virgin: {world._num_uses[ProductEnum.V]}\n Wanting Reman: {world._num_wants[ProductEnum.R]}, Using Reman: {world._num_uses[ProductEnum.R]}\n, Want Any: {world._num_wants_any}"
+        # )
 
         results["day"].append(world.now())
         results["potential_users"].append(world._num_potential_users)
