@@ -50,6 +50,11 @@ if __name__ == "__main__":
         'core_acceptance_rate':lhs_numeric(0, 1, NUM_SCENARIOS, is_int=False),
         'patience':lhs_numeric(1, 20, NUM_SCENARIOS, is_int=True),
         'mean_lifetime':lhs_numeric(5, 100, NUM_SCENARIOS, is_int=True),
+        'core_collection_cost':lhs_numeric(1, 100, NUM_SCENARIOS, is_int=True),
+        'core_disposal_cost':lhs_numeric(1, 100, NUM_SCENARIOS, is_int=True),
+        "retail_price_V":lhs_numeric(500, 2000, NUM_SCENARIOS, is_int=True),
+        "retail_price_R":lhs_numeric(500, 2000, NUM_SCENARIOS, is_int=True),
+        
     }
 
     all_scenarios = {}
@@ -73,6 +78,10 @@ if __name__ == "__main__":
                 "unit_production_cost_V": sweep_data["unit_production_cost_V"][i],
                 "unit_production_cost_R": sweep_data["unit_production_cost_R"][i],
                 "core_acceptance_rate": sweep_data["core_acceptance_rate"][i],
+                "core_collection_cost": sweep_data["core_collection_cost"][i],
+                "core_disposal_cost": sweep_data["core_disposal_cost"][i],
+                "retail_price_V": sweep_data["retail_price_V"][i],
+                "retail_price_R": sweep_data["retail_price_R"][i],
             },
             "customer": {
                 "patience": sweep_data["patience"][i],

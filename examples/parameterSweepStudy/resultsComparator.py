@@ -19,7 +19,7 @@ scenariosDf = pd.concat(
     axis=1,
 )
 
-fullDF = pd.concat([scenariosDf, resultsDf], axis=1)
+fullDF = pd.concat([scenariosDf, resultsDf], axis=1).drop(["description"], axis=1).dropna()
 
 negativesDf = fullDF[fullDF["Profit"] < 0]
 
@@ -30,7 +30,7 @@ positivesDf = fullDF[fullDF["Profit"] > 0]
 positivesDf.to_csv("examples/parameterSweepStudy/positives.csv")
 
 # Generate the profile report
-profile = ProfileReport(positivesDf, title="Statistical Profiling Report", explorative=True)
+profile = ProfileReport(fullDF, title="Statistical Profiling Report", explorative=True)
 
 # Export to HTML
 profile.to_file("examples/parameterSweepStudy/Data_report.html")

@@ -79,10 +79,10 @@ class OEM(BaseAgent):
         self._total_cores_rejected = 0
         self._unit_production_cost_V = config["unit_production_cost_V"]
         self._unit_production_cost_R = config["unit_production_cost_R"]
-        self._core_collection_cost = core_collection_cost
-        self._core_disposal_cost = core_disposal_cost
-        self._retail_price_V = retail_price_V
-        self._retail_price_R = retail_price_R
+        self._core_collection_cost = config["core_collection_cost"]
+        self._core_disposal_cost = config["core_disposal_cost"]
+        self._retail_price_V = config["retail_price_V"]
+        self._retail_price_R = config["retail_price_R"]
 
     def next(self, rng):
         self.update_production()
