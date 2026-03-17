@@ -11,7 +11,7 @@ if __name__ == "__main__":
     # \d{1,3}        : Matches 1 to 3 digits (before the first comma or decimal)
     # (?:,\d{3})* : Matches zero or more occurrences of a comma followed by 3 digits
     # \.\d{2}        : Matches the exact decimal point and 2 digits
-    pattern = re.compile(r"NET PROFIT \(\€\):\s+([+-]?\d{1,3}(?:,\d{3})*\.\d{2})")
+    profit_pattern = re.compile(r"NET PROFIT \(\€\):\s+([+-]?\d{1,3}(?:,\d{3})*\.\d{2})")
 
     profits = []
 
@@ -24,7 +24,7 @@ if __name__ == "__main__":
             content = file.read()
             
             # Find all occurrences in the current file
-            matches = pattern.findall(content)
+            matches = profit_pattern.findall(content)
             
             for match in matches:
                 # 3. Clean and convert the string to a float
@@ -43,13 +43,5 @@ if __name__ == "__main__":
         writer.writerow(['Profit'])
         for profit in profits:
             writer.writerow([profit])
-
     
-    # Plotting the results histogram
-    plt.figure(figsize=(10, 6))
-    plt.hist(profits, bins=100, color='skyblue', edgecolor='black')
-
-    plt.show()
-
-    plt.savefig('examples/parameterSweepStudy/profits_histogram.png')
 

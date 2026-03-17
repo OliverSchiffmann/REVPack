@@ -2,14 +2,14 @@ SCENARIOS = {
     "Default": {
         "description": "Standard run with default parameters",
         "main": {
-            "simulation_length": 1200,
-            "BtoB_population": 100,
+            "simulation_length": 10000,
+            "BtoB_population": 1000,
             "seed": 1,
             "enable_reman": True,
         },
         "oem": {
-            "manufacture_delay": 5,
-            "remanufacture_delay": 3,
+            "manufacture_delay": 1,
+            "remanufacture_delay":1,
             "virgin_stock": 10,
             "unit_production_cost_V": 1000.0,
             "unit_production_cost_R": 200.0,

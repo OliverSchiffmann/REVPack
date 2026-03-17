@@ -2,3 +2,4 @@ ty #responsible for language server provider
 ruff #formatter
 mypy # for unit testing I think
 pdoc #for documentation
+pandas # for data wrangling

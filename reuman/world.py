@@ -31,6 +31,7 @@ class World:
         self._num_wants = {ProductEnum.V: 0, ProductEnum.R: 0}
         self._num_uses = {ProductEnum.V: 0, ProductEnum.R: 0}
         self._num_wants_any = 0
+        self._num_to_man = {ProductEnum.V: 0, ProductEnum.R: 0}
         self._message_queue = []
         self._active_products = [ProductEnum.V]
         if enable_reman:
@@ -61,6 +62,7 @@ class World:
 
         self._num_wants = {product: 0 for product in ProductEnum}
         self._num_uses = {product: 0 for product in ProductEnum}
+        self._num_to_man = {product: 0 for product in ProductEnum}
         self._num_wants_any = 0
         potential_users = 0
 
@@ -70,17 +72,22 @@ class World:
                     potential_users += 1
                 elif agent.state() == CustomerStatesEnum.WANTS_VIRGIN:
                     self._num_wants[ProductEnum.V] += 1
+                    if agent._delivery_day != -1:
+                        self._num_to_man[ProductEnum.V] += 1
                 elif agent.state() == CustomerStatesEnum.USES_VIRGIN:
                     self._num_uses[ProductEnum.V] += 1
                 elif agent.state() == CustomerStatesEnum.WANTS_REMAN:
                     self._num_wants[ProductEnum.R] += 1
+                    self._num_to_man[ProductEnum.R] += 1
                 elif agent.state() == CustomerStatesEnum.USES_REMAN:
                     self._num_uses[ProductEnum.R] += 1
                 elif agent.state() == CustomerStatesEnum.WANTS_ANY:
                     self._num_wants_any += 1
+                    self._num_to_man[ProductEnum.V] += 1
+                    self._num_to_man[ProductEnum.R] += 1
         self._num_potential_users = potential_users
 
-    def recieve_message(self, message: Message):
+    def receive_message(self, message: Message):
         self._message_queue.append(message)
 
     def process_messages(self, rng):

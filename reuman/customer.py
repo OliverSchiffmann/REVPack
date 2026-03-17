@@ -33,10 +33,7 @@ class ProductDetails(TypedDict):
 
 product_params: dict[ProductEnum, ProductDetails] = {
     ProductEnum.V: {
-        "lifespan": (
-            17,
-            24,
-        ),  # number of days that a product might last for when in use
+        "lifespan": (17, 24),  # number of days that a product might last for when in use
         "advertising_effectiveness": 0.011,
         "wom_threshold": 0.015,
         "wants_state": CustomerStatesEnum.WANTS_VIRGIN,

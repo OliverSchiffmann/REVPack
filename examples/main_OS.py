@@ -17,7 +17,6 @@ if __name__ == "__main__":
         "--scenario_file", type=str, default="examples/scenarios.py", help="Name of the scenario file to pull 'SCENARIOS' dict from",
     )
     parser.add_argument(
-        # "--scenario", type=int, default="Default", help="Name of the scenario to run",
         "--scenario", type=str, default="Default", help="Number of the scenario to run"
     )
     # Defaults to plotting the output results, if you add the argument then it won't plot
@@ -96,9 +95,9 @@ if __name__ == "__main__":
         # print(f"---------")
         # print(f"Day {world.now()}:\n")
 
-        # print(
-        #     f"Potential users: {world._num_potential_users},\n Wanting Virgin: {world._num_wants[ProductEnum.V]}, Using Virgin: {world._num_uses[ProductEnum.V]}\n Wanting Reman: {world._num_wants[ProductEnum.R]}, Using Reman: {world._num_uses[ProductEnum.R]}\n"
-        # )
+        print(
+            f"Potential users: {world._num_potential_users},\n Wanting Virgin: {world._num_wants[ProductEnum.V]}, Using Virgin: {world._num_uses[ProductEnum.V]}\n Wanting Reman: {world._num_wants[ProductEnum.R]}, Using Reman: {world._num_uses[ProductEnum.R]}\n, Want Any: {world._num_wants_any}"
+        )
 
         results["day"].append(world.now())
         results["potential_users"].append(world._num_potential_users)

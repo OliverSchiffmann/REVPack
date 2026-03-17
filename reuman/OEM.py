@@ -83,6 +83,7 @@ class OEM(BaseAgent):
     def next(self, rng):
         self.update_production()
 
+    # Checks the stock of a given product in storage
     def request_product(self, product: ProductEnum) -> bool:
         currentStock = self._factory_stock[product]
 
@@ -106,7 +107,7 @@ class OEM(BaseAgent):
             match product:
                 case ProductEnum.V:
                     self._production_rate[product] = (
-                        self._world._num_wants[product] + self._world._num_wants_any
+                        self._world._num_to_man[product]
                     ) / self._manufacture_delay
                     self._factory_stock[product] += self._production_rate[product]
                     self._total_products_produced[product] += self._production_rate[
@@ -120,7 +121,7 @@ class OEM(BaseAgent):
                     # )
                 case ProductEnum.R:
                     desired_production = (
-                        self._world._num_wants[product] + self._world._num_wants_any
+                        self._world._num_to_man[product]
                     ) / self._remanufacture_delay
                     maximum_production = self._core_stock / self._remanufacture_delay
 
