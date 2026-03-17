@@ -48,7 +48,7 @@ if __name__ == "__main__":
         'unit_production_cost_V':lhs_numeric(1, 10000, NUM_SCENARIOS, is_int=True),
         'unit_production_cost_R':lhs_numeric(1, 10000, NUM_SCENARIOS, is_int=True),
         'core_acceptance_rate':lhs_numeric(0, 1, NUM_SCENARIOS, is_int=False),
-        'patience':lhs_numeric(1, 10, NUM_SCENARIOS, is_int=True),
+        'patience':lhs_numeric(1, 20, NUM_SCENARIOS, is_int=True),
     }
 
     all_scenarios = {}
