@@ -1,28 +1,33 @@
-$cores = 15
-Write-Host "Starting parallel sweep using $cores cores..."
+$threads = 24
+$totalRuns = 1..10000
+$pythonScript = "examples/main_OS.py"
+$scenarioFile = "examples/parameterSweepStudy/lhs_parameters.py"
 
-# Array to keep track of running Python processes
-$activeProcesses = @()
+$stopwatch = [System.Diagnostics.Stopwatch]::StartNew()
+Write-Host "Starting parallel sweep using $threads cores..."
 
-# Generate the list of numbers (1 to 15) and loop through them
-1..1000 | ForEach-Object {
+# Generate the list of numbers (1 to 1000) and process in parallel
+$results = $totalRuns | ForEach-Object -Parallel {
+    $pythonScript = $using:pythonScript
+    $scenarioFile = $using:scenarioFile
     $scenario = $_
     Write-Host "Starting scenario $scenario..."
     
-    $logFile = "examples\parameterSweepStudy\logs\log_scenario_${scenario}.txt"
-    $arguments = "-u examples/main_OS.py --scenario_file `"examples/parameterSweepStudy/lhs_parameters.py`" --scenario `"$scenario`" --no_plot"
+    # $logFile = "examples\parameterSweepStudy\logs\log_scenario_${scenario}.txt"
+    # $arguments = "-u $pythonScript --scenario_file `"$scenarioFile`" --scenario `"$scenario`" --no_plot"
     
-    # Start the python process in the background, redirecting output to the log file
-    $process = Start-Process -FilePath "python" -ArgumentList $arguments -RedirectStandardOutput $logFile -PassThru -WindowStyle Hidden
-    $activeProcesses += $process
+    #Start-Process -FilePath "python" -ArgumentList $arguments -RedirectStandardOutput $logFile -Wait -WindowStyle Hidden
+    $output = python3 $pythonScript --scenario_file $scenarioFile --scenario $scenario --no_plot --json_output
 
-    # Throttle the loop: wait if we have reached the maximum number of concurrent cores
-    while (($activeProcesses | Where-Object { -not $_.HasExited }).Count -ge $cores) {
-        Start-Sleep -Milliseconds 500
+    $jsonLine = $output | Where-Object { $_ -match '\{.*\}' } | Select-Object -First 1
+
+    if ($jsonLine){
+        # Convert string to a PowerShell object
+        return ($jsonLine | ConvertFrom-Json)
     }
-}
+} -ThrottleLimit $threads
 
-# Wait for any remaining scenarios to finish
-$activeProcesses | Where-Object { -not $_.HasExited } | Wait-Process
+$results | Export-Csv -Path "examples\parameterSweepStudy\logs\Sim_master_results.csv" -NoTypeInformation
 
-Write-Host "All parallel scenarios completed!"
+$stopwatch.Stop()
+Write-Host "All parallel scenarios completed in $($stopwatch.Elapsed.TotalSeconds) seconds!"

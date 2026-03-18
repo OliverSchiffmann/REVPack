@@ -9,7 +9,7 @@ from reuman.OEM import OEM
 from numpy import random
 import matplotlib.pyplot as plt
 import importlib.util
-import os
+import os, json
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Run Economic Feasibility Model")
@@ -22,6 +22,9 @@ if __name__ == "__main__":
     # Defaults to plotting the output results, if you add the argument then it won't plot
     parser.add_argument(
         "--no_plot", action="store_true", help="Do you want to plot the results?"
+    )
+    parser.add_argument(
+        "--json_output", action="store_true", help="Do you want the output as a json?"
     )
     args = parser.parse_args()
     
@@ -121,24 +124,37 @@ if __name__ == "__main__":
     revenue = report["Total Revenue"]
     profit = revenue - cost
 
-    print("\nCost Breakdown:")
-    for key, value in report["Breakdown"].items():
-        print(f"  {key}: €{value:,.2f}")
+    if not args.json_output:
+        print("\nCost Breakdown:")
+        for key, value in report["Breakdown"].items():
+            print(f"  {key}: €{value:,.2f}")
 
-    print("\nOperational Stats:")
-    for key, value in report["Statistics"].items():
-        print(f"  {key}: {value:,.0f}")
-    print("\n")
-    print("-" * 40)
-    print(f"{'FINANCIAL SUMMARY':^40}")
-    print("-" * 40)
+        print("\nOperational Stats:")
+        for key, value in report["Statistics"].items():
+            print(f"  {key}: {value:,.0f}")
+        print("\n")
+        print("-" * 40)
+        print(f"{'FINANCIAL SUMMARY':^40}")
+        print("-" * 40)
 
-    print(f"Total Cost (€):      -{cost:,.2f}")
-    print(f"Total Revenue (€):   +{revenue:,.2f}")
-    print("-" * 40)
-    print(f"NET PROFIT (€):      {profit:+,.2f}")
-    print("-" * 40)
-    
+        print(f"Total Cost (€):      -{cost:,.2f}")
+        print(f"Total Revenue (€):   +{revenue:,.2f}")
+        print("-" * 40)
+        print(f"NET PROFIT (€):      {profit:+,.2f}")
+        print("-" * 40)
+
+    else:
+        print("JSON_START")
+
+        # Unwrap the report to be a single dictionary so it neatly goes into the output csv
+        report_json = report["Breakdown"]
+        report_json.update(report["Statistics"])
+        report_json["Cost"] = cost
+        report_json["Revenue"] = revenue
+        report_json["Profit"] = profit
+
+        print(json.dumps(report_json))
+
 
 
     if not args.no_plot:
