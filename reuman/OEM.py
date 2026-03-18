@@ -184,7 +184,7 @@ class OEM(BaseAgent):
                 "Total units produced": self._total_products_produced[ProductEnum.V]
                 + self._total_products_produced[ProductEnum.R],
                 "Total units sold": self._products_sold[ProductEnum.V]
-                + self._products_sold[ProductEnum.V],
+                + self._products_sold[ProductEnum.R],
                 "Virgin units produced": self._total_products_produced[ProductEnum.V],
                 "Virgin units sold": self._products_sold[ProductEnum.V],
                 "Reman units produced": self._total_products_produced[ProductEnum.R],

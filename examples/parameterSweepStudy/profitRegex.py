@@ -2,6 +2,7 @@ import re
 import glob
 import csv
 import matplotlib.pyplot as plt
+import pandas as pd
 
 if __name__ == "__main__":
         
@@ -12,36 +13,49 @@ if __name__ == "__main__":
     # (?:,\d{3})* : Matches zero or more occurrences of a comma followed by 3 digits
     # \.\d{2}        : Matches the exact decimal point and 2 digits
     profit_pattern = re.compile(r"NET PROFIT \(\€\):\s+([+-]?\d{1,3}(?:,\d{3})*\.\d{2})")
+    virgin_sales_pattern = re.compile(r"Sale of virgin products:\s+€(\d{1,3}(?:,\d{3})*\.\d{2})")
+    reman_sales_pattern = re.compile(r"Sale of reman products:\s+€(\d{1,3}(?:,\d{3})*\.\d{2})")
 
-    profits = []
 
+    resultsDf = pd.DataFrame(columns=["Profit", "Virgin Sales", "Reman Sales"])
+    
     # 2. Fetch all log files from your directory (adjust the path and extension)
     log_files = glob.glob("examples/parameterSweepStudy/logs/*.txt")
 
     for file_path in log_files:
         # Use encoding='utf-8' to safely handle the € symbol and non-breaking spaces
-        with open(file_path, 'r', encoding='cp1252') as file:
+        with open(file_path, 'r', encoding='utf-8') as file:
             content = file.read()
             
             # Find all occurrences in the current file
-            matches = profit_pattern.findall(content)
+            profit_matches = profit_pattern.findall(content)
+            virgin_sales_matches = virgin_sales_pattern.findall(content)
+            reman_sales_matches = reman_sales_pattern.findall(content)
             
-            for match in matches:
+            
+            for match in profit_matches:
                 # 3. Clean and convert the string to a float
                 # Remove the comma so Python can parse it into a float
                 clean_str = match.replace(',', '')
                 
                 # Python's built-in float() automatically handles the leading '+' or '-'
                 profit_value = float(clean_str)
-                profits.append(profit_value)
+                resultsDf.loc[len(resultsDf), "Profit"] = profit_value
+            
+            for match in virgin_sales_matches:
+                clean_str = match.replace(',', '')
+                virgin_sales_value = float(clean_str)
+                resultsDf.loc[len(resultsDf)-1, "Virgin Sales"] = virgin_sales_value
+            
+            for match in reman_sales_matches:
+                clean_str = match.replace(',', '')  
+                reman_sales_value = float(clean_str)
+                resultsDf.loc[len(resultsDf)-1, "Reman Sales"] = reman_sales_value
 
-    print(f"Successfully extracted {len(profits)} profit records.")
-
-    # Save the profits to a csv
-    with open('examples/parameterSweepStudy/profits.csv', 'w', newline='') as csvfile:
-        writer = csv.writer(csvfile)
-        writer.writerow(['Profit'])
-        for profit in profits:
-            writer.writerow([profit])
     
+    print(f"Successfully extracted {len(resultsDf.dropna()['Profit'])} profit records.")
 
+
+    # Save the results
+    resultsDf.to_csv("examples/parameterSweepStudy/profits.csv", index=False)
+   

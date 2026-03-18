@@ -38,23 +38,23 @@ def lhs_numeric(min_val, max_val, num_samples, is_int=False):
 if __name__ == "__main__":
 
     # Set exactly how many scenarios you want in your sweep
-    NUM_SCENARIOS = 1000
+    NUM_SCENARIOS = 10000
 
     # Generate the independent LHS arrays for each parameter
     sweep_data = {
         # Continuous/Integer ranges (min, max, samples, is_int)
         'manufacture_delay':lhs_numeric(1,10, NUM_SCENARIOS, is_int=True),
         'remanufacture_delay':lhs_numeric(1,10, NUM_SCENARIOS, is_int=True),
-        'unit_production_cost_V':lhs_numeric(1, 10000, NUM_SCENARIOS, is_int=True),
-        'unit_production_cost_R':lhs_numeric(1, 10000, NUM_SCENARIOS, is_int=True),
+        'unit_production_cost_V':lhs_numeric(1, 1000, NUM_SCENARIOS, is_int=True),
+        'unit_production_cost_R':lhs_numeric(1, 1000, NUM_SCENARIOS, is_int=True),
         'core_acceptance_rate':lhs_numeric(0, 1, NUM_SCENARIOS, is_int=False),
         'patience':lhs_numeric(1, 20, NUM_SCENARIOS, is_int=True),
         'mean_lifetime':lhs_numeric(5, 100, NUM_SCENARIOS, is_int=True),
         'core_collection_cost':lhs_numeric(1, 100, NUM_SCENARIOS, is_int=True),
         'core_disposal_cost':lhs_numeric(1, 100, NUM_SCENARIOS, is_int=True),
-        "retail_price_V":lhs_numeric(500, 2000, NUM_SCENARIOS, is_int=True),
+        'retail_price_V':lhs_numeric(500, 2000, NUM_SCENARIOS, is_int=True),
         "retail_price_R":lhs_numeric(500, 2000, NUM_SCENARIOS, is_int=True),
-        
+        'seed':lhs_numeric(1, 10, NUM_SCENARIOS, is_int=True),
     }
 
     all_scenarios = {}
@@ -68,7 +68,7 @@ if __name__ == "__main__":
             "main": {
                 "simulation_length": 1200,
                 "BtoB_population": 100,
-                "seed": 1, 
+                "seed": sweep_data["manufacture_delay"][i], 
                 "enable_reman": True,
             },
             "oem": {

@@ -3,13 +3,13 @@
 # 1. Set how many scenarios you want to run at exactly the same time.
 # (Check your Mac's core count. If you have 8 cores, setting this to 6 
 # runs it fast but leaves 2 cores free so you can still use your browser/VS Code).
-CORES=4
+CORES=16
 
 echo "Starting parallel sweep using $CORES cores..."
 
 # 2. 'seq 1 4' generates the list of numbers (1, 2, 3, 4).
 # We pipe that list into xargs.
-seq 1 15 | xargs -n 1 -P $CORES -I {} sh -c '
+seq 1 1000 | xargs -n 1 -P $CORES -I {} sh -c '
     SCENARIO=$1
     echo "Starting scenario $SCENARIO..."
     
