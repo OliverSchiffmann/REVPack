@@ -68,7 +68,7 @@ if __name__ == "__main__":
             "main": {
                 "simulation_length": 1200,
                 "BtoB_population": 100,
-                "seed": sweep_data["manufacture_delay"][i], 
+                "seed": sweep_data["seed"][i], 
                 "enable_reman": True,
             },
             "oem": {
