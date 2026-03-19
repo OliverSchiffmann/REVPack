@@ -2,8 +2,9 @@ SCENARIOS = {
     "Default": {
         "description": "Standard run with default parameters",
         "main": {
-            "simulation_length": 10000,
-            "BtoB_population": 100,
+            "simulation_length": 1200,
+            "B2B_population": 50,
+            "B2C_population": 50,
             "seed": 1,
             "enable_reman": True,
         },
@@ -14,8 +15,16 @@ SCENARIOS = {
             "unit_production_cost_V": 1000.0,
             "unit_production_cost_R": 200.0,
             "core_acceptance_rate": 0.7,
+            "core_collection_cost": 40,
+            "core_disposal_cost": 20,
+            "retail_price_V": 1200,
+            "retail_price_R": 900,
         },
-        "customer": {
+        "b2b_customer": {
+            "patience": 15,
+            "mean_lifetime": 20 
+        },
+        "b2c_customer": {
             "patience": 15,
             "mean_lifetime": 20 
         },
@@ -24,7 +33,7 @@ SCENARIOS = {
         "description": "Standard run with default parameters",
         "main": {
             "simulation_length": 1200,
-            "BtoB_population": 100,
+            "B2B_population": 100,
             "seed": 1,
             "enable_reman": False,
         },
@@ -35,8 +44,12 @@ SCENARIOS = {
             "unit_production_cost_V": 1000.0,
             "unit_production_cost_R": 200.0,
             "core_acceptance_rate": 0.7,
+            "core_collection_cost": 40,
+            "core_disposal_cost": 20,
+            "retail_price_V": 1200,
+            "retail_price_R": 900,
         },
-        "customer": {
+        "b2b_customer": {
             "patience": 10,
             "mean_lifetime": 20 
         },

@@ -3,7 +3,7 @@ import argparse
 # from scenarios import SCENARIOS
 from reuman.world import World
 from reuman._agent import AgentEnum
-from reuman.customer import Customer, CustomerStatesEnum
+from reuman.customer import B2B_Customer, B2C_Customer, CustomerStatesEnum
 from reuman.product import ProductEnum
 from reuman.OEM import OEM
 from numpy import random
@@ -64,7 +64,8 @@ if __name__ == "__main__":
         enable_reman=config["main"]["enable_reman"]
     )  # Toggle reman on/off with True/False
 
-    BtoB_population: int = config["main"]["BtoB_population"]
+    B2B_population: int = config["main"]["B2B_population"]
+    B2C_population: int = config["main"]["B2C_population"]
     simulation_length: int = config["main"][
         "simulation_length"
     ]  # number of DAYS the simulation runs for
@@ -89,9 +90,18 @@ if __name__ == "__main__":
     oemAgent = OEM(id=-1, world=world, config=config["oem"])
     world.add_agent(oemAgent)
 
-    for i in range(0, BtoB_population):
-        customer = Customer(id=i, world=world, oem=oemAgent, config=config["customer"])
-        world.add_agent(customer)
+    ids = 1
+    
+    for i in range(0, B2B_population):
+        b2b_customer = B2B_Customer(id=ids, world=world, oem=oemAgent, config=config["b2b_customer"])
+        world.add_agent(b2b_customer)
+        ids += 1
+        
+    for i in range(0, B2C_population):
+        b2c_customer = B2C_Customer(id=ids, world=world, oem=oemAgent, config=config["b2c_customer"])
+        world.add_agent(b2c_customer)
+        ids += 1
+
 
     for i in range(0, simulation_length):  # model time unit is days
         world.tick()
@@ -154,7 +164,6 @@ if __name__ == "__main__":
         report_json["Profit"] = profit
 
         print(json.dumps(report_json))
-
 
 
     if not args.no_plot:

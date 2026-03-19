@@ -5,6 +5,17 @@ import matplotlib.pyplot as plt
 import pandas as pd
 
 if __name__ == "__main__":
+    
+    # First check that all of the logged error files are empty
+    
+    log_files = glob.glob("examples/parameterSweepStudy/results/*.txt")
+    
+    for log in log_files:
+        with open(log, 'r') as file:
+            content = file.read()
+            if content.strip():
+                raise ValueError(f"Error log file {log} is not empty. Simulation may have failed.")
+
         
     # 1. Define the Regex Pattern
     # \s+            : Matches any whitespace (including non-breaking spaces)
@@ -20,9 +31,9 @@ if __name__ == "__main__":
     resultsDf = pd.DataFrame(columns=["Profit", "Virgin Sales", "Reman Sales"])
     
     # 2. Fetch all log files from your directory (adjust the path and extension)
-    log_files = glob.glob("examples/parameterSweepStudy/logs/*.txt")
+    results_files = glob.glob("examples/parameterSweepStudy/results/*.txt")
 
-    for file_path in log_files:
+    for file_path in results_files:
         # Use encoding='utf-8' to safely handle the € symbol and non-breaking spaces
         with open(file_path, 'r', encoding='utf-8') as file:
             content = file.read()
@@ -57,5 +68,5 @@ if __name__ == "__main__":
 
 
     # Save the results
-    resultsDf.to_csv("examples/parameterSweepStudy/profits.csv", index=False)
+    resultsDf.to_csv("examples/parameterSweepStudy/saltelli_outputs.csv", index=False)
    

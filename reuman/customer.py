@@ -167,3 +167,11 @@ class Customer(BaseAgent):
         lifespan_range = (lifespan_mean - 3, lifespan_mean + 3)
         lifespan = rng.integers(*lifespan_range)
         self._end_of_life_day = self._world.now() + lifespan
+
+
+# Inherits everything from the normal customer class and does nothing different. You need 'pass' because you can't have an empty class, even if it inherits other stuff.
+class B2B_Customer(Customer):
+    pass
+
+class B2C_Customer(Customer):
+    pass

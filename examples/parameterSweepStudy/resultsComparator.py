@@ -4,7 +4,7 @@ from ydata_profiling import ProfileReport
 
 from examples.parameterSweepStudy.lhs_parameters import SCENARIOS
 
-resultsDf = pd.read_csv("examples/parameterSweepStudy/profits.csv")
+resultsDf = pd.read_csv("examples/parameterSweepStudy/saltelli_outputs.csv")
 
 scenariosDf = pd.DataFrame(SCENARIOS).T
 
@@ -23,11 +23,11 @@ fullDF = pd.concat([scenariosDf, resultsDf], axis=1).drop(["description"], axis=
 
 negativesDf = fullDF[fullDF["Profit"] < 0]
 
-negativesDf.to_csv("examples/parameterSweepStudy/negatives.csv")
+# negativesDf.to_csv("examples/parameterSweepStudy/negatives.csv")
 
 positivesDf = fullDF[fullDF["Profit"] > 0]
 
-positivesDf.to_csv("examples/parameterSweepStudy/positives.csv")
+# positivesDf.to_csv("examples/parameterSweepStudy/positives.csv")
 
 # Generate the profile report
 profile = ProfileReport(fullDF, title="Statistical Profiling Report", explorative=True)
