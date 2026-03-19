@@ -2,7 +2,7 @@ import pandas as pd
 import matplotlib.pyplot as plt
 from ydata_profiling import ProfileReport
 
-from examples.parameterSweepStudy.lhs_parameters import SCENARIOS
+from examples.parameterSweepStudy.saltelli_parameters import SCENARIOS
 
 resultsDf = pd.read_csv("examples/parameterSweepStudy/saltelli_outputs.csv")
 
