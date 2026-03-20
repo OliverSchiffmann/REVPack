@@ -8,7 +8,7 @@
 #SBATCH --time=0:10:0
 #SBATCH --mem=100M
 #SBATCH --account=EEME039424
-#SBATCH --array=1-2458
+#SBATCH --array=1-2663
 
 
 # Load in python
@@ -23,7 +23,7 @@ source .venv/bin/activate
 for i in {1..10}
 do
     SCENARIO_ID=$(((SLURM_ARRAY_TASK_ID - 1) * 10 + i))
-    if [ $SCENARIO_ID -ge 24576 ]; then
+    if [ $SCENARIO_ID -ge 26625 ]; then
         break
     fi
 
