@@ -8,7 +8,7 @@ if __name__ == "__main__":
     
     # First check that all of the logged error files are empty
     
-    log_files = glob.glob("examples/parameterSweepStudy/results/*.txt")
+    log_files = glob.glob("examples/parameterSweepStudy/logs/*.txt")
     
     for log in log_files:
         with open(log, 'r') as file:

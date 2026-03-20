@@ -2,3 +2,4 @@ docs/
 __pycache__
 .venv
 .dev_venv
+slurm*

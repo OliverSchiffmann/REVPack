@@ -59,7 +59,8 @@ if __name__ == "__main__":
     print(f"Description: {config['description']}")
     print("-" * 40)
 
-    rng = random.default_rng(seed=config["main"]["seed"])
+    # rng = random.default_rng(seed=config["main"]["seed"])
+    rng = random.default_rng()
     world = World(
         enable_reman=config["main"]["enable_reman"]
     )  # Toggle reman on/off with True/False
