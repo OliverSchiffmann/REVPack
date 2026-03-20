@@ -11,10 +11,11 @@ scenariosDf = pd.DataFrame(SCENARIOS).T
 # Unwrap the nested dictionaries in the customer, main and oem columns
 scenariosDf = pd.concat(
     [
-        scenariosDf.drop(["customer", "main", "oem"], axis=1),
-        pd.json_normalize(scenariosDf["customer"].tolist()),
-        pd.json_normalize(scenariosDf["main"].tolist()),
-        pd.json_normalize(scenariosDf["oem"].tolist()),
+        scenariosDf.drop(["b2b_customer", "b2c_customer", "main", "oem"], axis=1),
+        pd.json_normalize(scenariosDf["b2b_customer"].tolist()).add_prefix("b2b_"),
+        pd.json_normalize(scenariosDf["b2c_customer"].tolist()).add_prefix("b2c_"),
+        pd.json_normalize(scenariosDf["main"].tolist()).add_prefix("main_"),
+        pd.json_normalize(scenariosDf["oem"].tolist()).add_prefix("oem_"),
     ],
     axis=1,
 )

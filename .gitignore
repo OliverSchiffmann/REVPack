@@ -2,3 +2,6 @@ docs/
 __pycache__
 .venv
 .dev_venv
+.DS_Store
+.github/.DS_Store
+examples/parameterSweepStudy/.DS_Store
