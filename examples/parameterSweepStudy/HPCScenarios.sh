@@ -8,7 +8,7 @@
 #SBATCH --time=0:10:0
 #SBATCH --mem=100M
 #SBATCH --account=EEME039424
-#SBATCH --array=1-10
+#SBATCH --array=1-5000
 
 
 # Load in python
@@ -20,19 +20,22 @@ cd /user/work/nj21997/REVPack/
 # Load in pre-configured venv
 source .venv/bin/activate
 
-for i in {1..2}
+for subtask in {1..4}
 do
-    SCENARIO_ID=$SLURM_ARRAY_TASK_ID
-    if [ $SCENARIO_ID -ge 26625 ]; then
-        break
-    fi
+    for i in {1..10}
+    do
+        SCENARIO_ID=$(( $SLURM_ARRAY_TASK_ID + 5000 * ( $subtask - 1 ) ))
+        if [ $SCENARIO_ID -gt 18433 ]; then
+            break
+        fi
 
-    # echo "Running scenario $SCENARIO_ID"
-    python -u examples/main_OS.py \
-        --scenario_file "examples/parameterSweepStudy/saltelli_parameters.py" \
-        --scenario "$SCENARIO_ID" \
-        --no_plot \
-        --seed i
-        > "examples/parameterSweepStudy/results/out_scenario_${SCENARIO_ID}_seed_${i}.txt" \
-        2> "examples/parameterSweepStudy/logs/err_scenario_${SCENARIO_ID}_seed_${i}.txt"
+        # echo "Running scenario $SCENARIO_ID"
+        python -u examples/main_OS.py \
+            --scenario_file "examples/parameterSweepStudy/saltelli_parameters.py" \
+            --scenario "$SCENARIO_ID" \
+            --no_plot \
+            --seed $i \
+            > "examples/parameterSweepStudy/results/out_scenario_${SCENARIO_ID}_seed_${i}.txt" \
+            2> "examples/parameterSweepStudy/logs/err_scenario_${SCENARIO_ID}_seed_${i}.txt"
+    done
 done

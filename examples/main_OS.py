@@ -26,6 +26,8 @@ if __name__ == "__main__":
     parser.add_argument(
         "--json_output", action="store_true", help="Do you want the output as a json?"
     )
+    parser.add_argument(
+        "--seed", type=int, default=None, help="Random seed for reproducibility"   )
     args = parser.parse_args()
     
     # Import the SCENARIOS dictionary from the specified file
@@ -60,7 +62,10 @@ if __name__ == "__main__":
     print("-" * 40)
 
     # rng = random.default_rng(seed=config["main"]["seed"])
-    rng = random.default_rng()
+    if args.seed is not None:
+        rng = random.default_rng(seed=args.seed)
+    else:
+        rng = random.default_rng()
     world = World(
         enable_reman=config["main"]["enable_reman"]
     )  # Toggle reman on/off with True/False
