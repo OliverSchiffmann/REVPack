@@ -27,53 +27,42 @@ if __name__ == "__main__":
     virgin_sales_pattern = re.compile(r"Sale of virgin products:\s+€(\d{1,3}(?:,\d{3})*\.\d{2})")
     reman_sales_pattern = re.compile(r"Sale of reman products:\s+€(\d{1,3}(?:,\d{3})*\.\d{2})")
 
-
-    resultsDf = pd.DataFrame(columns=["Scenario", "Seed", "Profit", "Virgin Sales", "Reman Sales"])
+    results_list = []
     
     # 2. Fetch all log files from your directory (adjust the path and extension)
     results_files = glob.glob("examples/parameterSweepStudy/results/*.txt")
 
     for file_path in results_files:
         
-        # Extract scenario and seed numbers from filename
-        filename = file_path.split('/')[-1]  # Get just the filename
-        scenario_match = re.search(r'scenario_(\d+)', filename)
-        seed_match = re.search(r'seed_(\d+)', filename)
-        scenario_num = int(scenario_match.group(1)) if scenario_match else None
-        seed_num = int(seed_match.group(1)) if seed_match else None
-        
-        resultsDf.loc[len(resultsDf), "Scenario"] = scenario_num
-        resultsDf.loc[len(resultsDf)-1, "Seed"] = seed_num
-        
         # Use encoding='utf-8' to safely handle the € symbol and non-breaking spaces
         with open(file_path, 'r', encoding='utf-8') as file:
             content = file.read()
             
-            # Find all occurrences in the current file
-            profit_matches = profit_pattern.findall(content)
-            virgin_sales_matches = virgin_sales_pattern.findall(content)
-            reman_sales_matches = reman_sales_pattern.findall(content)
+            # Split the content by the header printed in the HPC shell script
+            blocks = re.split(r'===\s+SCENARIO_(\d+)\s+SEED_(\d+)\s+===', content)
             
-            
-            for match in profit_matches:
-                # 3. Clean and convert the string to a float
-                # Remove the comma so Python can parse it into a float
-                clean_str = match.replace(',', '')
+            for i in range(1, len(blocks), 3):
+                scenario_num = int(blocks[i])
+                seed_num = int(blocks[i+1])
+                run_content = blocks[i+2]
                 
-                # Python's built-in float() automatically handles the leading '+' or '-'
-                profit_value = float(clean_str)
-                resultsDf.loc[len(resultsDf)-1, "Profit"] = profit_value
-            
-            for match in virgin_sales_matches:
-                clean_str = match.replace(',', '')
-                virgin_sales_value = float(clean_str)
-                resultsDf.loc[len(resultsDf)-1, "Virgin Sales"] = virgin_sales_value
-            
-            for match in reman_sales_matches:
-                clean_str = match.replace(',', '')  
-                reman_sales_value = float(clean_str)
-                resultsDf.loc[len(resultsDf)-1, "Reman Sales"] = reman_sales_value
+                p_match = profit_pattern.search(run_content)
+                v_match = virgin_sales_pattern.search(run_content)
+                r_match = reman_sales_pattern.search(run_content)
+                
+                if p_match and v_match and r_match:
+                    results_list.append({
+                        "Scenario": scenario_num,
+                        "Seed": seed_num,
+                        "Profit": float(p_match.group(1).replace(',', '')),
+                        "Virgin Sales": float(v_match.group(1).replace(',', '')),
+                        "Reman Sales": float(r_match.group(1).replace(',', ''))
+                    })
 
+    if results_list:
+        resultsDf = pd.DataFrame(results_list)
+    else:
+        resultsDf = pd.DataFrame(columns=["Scenario", "Seed", "Profit", "Virgin Sales", "Reman Sales"])
     
     print(f"Successfully extracted {len(resultsDf.dropna()['Profit'])} profit records.")
 

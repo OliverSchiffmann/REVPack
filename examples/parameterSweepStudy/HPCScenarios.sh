@@ -29,13 +29,20 @@ do
             break
         fi
 
-        # echo "Running scenario $SCENARIO_ID"
+        # Print a header so profitRegex.py can find the scenario and seed
+        echo "=== SCENARIO_$SCENARIO_ID SEED_$i ===" >> "examples/parameterSweepStudy/results/out_task_${SLURM_ARRAY_TASK_ID}.txt"
+
         python -u examples/main_OS.py \
             --scenario_file "examples/parameterSweepStudy/saltelli_parameters.py" \
             --scenario "$SCENARIO_ID" \
             --no_plot \
             --seed $i \
-            > "examples/parameterSweepStudy/results/out_scenario_${SCENARIO_ID}_seed_${i}.txt" \
+            >> "examples/parameterSweepStudy/results/out_task_${SLURM_ARRAY_TASK_ID}.txt" \
             2> "examples/parameterSweepStudy/logs/err_scenario_${SCENARIO_ID}_seed_${i}.txt"
+            
+        # Delete the error log if it is empty to prevent clutter
+        if [ ! -s "examples/parameterSweepStudy/logs/err_scenario_${SCENARIO_ID}_seed_${i}.txt" ]; then
+            rm "examples/parameterSweepStudy/logs/err_scenario_${SCENARIO_ID}_seed_${i}.txt"
+        fi
     done
 done
