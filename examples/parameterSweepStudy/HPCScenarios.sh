@@ -20,12 +20,12 @@ cd /user/work/nj21997/REVPack/
 # Load in pre-configured venv
 source .venv/bin/activate
 
-for subtask in {1..4}
+for subtask in {1..10}
 do
     for i in {1..10}
     do
         SCENARIO_ID=$(( $SLURM_ARRAY_TASK_ID + 5000 * ( $subtask - 1 ) ))
-        if [ $SCENARIO_ID -gt 18432 ]; then
+        if [ $SCENARIO_ID -gt 49152 ]; then
             break
         fi
 
