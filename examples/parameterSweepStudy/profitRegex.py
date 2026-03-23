@@ -28,12 +28,23 @@ if __name__ == "__main__":
     reman_sales_pattern = re.compile(r"Sale of reman products:\s+€(\d{1,3}(?:,\d{3})*\.\d{2})")
 
 
-    resultsDf = pd.DataFrame(columns=["Profit", "Virgin Sales", "Reman Sales"])
+    resultsDf = pd.DataFrame(columns=["Scenario", "Seed", "Profit", "Virgin Sales", "Reman Sales"])
     
     # 2. Fetch all log files from your directory (adjust the path and extension)
     results_files = glob.glob("examples/parameterSweepStudy/results/*.txt")
 
     for file_path in results_files:
+        
+        # Extract scenario and seed numbers from filename
+        filename = file_path.split('/')[-1]  # Get just the filename
+        scenario_match = re.search(r'scenario_(\d+)', filename)
+        seed_match = re.search(r'seed_(\d+)', filename)
+        scenario_num = int(scenario_match.group(1)) if scenario_match else None
+        seed_num = int(seed_match.group(1)) if seed_match else None
+        
+        resultsDf.loc[len(resultsDf), "Scenario"] = scenario_num
+        resultsDf.loc[len(resultsDf)-1, "Seed"] = seed_num
+        
         # Use encoding='utf-8' to safely handle the € symbol and non-breaking spaces
         with open(file_path, 'r', encoding='utf-8') as file:
             content = file.read()
@@ -51,7 +62,7 @@ if __name__ == "__main__":
                 
                 # Python's built-in float() automatically handles the leading '+' or '-'
                 profit_value = float(clean_str)
-                resultsDf.loc[len(resultsDf), "Profit"] = profit_value
+                resultsDf.loc[len(resultsDf)-1, "Profit"] = profit_value
             
             for match in virgin_sales_matches:
                 clean_str = match.replace(',', '')
@@ -68,5 +79,5 @@ if __name__ == "__main__":
 
 
     # Save the results
-    resultsDf.to_csv("examples/parameterSweepStudy/saltelli_outputs.csv", index=False)
+    resultsDf.to_csv("examples/parameterSweepStudy/saltelli_outputs_big.csv", index=False)
    
