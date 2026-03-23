@@ -3,6 +3,7 @@ __pycache__
 .venv
 .dev_venv
 .DS_Store
+.vscode
 .github/.DS_Store
 examples/parameterSweepStudy/.DS_Store
 slurm*
