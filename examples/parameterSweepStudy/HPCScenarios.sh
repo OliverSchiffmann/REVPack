@@ -33,7 +33,7 @@ do
         echo "=== SCENARIO_$SCENARIO_ID SEED_$i ===" >> "examples/parameterSweepStudy/results/out_task_${SLURM_ARRAY_TASK_ID}.txt"
 
         python -u examples/main_OS.py \
-            --scenario_file "examples/parameterSweepStudy/saltelli_parameters.py" \
+            --scenario_file "examples/parameterSweepStudy/saltelli_parameters_v2.py" \
             --scenario "$SCENARIO_ID" \
             --no_plot \
             --seed $i \
