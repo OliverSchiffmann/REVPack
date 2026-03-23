@@ -7,3 +7,7 @@ __pycache__
 .github/.DS_Store
 examples/parameterSweepStudy/.DS_Store
 slurm*
+examples/parameterSweepStudy/saltelli_outputs_big.csv
+examples/parameterSweepStudy/saltelli_outputs.csv
+examples/parameterSweepStudy/saltelli_parameters.py
+examples/parameterSweepStudy/saltelli_parameters_v2.py
