@@ -5,8 +5,8 @@
 #SBATCH --nodes=1
 #SBATCH --ntasks-per-node=1
 #SBATCH --cpus-per-task=1
-#SBATCH --time=1:00:0
-#SBATCH --mem=10G
+#SBATCH --time=0:20:0
+#SBATCH --mem=4G
 #SBATCH --account=EEME039424
 
 
