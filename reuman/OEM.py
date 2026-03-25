@@ -5,28 +5,8 @@ from ._agent import AgentEnum, BaseAgent
 from .message import Message, MessageType
 from .product import ProductEnum
 
-
-# Setup Parameters
-virgin_stock: int = 10
-core_stock: int = 0
-reman_stock: int = 0  # inital stock of remanufactured units
-delivery_delay: int = 1  # number of days for delivery between OEM and customer
-remanufacture_delay: int = 3  # Sort of the time it takes for a core to be collected and turned into a reman product available to buy (must be >=1)
-core_acceptance_rate: float = (
-    0.7  # Captures the fact that not all cores are usable (cores from reman goods, different amounts of wear on product, etc)
-)
-unit_production_cost_V: float = 1000  # units are in EUR per single product unit
-unit_production_cost_R: float = 200
-core_collection_cost: float = 40  # Cost to collect a single core
-core_disposal_cost: float = (
-    20  # Cost to dispose of a single core if not accepted for reman
-)
-retail_price_V: float = 1200  # retail price of a virgin unit in EUR
-retail_price_R: float = 900
-
 if TYPE_CHECKING:
     from .world import World
-
 
 class OEMStatesEnum(str, Enum):
     OPERATIONAL = "Operational"
@@ -63,17 +43,17 @@ class OEM(BaseAgent):
             )
         super().__init__(id=id, type=AgentEnum.OEM, world=world)
         self._state = OEMStatesEnum.OPERATIONAL
-        self._delivery_delay = delivery_delay
+        self._delivery_delay = config["delivery_delay"]
         self._manufacture_delay = config["manufacture_delay"]
         self._remanufacture_delay = config["remanufacture_delay"]
         self._factory_stock = {
-            ProductEnum.V: virgin_stock,
-            ProductEnum.R: reman_stock,
+            ProductEnum.V: config["virgin_stock"],
+            ProductEnum.R: config["reman_stock"],
         }
         self._production_rate = {ProductEnum.V: 0, ProductEnum.R: 0}
         self._products_sold = {ProductEnum.V: 0, ProductEnum.R: 0}
         self._total_products_produced = {ProductEnum.V: 0, ProductEnum.R: 0}
-        self._core_stock = core_stock
+        self._core_stock = config["core_stock"]
         self._core_acceptance_rate = config["core_acceptance_rate"]
         self._total_cores_collected = 0
         self._total_cores_rejected = 0

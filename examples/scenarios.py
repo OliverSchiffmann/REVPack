@@ -9,9 +9,12 @@ SCENARIOS = {
             "enable_reman": True,
         },
         "oem": {
+            "delivery_delay": 1,
             "manufacture_delay": 5,
             "remanufacture_delay": 3,
             "virgin_stock": 10,
+            "reman_stock": 0,
+            "core_stock":0
             "unit_production_cost_V": 1000.0,
             "unit_production_cost_R": 200.0,
             "core_acceptance_rate": 0.7,
