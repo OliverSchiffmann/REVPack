@@ -3,32 +3,15 @@ import pprint
 import numpy as np
 from SALib.sample import sobol
 
+# 1. Import the problem from another file, so that its consistent across scenario generation and the analysis file
+from problemBounds import problem
+
+
 if __name__ == "__main__":
-
-    # --- 1. Define the SALib Problem ---
-    problem_dict = {
-        # 'manufacture_delay': [1, 10],      # manufacture_delay
-        # 'remanufacture_delay': [1, 10],      # remanufacture_delay
-        'unit_production_cost_V': [1, 1000],    # unit_production_cost_V
-        'unit_production_cost_R': [1, 1000],    # unit_production_cost_R
-        'core_acceptance_rate': [0.0, 1.0],   # core_acceptance_rate (Float)
-        # 'patience': [1, 20],      # patience
-        # 'mean_lifetime': [5, 100],     # mean_lifetime
-        # 'core_collection_cost': [1, 100],     # core_collection_cost
-        # 'core_disposal_cost': [1, 100],     # core_disposal_cost
-        'retail_price_V': [500, 2000],  # retail_price_V
-        'retail_price_R': [500, 2000],   # retail_price_R
-    }
-
-    problem = {
-        'num_vars': len(problem_dict),
-        'names': list(problem_dict.keys()),
-        'bounds': list(problem_dict.values()),
-    }
 
     # --- 2. Generate Saltelli Samples ---
     # N is the baseline sample size. Typically 512, 1024, or 2048.
-    N = 4096
+    N = 2048
     
     param_values = sobol.sample(problem, N)
     
