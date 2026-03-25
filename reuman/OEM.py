@@ -1,3 +1,7 @@
+"""
+Module for the Original Equipment Manufacturer (OEM) agent.
+"""
+
 from __future__ import annotations
 from enum import Enum
 from typing import TYPE_CHECKING
@@ -9,10 +13,17 @@ if TYPE_CHECKING:
     from .world import World
 
 class OEMStatesEnum(str, Enum):
+    """Enum of possible states for the OEM agent."""
     OPERATIONAL = "Operational"
 
 
 class OEM(BaseAgent):
+    """
+    Original Equipment Manufacturer (OEM) agent.
+
+    The OEM produces the virgin or reman product for the customers, processes the reman cores manages its own stock and production rates.
+    """
+
     _state: OEMStatesEnum
     _delivery_delay: int
     _manufacture_delay: int  # Sort of the time it takes to meet the demand (must be >=1 as you cant divide by 0)
@@ -33,6 +44,17 @@ class OEM(BaseAgent):
     _retail_price_R: float
 
     def __init__(self, id: int, world: World, config: dict) -> None:
+        """
+        Initialise the OEM agent.
+
+        Args:
+            id (int): Unique id for the agent.
+            world (World): The simulation world the agent belongs to.
+            config (dict): Configuration dictionary containing the OEM's parameters.
+            
+        Raises:
+            ValueError: If manufacture_delay or remanufacture_delay is less than 1.
+        """
         if config["manufacture_delay"] < 1:
             raise ValueError(
                 f"manufacture_delay must be >=1. Received: {config['manufacture_delay']}"
@@ -65,10 +87,25 @@ class OEM(BaseAgent):
         self._retail_price_R = config["retail_price_R"]
 
     def next(self, rng):
+        """
+        Execute the agent's actions for the current simulation tick.
+
+        Args:
+            rng (numpy.random.Generator): Random number generator.
+        """
         self.update_production()
 
     # Checks the stock of a given product in storage
     def request_product(self, product: ProductEnum) -> bool:
+        """
+        Process a customer's request to purchase a product.
+
+        Args:
+            product (ProductEnum): The type of product requested (Virgin or Reman).
+
+        Returns:
+            bool: True if the product is in stock and successfully purchased, False otherwise.
+        """
         currentStock = self._factory_stock[product]
 
         if currentStock >= 1:
@@ -79,6 +116,14 @@ class OEM(BaseAgent):
         return False
 
     def return_product(self, rng) -> None:
+        """
+        Process a returned product (core) from a customer.
+
+        The core is either accepted into stock or rejected, based on the OEM's core acceptance rate.
+
+        Args:
+            rng (numpy.random.Generator): Seeded random number generator.
+        """
         self._total_cores_collected += 1
         if rng.random() < self._core_acceptance_rate:
             self._core_stock += 1
@@ -87,6 +132,12 @@ class OEM(BaseAgent):
             pass
 
     def update_production(self):
+        """
+        Update production rates and inventory levels for both virgin and reman products.
+
+        Virgin production is determined by current demand and manufacture delay.
+        Remanufactured product production is limited by both current demand and available core stock.
+        """
         for product in ProductEnum:
             match product:
                 case ProductEnum.V:
@@ -125,7 +176,12 @@ class OEM(BaseAgent):
                     # )
 
     def generate_financial_report(self) -> dict:
-        """Returns a dictionary containing cost breakdown and total."""
+        """
+        Generate the financial report for the OEM.
+        
+        Returns: 
+            dict: A dictionary of Total Cost, Total Revenue, a more detailed cost breakdown, and some operational statistics.
+        """
 
         # Production costs
         cost_V = (

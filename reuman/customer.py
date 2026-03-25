@@ -1,3 +1,7 @@
+"""
+Module for the Customer agents.
+"""
+
 from __future__ import annotations
 from enum import Enum
 from typing import TYPE_CHECKING, TypedDict
@@ -11,6 +15,7 @@ if TYPE_CHECKING:
 
 
 class CustomerStatesEnum(str, Enum):
+    """Enum of possible states for a Customer agent."""
     POTENTIAL_USER = "potential_user"
     WANTS_VIRGIN = "wants_virgin"
     USES_VIRGIN = "uses_virgin"
@@ -20,6 +25,17 @@ class CustomerStatesEnum(str, Enum):
 
 
 class ProductDetails(TypedDict):
+    """
+    Typed dictionary defining simulation parameters for a given product type.
+
+    Attributes:
+        lifespan (tuple[int, int]): The range of days a product might last when in use.
+        advertising_effectiveness (float): Probability of a potential user being influenced to buy.
+        wom_threshold (float): Threshold for word-of-mouth influence.
+        wants_state (CustomerStatesEnum): State to represent the desire for this product.
+        uses_state (CustomerStatesEnum): State to represent active usage of this product.
+        buy_message (MessageType): Message type sent when attempting to buy this product.
+    """
     lifespan: tuple[int, int]
     advertising_effectiveness: float
     wom_threshold: float
@@ -49,6 +65,13 @@ product_params: dict[ProductEnum, ProductDetails] = {
 
 
 class Customer(BaseAgent):
+    """
+    Base Customer agent representing either an individual or a business in the market.
+
+    Customers transition through various states (potential user, wanting a product, 
+    using a product) based on advertising, OEM stock availability, delivery delays, 
+    customer patience, and product lifespans. A visualisation is shown in [[provide the state chart?]].
+    """
     _state: CustomerStatesEnum
     _delivery_day: int
     _end_of_life_day: int
@@ -59,6 +82,15 @@ class Customer(BaseAgent):
     _config: dict
 
     def __init__(self, id: int, world: World, oem: OEM, config: dict):
+        """
+        Initialise the Customer agent.
+
+        Args:
+            id (int): Unique identifier for the agent.
+            world (World): The simulation world the agent belongs to.
+            oem (OEM): The OEM agent to interact with.
+            config (dict): Configuration dictionary with the customer parameters.
+        """
         self._state = CustomerStatesEnum.POTENTIAL_USER
         self._config = config
         self._delivery_day = -1
@@ -70,6 +102,14 @@ class Customer(BaseAgent):
         self._end_of_patience_day = -1
 
     def next(self, rng):
+        """
+        Execute the customer's actions for the current simulation tick.
+        
+        Behaviour changes based on the customer's current `CustomerStatesEnum`.
+
+        Args:
+            rng (numpy.random.Generator): Seeded random number generator.
+        """
         match self._state:
             case CustomerStatesEnum.POTENTIAL_USER:
                 # this section is needed to avoid bias towards one product by always checking that first
@@ -140,6 +180,13 @@ class Customer(BaseAgent):
                         pass
 
     def try_and_buy(self, rng, product: ProductEnum):
+        """
+        Attempt to purchase a specified product from the OEM.
+
+        Args:
+            rng (numpy.random.Generator): Random number generator.
+            product (ProductEnum): The type of product to attempt to buy.
+        """
         purchaseSuccessful = self._oem.request_product(product)
 
         if purchaseSuccessful:
@@ -157,6 +204,13 @@ class Customer(BaseAgent):
                 self._end_of_patience_day = self._world.now() + self._patience
 
     def become_user(self, rng, product: ProductEnum):
+        """
+        Changes the customer to a user of a specified product and sets the product lifespan.
+
+        Args:
+            rng (numpy.random.Generator): Random number generator.
+            product (ProductEnum): The product the customer is now using.
+        """
         self._state = product_params[product]["uses_state"]
         self._active_product = product
         self._delivery_day = -1
@@ -171,7 +225,9 @@ class Customer(BaseAgent):
 
 # Inherits everything from the normal customer class and does nothing different. You need 'pass' because you can't have an empty class, even if it inherits other stuff.
 class B2B_Customer(Customer):
+    """Business-to-Business (B2B) Customer agent. No difference from B2C for now."""
     pass
 
 class B2C_Customer(Customer):
+    """Business-to-Consumer (B2C) Customer agent."""
     pass
