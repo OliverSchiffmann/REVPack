@@ -1,5 +1,7 @@
 
-
+"""
+Dictionary to reliably define the the `problem' between the Sobol sampling then analysis.
+"""
 problem_dict = {
         'manufacture_delay': [1, 10],      # manufacture_delay
         'remanufacture_delay': [1, 10],      # remanufacture_delay
