@@ -3,13 +3,13 @@ import argparse
 # from scenarios import SCENARIOS
 from reuman.world import World
 from reuman._agent import AgentEnum
-from reuman.customer import Customer, CustomerStatesEnum
+from reuman.customer import B2B_Customer, B2C_Customer, CustomerStatesEnum
 from reuman.product import ProductEnum
 from reuman.OEM import OEM
 from numpy import random
 import matplotlib.pyplot as plt
 import importlib.util
-import os
+import os, json
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Run Economic Feasibility Model")
@@ -17,13 +17,17 @@ if __name__ == "__main__":
         "--scenario_file", type=str, default="examples/scenarios.py", help="Name of the scenario file to pull 'SCENARIOS' dict from",
     )
     parser.add_argument(
-        # "--scenario", type=int, default="Default", help="Name of the scenario to run",
         "--scenario", type=str, default="Default", help="Number of the scenario to run"
     )
     # Defaults to plotting the output results, if you add the argument then it won't plot
     parser.add_argument(
         "--no_plot", action="store_true", help="Do you want to plot the results?"
     )
+    parser.add_argument(
+        "--json_output", action="store_true", help="Do you want the output as a json?"
+    )
+    parser.add_argument(
+        "--seed", type=int, default=None, help="Random seed for reproducibility"   )
     args = parser.parse_args()
     
     # Import the SCENARIOS dictionary from the specified file
@@ -57,12 +61,17 @@ if __name__ == "__main__":
     print(f"Description: {config['description']}")
     print("-" * 40)
 
-    rng = random.default_rng(seed=config["main"]["seed"])
+    # rng = random.default_rng(seed=config["main"]["seed"])
+    if args.seed is not None:
+        rng = random.default_rng(seed=args.seed)
+    else:
+        rng = random.default_rng()
     world = World(
         enable_reman=config["main"]["enable_reman"]
     )  # Toggle reman on/off with True/False
 
-    BtoB_population: int = config["main"]["BtoB_population"]
+    B2B_population: int = config["main"]["B2B_population"]
+    B2C_population: int = config["main"]["B2C_population"]
     simulation_length: int = config["main"][
         "simulation_length"
     ]  # number of DAYS the simulation runs for
@@ -87,9 +96,18 @@ if __name__ == "__main__":
     oemAgent = OEM(id=-1, world=world, config=config["oem"])
     world.add_agent(oemAgent)
 
-    for i in range(0, BtoB_population):
-        customer = Customer(id=i, world=world, oem=oemAgent, config=config["customer"])
-        world.add_agent(customer)
+    ids = 1
+    
+    for i in range(0, B2B_population):
+        b2b_customer = B2B_Customer(id=ids, world=world, oem=oemAgent, config=config["b2b_customer"])
+        world.add_agent(b2b_customer)
+        ids += 1
+        
+    for i in range(0, B2C_population):
+        b2c_customer = B2C_Customer(id=ids, world=world, oem=oemAgent, config=config["b2c_customer"])
+        world.add_agent(b2c_customer)
+        ids += 1
+
 
     for i in range(0, simulation_length):  # model time unit is days
         world.tick()
@@ -97,7 +115,7 @@ if __name__ == "__main__":
         # print(f"Day {world.now()}:\n")
 
         # print(
-        #     f"Potential users: {world._num_potential_users},\n Wanting Virgin: {world._num_wants[ProductEnum.V]}, Using Virgin: {world._num_uses[ProductEnum.V]}\n Wanting Reman: {world._num_wants[ProductEnum.R]}, Using Reman: {world._num_uses[ProductEnum.R]}\n"
+        #     f"Potential users: {world._num_potential_users},\n Wanting Virgin: {world._num_wants[ProductEnum.V]}, Using Virgin: {world._num_uses[ProductEnum.V]}\n Wanting Reman: {world._num_wants[ProductEnum.R]}, Using Reman: {world._num_uses[ProductEnum.R]}\n, Want Any: {world._num_wants_any}"
         # )
 
         results["day"].append(world.now())
@@ -122,24 +140,36 @@ if __name__ == "__main__":
     revenue = report["Total Revenue"]
     profit = revenue - cost
 
-    print("\nCost Breakdown:")
-    for key, value in report["Breakdown"].items():
-        print(f"  {key}: €{value:,.2f}")
+    if not args.json_output:
+        print("\nCost Breakdown:")
+        for key, value in report["Breakdown"].items():
+            print(f"  {key}: €{value:,.2f}")
 
-    print("\nOperational Stats:")
-    for key, value in report["Statistics"].items():
-        print(f"  {key}: {value:,.0f}")
-    print("\n")
-    print("-" * 40)
-    print(f"{'FINANCIAL SUMMARY':^40}")
-    print("-" * 40)
+        print("\nOperational Stats:")
+        for key, value in report["Statistics"].items():
+            print(f"  {key}: {value:,.0f}")
+        print("\n")
+        print("-" * 40)
+        print(f"{'FINANCIAL SUMMARY':^40}")
+        print("-" * 40)
 
-    print(f"Total Cost (€):      -{cost:,.2f}")
-    print(f"Total Revenue (€):   +{revenue:,.2f}")
-    print("-" * 40)
-    print(f"NET PROFIT (€):      {profit:+,.2f}")
-    print("-" * 40)
-    
+        print(f"Total Cost (€):      -{cost:,.2f}")
+        print(f"Total Revenue (€):   +{revenue:,.2f}")
+        print("-" * 40)
+        print(f"NET PROFIT (€):      {profit:+,.2f}")
+        print("-" * 40)
+
+    else:
+        print("JSON_START")
+
+        # Unwrap the report to be a single dictionary so it neatly goes into the output csv
+        report_json = report["Breakdown"]
+        report_json.update(report["Statistics"])
+        report_json["Cost"] = cost
+        report_json["Revenue"] = revenue
+        report_json["Profit"] = profit
+
+        print(json.dumps(report_json))
 
 
     if not args.no_plot:

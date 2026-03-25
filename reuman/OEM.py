@@ -5,28 +5,8 @@ from ._agent import AgentEnum, BaseAgent
 from .message import Message, MessageType
 from .product import ProductEnum
 
-
-# Setup Parameters
-virgin_stock: int = 10
-core_stock: int = 0
-reman_stock: int = 0  # inital stock of remanufactured units
-delivery_delay: int = 1  # number of days for delivery between OEM and customer
-remanufacture_delay = 3  # Sort of the time it takes for a core to be collected and turned into a reman product available to buy (must be >=1)
-core_acceptance_rate: float = (
-    0.7  # Captures the fact that not all cores are usable (cores from reman goods, different amounts of wear on product, etc)
-)
-unit_production_cost_V: float = 1000  # units are in EUR per single product unit
-unit_production_cost_R: float = 200
-core_collection_cost: float = 40  # Cost to collect a single core
-core_disposal_cost: float = (
-    20  # Cost to dispose of a single core if not accepted for reman
-)
-retail_price_V: float = 1200  # retail price of a virgin unit in EUR
-retail_price_R: float = 900
-
 if TYPE_CHECKING:
     from .world import World
-
 
 class OEMStatesEnum(str, Enum):
     OPERATIONAL = "Operational"
@@ -57,32 +37,37 @@ class OEM(BaseAgent):
             raise ValueError(
                 f"manufacture_delay must be >=1. Received: {config['manufacture_delay']}"
             )
+        if config["remanufacture_delay"] < 1:
+            raise ValueError(
+                f"remanufacture_delay must be >=1. Received: {config['remanufacture_delay']}"
+            )
         super().__init__(id=id, type=AgentEnum.OEM, world=world)
         self._state = OEMStatesEnum.OPERATIONAL
-        self._delivery_delay = delivery_delay
+        self._delivery_delay = config["delivery_delay"]
         self._manufacture_delay = config["manufacture_delay"]
-        self._remanufacture_delay = remanufacture_delay
+        self._remanufacture_delay = config["remanufacture_delay"]
         self._factory_stock = {
-            ProductEnum.V: virgin_stock,
-            ProductEnum.R: reman_stock,
+            ProductEnum.V: config["virgin_stock"],
+            ProductEnum.R: config["reman_stock"],
         }
         self._production_rate = {ProductEnum.V: 0, ProductEnum.R: 0}
         self._products_sold = {ProductEnum.V: 0, ProductEnum.R: 0}
         self._total_products_produced = {ProductEnum.V: 0, ProductEnum.R: 0}
-        self._core_stock = core_stock
-        self._core_acceptance_rate = core_acceptance_rate
+        self._core_stock = config["core_stock"]
+        self._core_acceptance_rate = config["core_acceptance_rate"]
         self._total_cores_collected = 0
         self._total_cores_rejected = 0
-        self._unit_production_cost_V = unit_production_cost_V
-        self._unit_production_cost_R = unit_production_cost_R
-        self._core_collection_cost = core_collection_cost
-        self._core_disposal_cost = core_disposal_cost
-        self._retail_price_V = retail_price_V
-        self._retail_price_R = retail_price_R
+        self._unit_production_cost_V = config["unit_production_cost_V"]
+        self._unit_production_cost_R = config["unit_production_cost_R"]
+        self._core_collection_cost = config["core_collection_cost"]
+        self._core_disposal_cost = config["core_disposal_cost"]
+        self._retail_price_V = config["retail_price_V"]
+        self._retail_price_R = config["retail_price_R"]
 
     def next(self, rng):
         self.update_production()
 
+    # Checks the stock of a given product in storage
     def request_product(self, product: ProductEnum) -> bool:
         currentStock = self._factory_stock[product]
 
@@ -105,13 +90,11 @@ class OEM(BaseAgent):
         for product in ProductEnum:
             match product:
                 case ProductEnum.V:
-                    self._production_rate[product] = (
-                        self._world._num_wants[product] + self._world._num_wants_any
-                    ) / self._manufacture_delay
+                    self._production_rate[product] = self._world._num_to_man[product] / self._manufacture_delay
+                    # if self._production_rate[product] < 3:
+                    #     self._production_rate[product] = 3                        
                     self._factory_stock[product] += self._production_rate[product]
-                    self._total_products_produced[product] += self._production_rate[
-                        product
-                    ]
+                    self._total_products_produced[product] += self._production_rate[product]
                     # print(
                     #     f"Production Rate for {product.name}: {self._production_rate[product]:.4f}"
                     # )
@@ -120,7 +103,7 @@ class OEM(BaseAgent):
                     # )
                 case ProductEnum.R:
                     desired_production = (
-                        self._world._num_wants[product] + self._world._num_wants_any
+                        self._world._num_to_man[product]
                     ) / self._remanufacture_delay
                     maximum_production = self._core_stock / self._remanufacture_delay
 
@@ -181,7 +164,7 @@ class OEM(BaseAgent):
                 "Total units produced": self._total_products_produced[ProductEnum.V]
                 + self._total_products_produced[ProductEnum.R],
                 "Total units sold": self._products_sold[ProductEnum.V]
-                + self._products_sold[ProductEnum.V],
+                + self._products_sold[ProductEnum.R],
                 "Virgin units produced": self._total_products_produced[ProductEnum.V],
                 "Virgin units sold": self._products_sold[ProductEnum.V],
                 "Reman units produced": self._total_products_produced[ProductEnum.R],

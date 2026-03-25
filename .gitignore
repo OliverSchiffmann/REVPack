@@ -1,4 +1,12 @@
 docs/
 __pycache__
 .venv
-.REVVenv
+.dev_venv
+.vscode
+.DS_Store
+.github/.DS_Store
+examples/parameterSweepStudy/.DS_Store
+
+slurm*
+examples/parameterSweepStudy/saltelli_*.csv
+examples/parameterSweepStudy/saltelli_parameters*.py
