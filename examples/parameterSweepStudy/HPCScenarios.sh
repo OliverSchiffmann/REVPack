@@ -7,7 +7,7 @@
 #SBATCH --time=0:10:0
 #SBATCH --mem=100M
 #SBATCH --account=EEME039424
-#SBATCH --array=1-5000
+#SBATCH --array=1-1
 
 
 # Load in python
@@ -19,24 +19,27 @@ cd /user/work/nj21997/REVPack/
 # Load in pre-configured venv
 source .venv/bin/activate
 
-for subtask in {1..2}
+scenario_file=$"examples/parameterSweepStudy/ofat_parameters_v1.py"
+
+for subtask in {1..80}
 do
-    for i in {1..10}
+    for i in {1..1}
     do
-        SCENARIO_ID=$(( $SLURM_ARRAY_TASK_ID + 5000 * ( $subtask - 1 ) ))
+        # SCENARIO_ID=$(( $SLURM_ARRAY_TASK_ID + 5000 * ( $subtask - 1 ) ))
+        SCENARIO_ID=$subtask
         if [ $SCENARIO_ID -gt 18432 ]; then
             break
         fi
 
         # Print a header so profitRegex.py can find the scenario and seed
-        echo "=== SCENARIO_$SCENARIO_ID SEED_$i ===" >> "examples/parameterSweepStudy/results/out_task_${SLURM_ARRAY_TASK_ID}.txt"
+        echo "=== SCENARIO_$SCENARIO_ID SEED_$i ===" >> "examples/parameterSweepStudy/results/out_task_${subtask}.txt"
 
         python -u examples/main_OS.py \
-            --scenario_file "examples/parameterSweepStudy/saltelli_parameters_v3.py" \
+            --scenario_file $scenario_file \
             --scenario "$SCENARIO_ID" \
             --no_plot \
             --seed $i \
-            >> "examples/parameterSweepStudy/results/out_task_${SLURM_ARRAY_TASK_ID}.txt" \
+            >> "examples/parameterSweepStudy/results/out_task_${subtask}.txt" \
             2> "examples/parameterSweepStudy/logs/err_scenario_${SCENARIO_ID}_seed_${i}.txt"
             
         # Delete the error log if it is empty to prevent clutter
