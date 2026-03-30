@@ -18,18 +18,18 @@ SCENARIOS = {
             "unit_production_cost_V": 1000.0,
             "unit_production_cost_R": 200.0,
             "core_acceptance_rate": 0.7,
-            "core_collection_cost": 20,
-            "core_disposal_cost": 15,
+            "core_collection_cost": 40,
+            "core_disposal_cost": 20,
             "retail_price_V": 1200,
             "retail_price_R": 900,
         },
         "b2b_customer": {
             "patience": 10,
-            "mean_lifetime": 55 
+            "mean_lifetime": 55, 
         },
         "b2c_customer": {
             "patience": 10,
-            "mean_lifetime": 55 
+            "mean_lifetime": 55,
         },
     },
     "Default_no_reman": {

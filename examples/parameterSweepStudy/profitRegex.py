@@ -41,6 +41,7 @@ if __name__ == "__main__":
             # Split the content by the header printed in the HPC shell script
             blocks = re.split(r'===\s+SCENARIO_(\d+)\s+SEED_(\d+)\s+===', content)
             
+            # Find the profit, virgin/reman sales for each chunk (simulation run)
             for i in range(1, len(blocks), 3):
                 scenario_num = int(blocks[i])
                 seed_num = int(blocks[i+1])

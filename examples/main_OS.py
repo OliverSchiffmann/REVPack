@@ -13,9 +13,11 @@ import os, json
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Run Economic Feasibility Model")
+    # Tells you where to pull the scenario dictionary from
     parser.add_argument(
         "--scenario_file", type=str, default="examples/scenarios.py", help="Name of the scenario file to pull 'SCENARIOS' dict from",
     )
+    # Chooses which scenario to get the config values from, all the scenarios are based off of 'Default' anyway
     parser.add_argument(
         "--scenario", type=str, default="Default", help="Number of the scenario to run"
     )
@@ -23,9 +25,7 @@ if __name__ == "__main__":
     parser.add_argument(
         "--no_plot", action="store_true", help="Do you want to plot the results?"
     )
-    parser.add_argument(
-        "--json_output", action="store_true", help="Do you want the output as a json?"
-    )
+    # Defines the seed that random will use to run the sim
     parser.add_argument(
         "--seed", type=int, default=None, help="Random seed for reproducibility"   )
     args = parser.parse_args()
@@ -36,7 +36,7 @@ if __name__ == "__main__":
     if not os.path.exists(args.scenario_file):
         raise FileNotFoundError(f"Scenario file '{args.scenario_file}' not found.")
 
-    # Load the scenario from the provided file path as a python module
+    # Load the scenario from the provided file path, treating it as a python module
     spec = importlib.util.spec_from_file_location("scenario_module", args.scenario_file)
     if spec and spec.loader:
         scenario_module = importlib.util.module_from_spec(spec)
@@ -55,26 +55,24 @@ if __name__ == "__main__":
             f"Scenario '{args.scenario}' not found. Options are: {list(SCENARIOS.keys())}"
         )
 
+    #Defines the config from the chosen scenario
     config = SCENARIOS[args.scenario]
     print("-" * 40)
     print(f"Running Scenario: {args.scenario}")
     print(f"Description: {config['description']}")
     print("-" * 40)
 
-    # rng = random.default_rng(seed=config["main"]["seed"])
     if args.seed is not None:
         rng = random.default_rng(seed=args.seed)
     else:
-        rng = random.default_rng()
+        rng = random.default_rng(config["main"]["seed"])
     world = World(
         enable_reman=config["main"]["enable_reman"]
     )  # Toggle reman on/off with True/False
 
     B2B_population: int = config["main"]["B2B_population"]
     B2C_population: int = config["main"]["B2C_population"]
-    simulation_length: int = config["main"][
-        "simulation_length"
-    ]  # number of DAYS the simulation runs for
+    simulation_length: int = config["main"]["simulation_length"]  # number of DAYS the simulation runs for
 
     results = {
         "day": [],
@@ -93,21 +91,22 @@ if __name__ == "__main__":
         "cores_rejected": [],
     }
 
+    # Adds the OEM agent to the world
     oemAgent = OEM(id=-1, world=world, config=config["oem"])
     world.add_agent(oemAgent)
 
-    ids = 1
+    idIterator = 1
     
-    for i in range(0, B2B_population):
-        b2b_customer = B2B_Customer(id=ids, world=world, oem=oemAgent, config=config["b2b_customer"])
-        world.add_agent(b2b_customer)
-        ids += 1
-        
-    for i in range(0, B2C_population):
-        b2c_customer = B2C_Customer(id=ids, world=world, oem=oemAgent, config=config["b2c_customer"])
-        world.add_agent(b2c_customer)
-        ids += 1
+    # Adds the customers
+    customer_agents = []
 
+    [customer_agents.append(B2B_Customer(id=id, world=world, oem=oemAgent, config=config["b2b_customer"])) for id in range(idIterator, idIterator + B2B_population)]    
+    idIterator += B2B_population
+
+    [customer_agents.append(B2C_Customer(id=id, world=world, oem=oemAgent, config=config["b2c_customer"])) for id in range(idIterator, idIterator + B2C_population)]
+    idIterator += B2C_population
+
+    world.add_agents_from_list(customer_agents)
 
     for i in range(0, simulation_length):  # model time unit is days
         world.tick()
@@ -140,36 +139,23 @@ if __name__ == "__main__":
     revenue = report["Total Revenue"]
     profit = revenue - cost
 
-    if not args.json_output:
-        print("\nCost Breakdown:")
-        for key, value in report["Breakdown"].items():
-            print(f"  {key}: €{value:,.2f}")
+    print("\nCost Breakdown:")
+    for key, value in report["Breakdown"].items():
+        print(f"  {key}: €{value:,.2f}")
 
-        print("\nOperational Stats:")
-        for key, value in report["Statistics"].items():
-            print(f"  {key}: {value:,.0f}")
-        print("\n")
-        print("-" * 40)
-        print(f"{'FINANCIAL SUMMARY':^40}")
-        print("-" * 40)
+    print("\nOperational Stats:")
+    for key, value in report["Statistics"].items():
+        print(f"  {key}: {value:,.0f}")
+    print("\n")
+    print("-" * 40)
+    print(f"{'FINANCIAL SUMMARY':^40}")
+    print("-" * 40)
 
-        print(f"Total Cost (€):      -{cost:,.2f}")
-        print(f"Total Revenue (€):   +{revenue:,.2f}")
-        print("-" * 40)
-        print(f"NET PROFIT (€):      {profit:+,.2f}")
-        print("-" * 40)
-
-    else:
-        print("JSON_START")
-
-        # Unwrap the report to be a single dictionary so it neatly goes into the output csv
-        report_json = report["Breakdown"]
-        report_json.update(report["Statistics"])
-        report_json["Cost"] = cost
-        report_json["Revenue"] = revenue
-        report_json["Profit"] = profit
-
-        print(json.dumps(report_json))
+    print(f"Total Cost (€):      -{cost:,.2f}")
+    print(f"Total Revenue (€):   +{revenue:,.2f}")
+    print("-" * 40)
+    print(f"NET PROFIT (€):      {profit:+,.2f}")
+    print("-" * 40)
 
 
     if not args.no_plot:
