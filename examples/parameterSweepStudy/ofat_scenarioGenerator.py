@@ -47,7 +47,7 @@ if __name__ == "__main__":
                 val_formatted = int(round(val))
 
             # Name the scenario so it's easy to identify during analysis
-            scenario_id = f"scenario_{scenario_counter}_{var_name}"
+            scenario_id = f"scenario_{scenario_counter}"
             new_scenario["description"] = f"OFAT Sweep: {var_name} = {val_formatted}"
 
             # Update the value in the nested dictionary if the key exists

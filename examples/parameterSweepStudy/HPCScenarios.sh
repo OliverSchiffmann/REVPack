@@ -7,7 +7,7 @@
 #SBATCH --time=0:10:0
 #SBATCH --mem=100M
 #SBATCH --account=EEME039424
-#SBATCH --array=1-5000
+#SBATCH --array=1-1
 
 
 # Load in python
@@ -19,11 +19,11 @@ cd /user/work/nj21997/REVPack/
 # Load in pre-configured venv
 source .venv/bin/activate
 
-scenario_file = "examples/parameterSweepStudy/ofat_parameters_v3.py"
+scenario_file = "examples/parameterSweepStudy/ofat_parameters_v1.py"
 
-for subtask in {1..2}
+for subtask in {1..80}
 do
-    for i in {1..10}
+    for i in {1..1}
     do
         SCENARIO_ID=$(( $SLURM_ARRAY_TASK_ID + 5000 * ( $subtask - 1 ) ))
         if [ $SCENARIO_ID -gt 18432 ]; then
