@@ -19,6 +19,8 @@ cd /user/work/nj21997/REVPack/
 # Load in pre-configured venv
 source .venv/bin/activate
 
+scenario_file = "examples/parameterSweepStudy/ofat_parameters_v3.py"
+
 for subtask in {1..2}
 do
     for i in {1..10}
@@ -32,7 +34,7 @@ do
         echo "=== SCENARIO_$SCENARIO_ID SEED_$i ===" >> "examples/parameterSweepStudy/results/out_task_${SLURM_ARRAY_TASK_ID}.txt"
 
         python -u examples/main_OS.py \
-            --scenario_file "examples/parameterSweepStudy/saltelli_parameters_v3.py" \
+            --scenario_file scenario_file \
             --scenario "$SCENARIO_ID" \
             --no_plot \
             --seed $i \
