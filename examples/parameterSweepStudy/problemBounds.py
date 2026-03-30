@@ -8,7 +8,7 @@ problem_dict = {
         'unit_production_cost_V': [1, 1000],    # unit_production_cost_V
         'unit_production_cost_R': [1, 1000],    # unit_production_cost_R
         'core_acceptance_rate': [0.0, 1.0],   # core_acceptance_rate (Float)
-        'patience': [1, 20],      # patience
+        'patience': [1, 20],      # patience 
         # 'mean_lifetime': [5, 100],     # mean_lifetime
         # 'core_collection_cost': [1, 100],     # core_collection_cost
         # 'core_disposal_cost': [1, 100],     # core_disposal_cost
