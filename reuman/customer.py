@@ -78,6 +78,7 @@ class Customer(BaseAgent):
     _active_product: ProductEnum | None
     _oem: OEM
     _patience: int
+    _product_lifespan: int
     _end_of_patience_day: int
     _config: dict
 
@@ -112,72 +113,104 @@ class Customer(BaseAgent):
         """
         match self._state:
             case CustomerStatesEnum.POTENTIAL_USER:
-                # this section is needed to avoid bias towards one product by always checking that first
-                productsToConsider = self._world.get_active_products()
-                rng.shuffle(productsToConsider)
-                for product in productsToConsider:
-                    if (
-                        rng.random()
-                        < product_params[product]["advertising_effectiveness"]
-                    ):  # if a potential user is successfully influenced by ads
-                        self.try_and_buy(rng, product)
-                        break
+                self._handle_potential_user(rng)
             case state if state in [
                 CustomerStatesEnum.WANTS_VIRGIN,
                 CustomerStatesEnum.WANTS_REMAN,
             ]:
-                if self._delivery_day != -1:
-                    if self._world.now() == self._delivery_day:
-                        if self._active_product:
-                            self.become_user(rng, self._active_product)
-                elif (
-                    self._end_of_patience_day != -1
-                    and self._world.now() >= self._end_of_patience_day
-                ):
-                    # Patience ran out
-                    self._state = CustomerStatesEnum.WANTS_ANY
-                else:
-                    if self._active_product is not None:
-                        self.try_and_buy(rng, self._active_product)
-
+                self._handle_waiting_customer(rng)
             case CustomerStatesEnum.WANTS_ANY:
-                productsToConsider = self._world.get_active_products()
-                rng.shuffle(productsToConsider)
-                for product in productsToConsider:
-                    if self._oem.request_product(product):
-                        # Found something to buy
-                        if self._oem._delivery_delay == 0:
-                            self.become_user(rng, product)
-                        else:
-                            self._state = product_params[product]["wants_state"]
-                            self._active_product = product
-                            self._delivery_day = (
-                                self._world.now() + self._oem._delivery_delay
-                            )
-                            self._end_of_patience_day = -1
-                        return
-
+                self._handle_wants_any(rng)
             case state if state in [
                 CustomerStatesEnum.USES_VIRGIN,
                 CustomerStatesEnum.USES_REMAN,
             ]:
-                if self._world.now() == self._end_of_life_day:
-                    product_to_rebuy = self._active_product
+                self._handle_active_user(rng)
 
-                    if (
-                        product_to_rebuy is None
-                    ):  # This seems superfluous but its so python/IDE knows that product to rebuy wont be None
-                        if state == CustomerStatesEnum.USES_REMAN:
-                            product_to_rebuy = ProductEnum.R
-                        else:
-                            product_to_rebuy = ProductEnum.V
+    def _handle_potential_user(self, rng):
+        """
+        Handles logic for customers not yet in the market.
+        """
+        # this section is needed to avoid bias towards one product by always checking that first
+        productsToConsider = self._world.get_active_products()
+        rng.shuffle(productsToConsider)
+        for product in productsToConsider:
+            if (
+                rng.random() < product_params[product]["advertising_effectiveness"]
+            ):  # if a potential user is successfully influenced by ads
+                self.try_and_buy(rng, product)
+                break
 
-                    self._state = product_params[product_to_rebuy]["wants_state"]
-                    self._end_of_life_day = -1
-                    if ProductEnum.R in self._world.get_active_products():
-                        self._oem.return_product(rng)
-                    else:
-                        pass
+    def _handle_waiting_customer(self, rng):
+        """
+        Handles logic for customers waiting for a specific product delivery or stock.
+        """
+        if self._delivery_day != -1:
+            if self._world.now() == self._delivery_day:
+                if self._active_product:
+                    self.become_user(rng, self._active_product)
+        elif (
+            self._end_of_patience_day != -1
+            and self._world.now() >= self._end_of_patience_day
+        ):
+            # Patience ran out
+            self._state = CustomerStatesEnum.WANTS_ANY
+        else:
+            if self._active_product is not None:
+                self.try_and_buy(rng, self._active_product)
+
+    def _handle_wants_any(self, rng):
+        """
+        Handles logic for customers who have lost patience and will take any available product.
+        """
+        productsToConsider = self._world.get_active_products()
+        rng.shuffle(productsToConsider)
+        for product in productsToConsider:
+            if self._oem.request_product(product):
+                # Found something to buy
+                if self._oem._delivery_delay == 0:
+                    self.become_user(rng, product)
+                else:
+                    self._state = product_params[product]["wants_state"]
+                    self._active_product = product
+                    self._delivery_day = (
+                        self._world.now() + self._oem._delivery_delay
+                    )
+                    self._end_of_patience_day = -1
+                return
+
+    def _handle_active_user(self, rng):
+        """
+        Handles logic for customers currently using a product until it reaches end-of-life. Going to add some logic so that customers lose interest at some point. 
+        """
+        if self._world.now() == self._end_of_life_day:
+            
+            # I would say they go into a 'wants any' state
+            # product_to_rebuy = self._active_product
+
+            # if (
+            #     product_to_rebuy is None
+            # ):  # This seems superfluous but its so python/IDE knows that product to rebuy wont be None
+            #     if self._state == CustomerStatesEnum.USES_REMAN:
+            #         product_to_rebuy = ProductEnum.R
+            #     else:
+            #         product_to_rebuy = ProductEnum.V
+            # 
+            # self._state = product_params[product_to_rebuy]["wants_state"]
+            
+            # Instead have a chance for them to lose interest and go back to being a non-user at some rate, 0.1 for show
+            if rng.random() < 0.1:
+                self._state = CustomerStatesEnum.POTENTIAL_USER
+            else:
+                self._state = CustomerStatesEnum.WANTS_ANY
+            
+            self._active_product = None
+            self._delivery_day = -1           
+            self._end_of_life_day = -1
+            if ProductEnum.R in self._world.get_active_products():
+                self._oem.return_product(rng)
+            else:
+                pass
 
     def try_and_buy(self, rng, product: ProductEnum):
         """
@@ -200,12 +233,12 @@ class Customer(BaseAgent):
         else:
             self._state = product_params[product]["wants_state"]
             self._active_product = product
-            if self._end_of_patience_day == -1:
+            if self._end_of_patience_day == -1 and self._patience != -1: # was a bug where patience being -1 was the same as 0, -1 should be infinite patience
                 self._end_of_patience_day = self._world.now() + self._patience
 
     def become_user(self, rng, product: ProductEnum):
         """
-        Changes the customer to a user of a specified product and sets the product lifespan.
+        Changes the customer to a user of a specified product and sets the product lifespan depending on the config, if none give it uses a triangular distribution.
 
         Args:
             rng (numpy.random.Generator): Random number generator.
@@ -216,10 +249,17 @@ class Customer(BaseAgent):
         self._delivery_day = -1
         self._end_of_patience_day = -1
         
-        # lifespan_range = product_params[product]["lifespan"]
-        lifespan_mean = self._config["mean_lifetime"]
-        lifespan_range = (lifespan_mean - 3, lifespan_mean + 3)
-        lifespan = rng.integers(*lifespan_range)
+        # Determine the lifetime distribution method from config, defaulting to triangular
+        lifetime_method = self._config.get("lifetime_method", "triangular")
+        
+        if lifetime_method == "uniform":
+            lifespan = self.get_uniform_lifetime(rng)
+        elif lifetime_method == "weibull":
+            lifespan = self.get_weibull_lifetime(rng)
+        else:
+            lifespan = self.get_triangular_lifetime(rng)
+
+        self._product_lifespan = lifespan
         self._end_of_life_day = self._world.now() + lifespan
         
     def get_uniform_lifetime(self, rng):
@@ -263,26 +303,24 @@ class Customer(BaseAgent):
         """
         lifespan_mean = self._config["mean_lifetime"]
         
-        # --- Mixture Model Parameters ---
-        # (Tip: You might want to move these constants into self._config later)
+        # Set up the weibull parameters for the two halves (early failure and regular long life failure)
         defect_rate = 0.035   # 3.5% chance of early failure
-        early_shape = 0.8     # Infant mortality shape (< 1)
+        early_shape = 0.8     # Distribution shape (steep)
         early_scale = 0.5     # Dies very quickly
-        normal_shape = 4.0    # Standard wear-out shape for hardware
+        normal_shape = 4.0    # Regular  shape
         
-        # Dynamically calculate the scale for the normal units so it hits your config's target mean.
-        # For a Weibull with a shape of 4.0, the Mean ≈ Scale * 0.906
+        # For a Weibull with a shape of 4.0, the Mean ≈ Scale * 0.906. Not sure the extent to which this is generalisable.
         normal_scale = lifespan_mean / 0.906 
         
-        # 1. Determine which batch this specific agent belongs to
+        # Determine if its early failure or not.
         if rng.random() < defect_rate:
-            # It's a defective unit! Draw from the early failure curve.
+            # Draw from the early failure curve.
             raw_lifespan = rng.weibull(early_shape) * early_scale
         else:
-            # It's a normal unit! Draw from the wear-out curve.
+            # If normal, draw from the wear-out curve.
             raw_lifespan = rng.weibull(normal_shape) * normal_scale
             
-        return raw_lifespan
+        return max(1, int(round(raw_lifespan))) # Rounded to the nearest integer
         
 
 # Inherits everything from the normal customer class and does nothing different. You need 'pass' because you can't have an empty class, even if it inherits other stuff.
