@@ -221,7 +221,69 @@ class Customer(BaseAgent):
         lifespan_range = (lifespan_mean - 3, lifespan_mean + 3)
         lifespan = rng.integers(*lifespan_range)
         self._end_of_life_day = self._world.now() + lifespan
+        
+    def get_uniform_lifetime(self, rng):
+        """
+        Generates a uniform lifetime for the product based on the mean lifetime.
 
+        Args:
+            rng (numpy.random.Generator): Random number generator.
+
+        Returns:
+            int: The generated lifetime.
+        """
+        lifespan_mean = self._config["mean_lifetime"]
+        lifespan_variation = self._config.get("lifetime_range", 3)
+        lifespan_range = (lifespan_mean - lifespan_variation, lifespan_mean + lifespan_variation)
+        return rng.integers(*lifespan_range)
+    
+    def get_triangular_lifetime(self, rng):
+        """
+        Generates a triangular lifetime for the product based on the mean lifetime.
+        
+        Args:
+            rng (numpy.random.Generator): Random number generator.
+
+        Returns:
+            int: The generated lifetime.
+        """
+        lifespan_mean = self._config["mean_lifetime"]
+        lifespan_variation = self._config.get("lifetime_range", 3)
+        return rng.triangular(lifespan_mean - lifespan_variation, lifespan_mean, lifespan_mean + lifespan_variation)
+    
+    def get_weibull_lifetime(self, rng):
+        """
+        Generates a Weibull lifetime for the product based on the mean lifetime.
+        
+        Args:
+            rng (numpy.random.Generator): Random number generator.
+
+        Returns:
+            int: The generated lifetime.
+        """
+        lifespan_mean = self._config["mean_lifetime"]
+        
+        # --- Mixture Model Parameters ---
+        # (Tip: You might want to move these constants into self._config later)
+        defect_rate = 0.035   # 3.5% chance of early failure
+        early_shape = 0.8     # Infant mortality shape (< 1)
+        early_scale = 0.5     # Dies very quickly
+        normal_shape = 4.0    # Standard wear-out shape for hardware
+        
+        # Dynamically calculate the scale for the normal units so it hits your config's target mean.
+        # For a Weibull with a shape of 4.0, the Mean ≈ Scale * 0.906
+        normal_scale = lifespan_mean / 0.906 
+        
+        # 1. Determine which batch this specific agent belongs to
+        if rng.random() < defect_rate:
+            # It's a defective unit! Draw from the early failure curve.
+            raw_lifespan = rng.weibull(early_shape) * early_scale
+        else:
+            # It's a normal unit! Draw from the wear-out curve.
+            raw_lifespan = rng.weibull(normal_shape) * normal_scale
+            
+        return raw_lifespan
+        
 
 # Inherits everything from the normal customer class and does nothing different. You need 'pass' because you can't have an empty class, even if it inherits other stuff.
 class B2B_Customer(Customer):
