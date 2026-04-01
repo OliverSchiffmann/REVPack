@@ -213,7 +213,7 @@ class Customer(BaseAgent):
                 if rng.random() < self._core_return_rate:
                     self._oem.return_product(rng)
                 else:
-                    self._oem._total_cores_collected += 1
+                    self._oem._total_cores_not_collected += 1
             else:
                 pass
 

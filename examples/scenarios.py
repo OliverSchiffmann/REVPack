@@ -29,7 +29,7 @@ dict_default = {
             "mean_lifetime": 0.7*365, 
             "lifetime_method": "weibull",
             "lifetime_range": 3,
-            "core_return_rate": 0.4,
+            "core_return_rate": 0.5,
         },
         "b2c_customer": {
             "patience": -1,
