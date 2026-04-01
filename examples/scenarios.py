@@ -8,6 +8,7 @@ dict_default = {
             "B2C_population": 0,
             "seed": 1,
             "enable_reman": True,
+            "starting_customers": 500,
         },
         "oem": {
             "delivery_delay": 1,
@@ -18,18 +19,18 @@ dict_default = {
             "core_stock": 0,
             "unit_production_cost_V": 500.0, # Euros very approximately
             "unit_production_cost_R": 300.0,
-            "core_acceptance_rate": 0.6,
+            "core_acceptance_rate": 1,
             "core_collection_cost": 20,
             "core_disposal_cost": 20,
             "retail_price_V": 1000, # Likewise Euros approx
             "retail_price_R": 1000,
         },
         "b2b_customer": {
-            "patience": 10,
+            "patience": 0,
             "mean_lifetime": 0.7*365, 
-            "lifetime_method": "weibull",
-            "lifetime_range": 3,
-            "core_return_rate": 0.5,
+            "lifetime_method": "triangular",
+            "lifetime_range": 100,
+            "core_return_rate": 1,
         },
         "b2c_customer": {
             "patience": -1,

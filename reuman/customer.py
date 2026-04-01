@@ -47,7 +47,7 @@ class ProductDetails(TypedDict):
 product_params: dict[ProductEnum, ProductDetails] = {
     ProductEnum.V: {
         "lifespan": (17, 24),  # number of days that a product might last for when in use
-        "advertising_effectiveness": 0.011,
+        "advertising_effectiveness": 0,
         "wom_threshold": 0.015,
         "wants_state": CustomerStatesEnum.WANTS_VIRGIN,
         "uses_state": CustomerStatesEnum.USES_VIRGIN,
@@ -55,7 +55,7 @@ product_params: dict[ProductEnum, ProductDetails] = {
     },
     ProductEnum.R: {
         "lifespan": (17, 24),
-        "advertising_effectiveness": 0.011,
+        "advertising_effectiveness": 0.0006,
         "wom_threshold": 0.015,
         "wants_state": CustomerStatesEnum.WANTS_REMAN,
         "uses_state": CustomerStatesEnum.USES_REMAN,
@@ -201,7 +201,7 @@ class Customer(BaseAgent):
             # self._state = product_params[product_to_rebuy]["wants_state"]
             
             # Instead have a chance for them to lose interest and go back to being a non-user at some rate, 0.1 for show
-            if rng.random() < 0.3:
+            if rng.random() < 0:
                 self._state = CustomerStatesEnum.POTENTIAL_USER
             else:
                 self._state = CustomerStatesEnum.WANTS_ANY
@@ -240,6 +240,17 @@ class Customer(BaseAgent):
             self._active_product = product
             if self._end_of_patience_day == -1 and self._patience != -1: # was a bug where patience being -1 was the same as 0, -1 should be infinite patience
                 self._end_of_patience_day = self._world.now() + self._patience
+
+    def initialise_as_active_user(self, rng, product: ProductEnum):
+        """
+        Initialises the customer as an active user of the specified product with a randomised remaining lifespan.
+        For creating some existing users.
+        """
+        self.become_user(rng, product)
+        # Randomise the remaining lifespan to simulate users who bought the product at some point in the past
+        if self._product_lifespan > 1:
+            remaining_lifespan = int(rng.integers(1, self._product_lifespan + 1))
+            self._end_of_life_day = self._world.now() + remaining_lifespan
 
     def become_user(self, rng, product: ProductEnum):
         """

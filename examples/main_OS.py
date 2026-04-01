@@ -108,6 +108,15 @@ if __name__ == "__main__":
 
     world.add_agents_from_list(customer_agents)
 
+    # Initialise pre-existing users
+    starting_customers = config["main"].get("starting_customers", 0)
+    if starting_customers > 0:
+        # Randomly choose N agents to already be customers
+        indices = rng.choice(len(customer_agents), size=min(starting_customers, len(customer_agents)), replace=False)
+        for idx in indices:
+            # Initialise these agents as pre-existing customers, assuming all V as the reman hasn't started yet
+            customer_agents[idx].initialise_as_active_user(rng, ProductEnum.V)
+
     for i in range(0, simulation_length):  # model time unit is days
         world.tick()
         # print(f"---------")
@@ -131,6 +140,9 @@ if __name__ == "__main__":
         results["reman_sold"].append(oemAgent._products_sold[ProductEnum.R])
         results["cores_collected"].append(oemAgent._total_cores_collected)
         results["cores_rejected"].append(oemAgent._total_cores_rejected)
+        
+        
+        # Adding the dynamics to add 
 
         world.call_next(rng)
 
