@@ -80,6 +80,7 @@ class Customer(BaseAgent):
     _patience: int
     _product_lifespan: int
     _end_of_patience_day: int
+    _core_return_rate: float
     _config: dict
 
     def __init__(self, id: int, world: World, oem: OEM, config: dict):
@@ -100,6 +101,7 @@ class Customer(BaseAgent):
         super().__init__(id=id, type=AgentEnum.CUSTOMER, world=world)
         self._oem = oem
         self._patience = self._config["patience"]
+        self._core_return_rate = self._config["core_return_rate"]
         self._end_of_patience_day = -1
 
     def next(self, rng):
@@ -199,7 +201,7 @@ class Customer(BaseAgent):
             # self._state = product_params[product_to_rebuy]["wants_state"]
             
             # Instead have a chance for them to lose interest and go back to being a non-user at some rate, 0.1 for show
-            if rng.random() < 0.1:
+            if rng.random() < 0.3:
                 self._state = CustomerStatesEnum.POTENTIAL_USER
             else:
                 self._state = CustomerStatesEnum.WANTS_ANY
@@ -208,7 +210,10 @@ class Customer(BaseAgent):
             self._delivery_day = -1           
             self._end_of_life_day = -1
             if ProductEnum.R in self._world.get_active_products():
-                self._oem.return_product(rng)
+                if rng.random() < self._core_return_rate:
+                    self._oem.return_product(rng)
+                else:
+                    self._oem._total_cores_collected += 1
             else:
                 pass
 
@@ -289,7 +294,8 @@ class Customer(BaseAgent):
         """
         lifespan_mean = self._config["mean_lifetime"]
         lifespan_variation = self._config.get("lifetime_range", 3)
-        return rng.triangular(lifespan_mean - lifespan_variation, lifespan_mean, lifespan_mean + lifespan_variation)
+        raw_lifespan = rng.triangular(lifespan_mean - lifespan_variation, lifespan_mean, lifespan_mean + lifespan_variation)
+        return max(1, int(round(raw_lifespan))) # Rounded to the nearest integer 
     
     def get_weibull_lifetime(self, rng):
         """

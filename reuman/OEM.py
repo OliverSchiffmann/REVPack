@@ -36,6 +36,7 @@ class OEM(BaseAgent):
     _core_acceptance_rate: float
     _total_cores_collected: int
     _total_cores_rejected: int
+    _total_cores_not_collected: int
     _unit_production_cost_V: float
     _unit_production_cost_R: float
     _core_collection_cost: float
@@ -79,6 +80,7 @@ class OEM(BaseAgent):
         self._core_acceptance_rate = config["core_acceptance_rate"]
         self._total_cores_collected = 0
         self._total_cores_rejected = 0
+        self._total_cores_not_collected = 0
         self._unit_production_cost_V = config["unit_production_cost_V"]
         self._unit_production_cost_R = config["unit_production_cost_R"]
         self._core_collection_cost = config["core_collection_cost"]
@@ -130,6 +132,7 @@ class OEM(BaseAgent):
         else:
             self._total_cores_rejected += 1
             pass
+
 
     def update_production(self):
         """
@@ -226,6 +229,7 @@ class OEM(BaseAgent):
                 "Reman units produced": self._total_products_produced[ProductEnum.R],
                 "Reman units sold": self._products_sold[ProductEnum.R],
                 "Cores collected": self._total_cores_collected,
+                "Cores not collected": self._total_cores_not_collected,
                 "Cores accepted": (
                     self._total_cores_collected - self._total_cores_rejected
                 ),
