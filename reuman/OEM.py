@@ -156,9 +156,7 @@ class OEM(BaseAgent):
                     #     f"Factory Stock of {product.name}: {self._factory_stock[product]:.4f}"
                     # )
                 case ProductEnum.R:
-                    desired_production = (
-                        self._world._num_to_man[product]
-                    ) / self._remanufacture_delay
+                    desired_production = self._world._num_to_man[product] / self._remanufacture_delay
                     maximum_production = self._core_stock / self._remanufacture_delay
 
                     self._production_rate[product] = min(
@@ -166,9 +164,7 @@ class OEM(BaseAgent):
                     )
 
                     self._factory_stock[product] += self._production_rate[product]
-                    self._total_products_produced[product] += self._production_rate[
-                        product
-                    ]
+                    self._total_products_produced[product] += self._production_rate[product]
                     self._core_stock -= self._production_rate[product]
                     # print(f"Core stock: {self._core_stock:.4f}")
                     # print(
