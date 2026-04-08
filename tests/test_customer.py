@@ -53,7 +53,7 @@ class TestCustomer(unittest.TestCase):
         self.assertEqual(self.customer._active_product, ProductEnum.V)
         self.assertNotEqual(self.customer._end_of_life_day, -1)
 
-    def test_try_and_buy_with_stock(self):
+    def test_try_buy_with_stock(self):
         """Test purchasing when the OEM has stock and zero delivery delay."""
         # The OEM is set up with 10 units of Virgin stock in setUp
         self.customer.try_and_buy(self.rng, ProductEnum.V)
@@ -61,7 +61,7 @@ class TestCustomer(unittest.TestCase):
         self.assertEqual(self.customer.state(), CustomerStatesEnum.USES_VIRGIN)
         self.assertEqual(self.oem._factory_stock[ProductEnum.V], 9)  # 1 unit should be deducted
 
-    def test_try_and_buy_no_stock(self):
+    def test_try_buy_no_stock(self):
         """Test purchasing when the OEM is out of stock, shifting the customer to a waiting state."""
         # Deplete OEM stock entirely
         self.oem._factory_stock[ProductEnum.V] = 0
