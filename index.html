@@ -1,0 +1,554 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>REVPack Web Scenario Builder</title>
+
+    <!-- Tailwind CSS for styling -->
+    <script src="https://cdn.tailwindcss.com"></script>
+
+    <!-- Chart.js for visualization -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+    <!-- PyScript for running Python in the browser -->
+    <link
+      rel="stylesheet"
+      href="https://pyscript.net/releases/2024.1.1/core.css"
+    />
+    <script
+      type="module"
+      src="https://pyscript.net/releases/2024.1.1/core.js"
+    ></script>
+
+    <!-- PyScript Configuration (Loads your local Python files into the browser VFS) -->
+    <py-config>
+      { "packages": ["numpy", "matplotlib"], "fetch": [ {"from":
+      "examples/main_OS.py", "to_file": "main_OS.py"}, {"from":
+      "reuman/__init__.py", "to_file": "reuman/__init__.py"}, {"from":
+      "reuman/_agent.py", "to_file": "reuman/_agent.py"}, {"from":
+      "reuman/customer.py", "to_file": "reuman/customer.py"}, {"from":
+      "reuman/message.py", "to_file": "reuman/message.py"}, {"from":
+      "reuman/OEM.py", "to_file": "reuman/OEM.py"}, {"from":
+      "reuman/product.py", "to_file": "reuman/product.py"}, {"from":
+      "reuman/world.py", "to_file": "reuman/world.py"} ] }
+    </py-config>
+  </head>
+  <body class="bg-gray-100 p-8 font-sans">
+    <div class="max-w-7xl mx-auto space-y-6">
+      <!-- Header -->
+      <div
+        class="bg-white p-6 rounded-lg shadow-md flex justify-between items-center"
+      >
+        <div>
+          <h1 class="text-3xl font-bold text-gray-800">
+            REVPack Scenario Builder
+          </h1>
+          <p class="text-gray-500 mt-1">
+            Configure parameters, run the simulation, and export to Python.
+          </p>
+        </div>
+        <div class="space-x-4 flex">
+          <button
+            id="export-btn"
+            onclick="exportScenario()"
+            class="bg-gray-200 hover:bg-gray-300 text-gray-800 font-bold py-2 px-4 rounded transition"
+          >
+            📥 Export Scenario (.py)
+          </button>
+          <button
+            id="run-btn"
+            class="bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-6 rounded shadow transition"
+          >
+            ▶ Run Simulation
+          </button>
+        </div>
+      </div>
+
+      <!-- Main Layout -->
+      <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        <!-- Settings Panel -->
+        <div
+          class="bg-white p-6 rounded-lg shadow-md lg:col-span-1 h-[800px] overflow-y-auto"
+        >
+          <h2 class="text-xl font-bold mb-4 border-b pb-2">Parameters</h2>
+
+          <form id="scenario-form" class="space-y-6 text-sm">
+            <!-- MAIN CONFIG -->
+            <div>
+              <h3 class="font-bold text-gray-700 mb-2">Main Settings</h3>
+              <div class="grid grid-cols-2 gap-4">
+                <div>
+                  <label class="block text-gray-600"
+                    >Simulation Length (Days)</label
+                  >
+                  <input
+                    type="number"
+                    id="sim_length"
+                    value="1000"
+                    class="w-full border p-1 rounded mt-1"
+                  />
+                </div>
+                <div>
+                  <label class="block text-gray-600">Starting Customers</label>
+                  <input
+                    type="number"
+                    id="start_cust"
+                    value="1000"
+                    class="w-full border p-1 rounded mt-1"
+                  />
+                </div>
+                <div>
+                  <label class="block text-gray-600">B2B Population</label>
+                  <input
+                    type="number"
+                    id="b2b_pop"
+                    value="1000"
+                    class="w-full border p-1 rounded mt-1"
+                  />
+                </div>
+                <div class="flex items-center mt-6">
+                  <input
+                    type="checkbox"
+                    id="enable_reman"
+                    checked
+                    class="mr-2 h-4 w-4"
+                  />
+                  <label class="text-gray-600 font-medium">Enable Reman</label>
+                </div>
+              </div>
+            </div>
+
+            <!-- OEM CONFIG -->
+            <div>
+              <h3 class="font-bold text-gray-700 mb-2 mt-4">OEM Settings</h3>
+              <div class="grid grid-cols-2 gap-4">
+                <div>
+                  <label class="block text-gray-600"
+                    >Virgin Prod Cost (€)</label
+                  >
+                  <input
+                    type="number"
+                    id="cost_v"
+                    value="500"
+                    class="w-full border p-1 rounded mt-1"
+                  />
+                </div>
+                <div>
+                  <label class="block text-gray-600">Reman Prod Cost (€)</label>
+                  <input
+                    type="number"
+                    id="cost_r"
+                    value="300"
+                    class="w-full border p-1 rounded mt-1"
+                  />
+                </div>
+                <div>
+                  <label class="block text-gray-600">Virgin Retail (€)</label>
+                  <input
+                    type="number"
+                    id="retail_v"
+                    value="1000"
+                    class="w-full border p-1 rounded mt-1"
+                  />
+                </div>
+                <div>
+                  <label class="block text-gray-600">Reman Retail (€)</label>
+                  <input
+                    type="number"
+                    id="retail_r"
+                    value="1000"
+                    class="w-full border p-1 rounded mt-1"
+                  />
+                </div>
+                <div>
+                  <label class="block text-gray-600">Manufacture Delay</label>
+                  <input
+                    type="number"
+                    id="man_delay"
+                    value="5"
+                    class="w-full border p-1 rounded mt-1"
+                  />
+                </div>
+                <div>
+                  <label class="block text-gray-600">Remanufacture Delay</label>
+                  <input
+                    type="number"
+                    id="reman_delay"
+                    value="13"
+                    class="w-full border p-1 rounded mt-1"
+                  />
+                </div>
+                <div>
+                  <label class="block text-gray-600"
+                    >Core Acceptance Rate</label
+                  >
+                  <input
+                    type="number"
+                    step="0.1"
+                    id="core_accept"
+                    value="1.0"
+                    class="w-full border p-1 rounded mt-1"
+                  />
+                </div>
+              </div>
+            </div>
+
+            <!-- CUSTOMER CONFIG -->
+            <div>
+              <h3 class="font-bold text-gray-700 mb-2 mt-4">
+                B2B Customer Settings
+              </h3>
+              <div class="grid grid-cols-2 gap-4">
+                <div>
+                  <label class="block text-gray-600">Patience</label>
+                  <input
+                    type="number"
+                    id="b2b_patience"
+                    value="0"
+                    class="w-full border p-1 rounded mt-1"
+                  />
+                </div>
+                <div>
+                  <label class="block text-gray-600">Mean Lifetime</label>
+                  <input
+                    type="number"
+                    id="b2b_mean_life"
+                    value="400"
+                    class="w-full border p-1 rounded mt-1"
+                  />
+                </div>
+              </div>
+            </div>
+          </form>
+        </div>
+
+        <!-- Results Panel -->
+        <div
+          class="bg-white p-6 rounded-lg shadow-md lg:col-span-2 flex flex-col space-y-6"
+        >
+          <!-- Progress Bar (Hidden by default) -->
+          <div id="progress-container" class="hidden">
+            <div class="flex justify-between text-sm text-gray-600 mb-1">
+              <span class="font-bold">Simulation Progress</span>
+              <span id="progress-text">0 / 0 Days</span>
+            </div>
+            <div class="w-full bg-gray-200 rounded-full h-2.5">
+              <div
+                id="progress-bar"
+                class="bg-blue-600 h-2.5 rounded-full transition-all duration-100"
+                style="width: 0%"
+              ></div>
+            </div>
+          </div>
+
+          <!-- Financial Readout -->
+          <div class="grid grid-cols-3 gap-4">
+            <div class="bg-red-50 p-4 rounded-lg border border-red-100">
+              <p class="text-sm text-red-600 font-bold uppercase">Total Cost</p>
+              <p id="out-cost" class="text-2xl font-bold text-red-700">€0</p>
+            </div>
+            <div class="bg-green-50 p-4 rounded-lg border border-green-100">
+              <p class="text-sm text-green-600 font-bold uppercase">
+                Total Revenue
+              </p>
+              <p id="out-revenue" class="text-2xl font-bold text-green-700">
+                €0
+              </p>
+            </div>
+            <div class="bg-blue-50 p-4 rounded-lg border border-blue-100">
+              <p class="text-sm text-blue-600 font-bold uppercase">
+                Net Profit
+              </p>
+              <p id="out-profit" class="text-2xl font-bold text-blue-700">€0</p>
+            </div>
+          </div>
+
+          <!-- Charts -->
+          <div class="flex-grow">
+            <canvas
+              id="statesChart"
+              style="max-height: 300px; width: 100%"
+            ></canvas>
+          </div>
+          <div class="flex-grow">
+            <canvas
+              id="salesChart"
+              style="max-height: 300px; width: 100%"
+            ></canvas>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Javascript Logic for handling the UI and drawing Charts -->
+    <script>
+      let statesChartInstance = null;
+      let salesChartInstance = null;
+
+      // 1. Collect form data and structure it exactly like dict_default
+      function getFormConfig() {
+        return {
+          description: "Web Run",
+          main: {
+            simulation_length: parseInt(
+              document.getElementById("sim_length").value,
+            ),
+            B2B_population: parseInt(document.getElementById("b2b_pop").value),
+            B2C_population: 0,
+            seed: 1,
+            enable_reman: document.getElementById("enable_reman").checked,
+            starting_customers: parseInt(
+              document.getElementById("start_cust").value,
+            ),
+          },
+          oem: {
+            delivery_delay: 1,
+            manufacture_delay: parseInt(
+              document.getElementById("man_delay").value,
+            ),
+            remanufacture_delay: parseInt(
+              document.getElementById("reman_delay").value,
+            ),
+            virgin_stock: 10,
+            reman_stock: 0,
+            core_stock: 0,
+            unit_production_cost_V: parseFloat(
+              document.getElementById("cost_v").value,
+            ),
+            unit_production_cost_R: parseFloat(
+              document.getElementById("cost_r").value,
+            ),
+            core_acceptance_rate: parseFloat(
+              document.getElementById("core_accept").value,
+            ),
+            core_collection_cost: 20,
+            core_disposal_cost: 20,
+            retail_price_V: parseFloat(
+              document.getElementById("retail_v").value,
+            ),
+            retail_price_R: parseFloat(
+              document.getElementById("retail_r").value,
+            ),
+          },
+          b2b_customer: {
+            patience: parseInt(document.getElementById("b2b_patience").value),
+            mean_lifetime: parseInt(
+              document.getElementById("b2b_mean_life").value,
+            ),
+            lifetime_method: "triangular",
+            lifetime_range: 100,
+            core_return_rate: 1.0,
+          },
+          b2c_customer: {
+            patience: -1,
+            mean_lifetime: 1,
+            lifetime_method: "uniform",
+            lifetime_range: 3,
+          },
+        };
+      }
+
+      // Wrapper to expose to PyScript Python
+      window.getFormConfigString = function () {
+        return JSON.stringify(getFormConfig());
+      };
+
+      // 2. Format numbers as currency
+      const formatter = new Intl.NumberFormat("en-IE", {
+        style: "currency",
+        currency: "EUR",
+        maximumFractionDigits: 0,
+      });
+
+      // 3. Receive results from Python and plot them using Chart.js
+      window.plotResults = function (resultsStr, reportStr) {
+        const results = JSON.parse(resultsStr);
+        const report = JSON.parse(reportStr);
+
+        // Update financial text
+        document.getElementById("out-cost").innerText =
+          "-" + formatter.format(report["Total Cost"]);
+        document.getElementById("out-revenue").innerText =
+          "+" + formatter.format(report["Total Revenue"]);
+        document.getElementById("out-profit").innerText = formatter.format(
+          report["Total Revenue"] - report["Total Cost"],
+        );
+
+        // Plot Chart 1: Customer States (Stacked Area)
+        const ctx1 = document.getElementById("statesChart").getContext("2d");
+        if (statesChartInstance) statesChartInstance.destroy();
+        statesChartInstance = new Chart(ctx1, {
+          type: "line",
+          data: {
+            labels: results.day,
+            datasets: [
+              {
+                label: "Potential Users",
+                data: results.potential_users,
+                backgroundColor: "#2fa8e9",
+                fill: true,
+                pointRadius: 0,
+              },
+              {
+                label: "Wants Virgin",
+                data: results.wants_virgin,
+                backgroundColor: "#fb9a99",
+                fill: true,
+                pointRadius: 0,
+              },
+              {
+                label: "Uses Virgin",
+                data: results.uses_virgin,
+                backgroundColor: "#d91c1f",
+                fill: true,
+                pointRadius: 0,
+              },
+              {
+                label: "Wants Reman",
+                data: results.wants_reman,
+                backgroundColor: "#bce499",
+                fill: true,
+                pointRadius: 0,
+              },
+              {
+                label: "Uses Reman",
+                data: results.uses_reman,
+                backgroundColor: "#33a02c",
+                fill: true,
+                pointRadius: 0,
+              },
+              {
+                label: "Wants Any",
+                data: results.wants_any,
+                backgroundColor: "#D1AB23",
+                fill: true,
+                pointRadius: 0,
+              },
+            ],
+          },
+          options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+              title: { display: true, text: "Customer States Over Time" },
+            },
+            scales: {
+              x: { title: { display: true, text: "Day" } },
+              y: { stacked: true, title: { display: true, text: "Customers" } },
+            },
+          },
+        });
+
+        // Plot Chart 2: Sales
+        const ctx2 = document.getElementById("salesChart").getContext("2d");
+        if (salesChartInstance) salesChartInstance.destroy();
+        salesChartInstance = new Chart(ctx2, {
+          type: "line",
+          data: {
+            labels: results.day,
+            datasets: [
+              {
+                label: "Virgin Sold",
+                data: results.virgin_sold,
+                borderColor: "#d91c1f",
+                pointRadius: 0,
+              },
+              {
+                label: "Reman Sold",
+                data: results.reman_sold,
+                borderColor: "#33a02c",
+                pointRadius: 0,
+              },
+            ],
+          },
+          options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: { title: { display: true, text: "Sales" } },
+            scales: {
+              x: { title: { display: true, text: "Day" } },
+              y: { title: { display: true, text: "Units" } },
+            },
+          },
+        });
+      };
+
+      // 4. Export logic - creates a downloadable Python dictionary string
+      window.exportScenario = function () {
+        const config = getFormConfig();
+
+        let pyString = `import copy\n\n`;
+        pyString += `dict_custom = {\n`;
+        pyString += `    "description": "Exported from Web App",\n`;
+
+        // Helper to format JSON blocks into Python dictionary layout
+        const formatDict = (obj) =>
+          JSON.stringify(obj, null, 4)
+            .replace(/true/g, "True")
+            .replace(/false/g, "False")
+            .replace(/\n/g, "\n    ");
+
+        pyString += `    "main": ${formatDict(config.main).trim()},\n`;
+        pyString += `    "oem": ${formatDict(config.oem).trim()},\n`;
+        pyString += `    "b2b_customer": ${formatDict(config.b2b_customer).trim()},\n`;
+        pyString += `    "b2c_customer": ${formatDict(config.b2c_customer).trim()}\n`;
+        pyString += `}\n\n`;
+        pyString += `SCENARIOS = {\n    "Custom": dict_custom\n}\n`;
+
+        // Trigger download
+        const blob = new Blob([pyString], { type: "text/plain" });
+        const a = document.createElement("a");
+        a.href = URL.createObjectURL(blob);
+        a.download = "custom_scenario.py";
+        a.click();
+      };
+    </script>
+
+    <!-- Python Logic mapping PyScript to UI -->
+    <script type="py">
+      import json
+      import asyncio
+      from pyscript import window, document
+      from pyodide.ffi import create_proxy
+
+      # Import your local refactored simulation logic!
+      import main_OS
+
+      def update_progress(current, total):
+          percentage = (current / total) * 100
+          document.getElementById('progress-bar').style.width = f"{percentage}%"
+          document.getElementById('progress-text').innerText = f"{current} / {total} Days"
+
+      async def run_sim_from_web(event):
+          btn = document.getElementById('run-btn')
+          btn.innerText = "Running... (Please Wait)"
+          btn.classList.add("opacity-50", "cursor-not-allowed")
+
+          prog_container = document.getElementById('progress-container')
+          prog_container.classList.remove("hidden")
+          update_progress(0, 100)
+
+          try:
+              # 1. Fetch form settings from Javascript
+              config_str = window.getFormConfigString()
+              config = json.loads(config_str)
+
+              # 2. Run simulation (Entirely within the user's browser!)
+              results, report = await main_OS.run_simulation(config, seed=None, progress_callback=update_progress)
+
+              # 3. Pass data back to Javascript for drawing charts
+              window.plotResults(json.dumps(results), json.dumps(report))
+              update_progress(config["main"]["simulation_length"], config["main"]["simulation_length"])
+
+          except Exception as e:
+              window.alert(f"Simulation Error:\n{str(e)}")
+          finally:
+              btn.innerText = "▶ Run Simulation"
+              btn.classList.remove("opacity-50", "cursor-not-allowed")
+
+      # Bind the Python function to the button click event
+      document.getElementById("run-btn").addEventListener("click", create_proxy(run_sim_from_web))
+    </script>
+  </body>
+</html>

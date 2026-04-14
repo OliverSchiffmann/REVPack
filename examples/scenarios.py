@@ -8,7 +8,7 @@ dict_default = {
             "B2C_population": 0,
             "seed": 1,
             "enable_reman": True,
-            "starting_customers": 500,
+            "starting_customers": 1000,
         },
         "oem": {
             "delivery_delay": 1, # Doesn't change much, however also the potential to introduce local/national/international distribution?

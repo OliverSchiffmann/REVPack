@@ -10,6 +10,74 @@ from numpy import random
 import matplotlib.pyplot as plt
 import importlib.util
 import os, json
+import asyncio
+
+async def run_simulation(config, seed=None, progress_callback=None):
+    """Runs the simulation given a config dictionary and returns the results arrays and report."""
+    if seed is not None:
+        rng = random.default_rng(seed=seed)
+    else:
+        rng = random.default_rng(config["main"]["seed"])
+        
+    world = World(enable_reman=config["main"]["enable_reman"])
+
+    B2B_population: int = config["main"]["B2B_population"]
+    B2C_population: int = config["main"]["B2C_population"]
+    simulation_length: int = config["main"]["simulation_length"]
+
+    results = {
+        "day": [], "potential_users": [], "wants_virgin": [], "uses_virgin": [],
+        "wants_reman": [], "uses_reman": [], "wants_any": [], "core_stock": [],
+        "virgin_stock": [], "reman_stock": [], "virgin_sold": [], "reman_sold": [],
+        "cores_collected": [], "cores_rejected": [],
+    }
+
+    oemAgent = OEM(id=-1, world=world, config=config["oem"])
+    world.add_agent(oemAgent)
+
+    idIterator = 1
+    customer_agents = []
+
+    [customer_agents.append(B2B_Customer(id=id, world=world, oem=oemAgent, config=config["b2b_customer"])) for id in range(idIterator, idIterator + B2B_population)]    
+    idIterator += B2B_population
+    [customer_agents.append(B2C_Customer(id=id, world=world, oem=oemAgent, config=config["b2c_customer"])) for id in range(idIterator, idIterator + B2C_population)]
+    idIterator += B2C_population
+
+    world.add_agents_from_list(customer_agents)
+
+    starting_customers = config["main"].get("starting_customers", 0)
+    if starting_customers > 0:
+        indices = rng.choice(len(customer_agents), size=min(starting_customers, len(customer_agents)), replace=False)
+        for idx in indices:
+            customer_agents[idx].initialise_as_active_user(rng, ProductEnum.V)
+
+    for i in range(0, simulation_length):
+        world.tick()
+        results["day"].append(world.now())
+        results["potential_users"].append(world._num_potential_users)
+        results["wants_virgin"].append(world._num_wants[ProductEnum.V])
+        results["uses_virgin"].append(world._num_uses[ProductEnum.V])
+        results["wants_reman"].append(world._num_wants[ProductEnum.R])
+        results["uses_reman"].append(world._num_uses[ProductEnum.R])
+        results["wants_any"].append(world._num_wants_any)
+        results["core_stock"].append(oemAgent._core_stock)
+        results["virgin_stock"].append(oemAgent._factory_stock[ProductEnum.V])
+        results["reman_stock"].append(oemAgent._factory_stock[ProductEnum.R])
+        results["virgin_sold"].append(oemAgent._products_sold[ProductEnum.V])
+        results["reman_sold"].append(oemAgent._products_sold[ProductEnum.R])
+        results["cores_collected"].append(oemAgent._total_cores_collected)
+        results["cores_rejected"].append(oemAgent._total_cores_rejected)
+        world.call_next(rng)
+
+        # Yield to the browser every 1% of the simulation so it can update the UI progress bar
+        if progress_callback is not None:
+            update_interval = max(1, simulation_length // 100)
+            if i % update_interval == 0:
+                progress_callback(i, simulation_length)
+                await asyncio.sleep(0)
+
+    report = oemAgent.generate_financial_report()
+    return results, report
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Run Economic Feasibility Model")
@@ -62,91 +130,9 @@ if __name__ == "__main__":
     print(f"Description: {config['description']}")
     print("-" * 40)
 
-    if args.seed is not None:
-        rng = random.default_rng(seed=args.seed)
-    else:
-        rng = random.default_rng(config["main"]["seed"])
-    world = World(
-        enable_reman=config["main"]["enable_reman"]
-    )  # Toggle reman on/off with True/False
+    # Run the extracted simulation logic
+    results, report = asyncio.run(run_simulation(config, args.seed))
 
-    B2B_population: int = config["main"]["B2B_population"]
-    B2C_population: int = config["main"]["B2C_population"]
-    simulation_length: int = config["main"]["simulation_length"]  # number of DAYS the simulation runs for
-
-    results = {
-        "day": [],
-        "potential_users": [],
-        "wants_virgin": [],
-        "uses_virgin": [],
-        "wants_reman": [],
-        "uses_reman": [],
-        "wants_any": [],
-        "core_stock": [],
-        "virgin_stock": [],
-        "reman_stock": [],
-        "virgin_sold": [],
-        "reman_sold": [],
-        "cores_collected": [],
-        "cores_rejected": [],
-    }
-
-    # Adds the OEM agent to the world
-    oemAgent = OEM(id=-1, world=world, config=config["oem"])
-    world.add_agent(oemAgent)
-
-    idIterator = 1
-    
-    # Adds the customers
-    customer_agents = []
-
-    [customer_agents.append(B2B_Customer(id=id, world=world, oem=oemAgent, config=config["b2b_customer"])) for id in range(idIterator, idIterator + B2B_population)]    
-    idIterator += B2B_population
-
-    [customer_agents.append(B2C_Customer(id=id, world=world, oem=oemAgent, config=config["b2c_customer"])) for id in range(idIterator, idIterator + B2C_population)]
-    idIterator += B2C_population
-
-    world.add_agents_from_list(customer_agents)
-
-    # Initialise pre-existing users
-    starting_customers = config["main"].get("starting_customers", 0)
-    if starting_customers > 0:
-        # Randomly choose N agents to already be customers
-        indices = rng.choice(len(customer_agents), size=min(starting_customers, len(customer_agents)), replace=False)
-        for idx in indices:
-            # Initialise these agents as pre-existing customers, assuming all V as the reman hasn't started yet
-            customer_agents[idx].initialise_as_active_user(rng, ProductEnum.V)
-
-    for i in range(0, simulation_length):  # model time unit is days
-        world.tick()
-        # print(f"---------")
-        # print(f"Day {world.now()}:\n")
-
-        # print(
-        #     f"Potential users: {world._num_potential_users},\n Wanting Virgin: {world._num_wants[ProductEnum.V]}, Using Virgin: {world._num_uses[ProductEnum.V]}\n Wanting Reman: {world._num_wants[ProductEnum.R]}, Using Reman: {world._num_uses[ProductEnum.R]}\n, Want Any: {world._num_wants_any}"
-        # )
-
-        results["day"].append(world.now())
-        results["potential_users"].append(world._num_potential_users)
-        results["wants_virgin"].append(world._num_wants[ProductEnum.V])
-        results["uses_virgin"].append(world._num_uses[ProductEnum.V])
-        results["wants_reman"].append(world._num_wants[ProductEnum.R])
-        results["uses_reman"].append(world._num_uses[ProductEnum.R])
-        results["wants_any"].append(world._num_wants_any)
-        results["core_stock"].append(oemAgent._core_stock)
-        results["virgin_stock"].append(oemAgent._factory_stock[ProductEnum.V])
-        results["reman_stock"].append(oemAgent._factory_stock[ProductEnum.R])
-        results["virgin_sold"].append(oemAgent._products_sold[ProductEnum.V])
-        results["reman_sold"].append(oemAgent._products_sold[ProductEnum.R])
-        results["cores_collected"].append(oemAgent._total_cores_collected)
-        results["cores_rejected"].append(oemAgent._total_cores_rejected)
-        
-        
-        # Adding the dynamics to add 
-
-        world.call_next(rng)
-
-    report = oemAgent.generate_financial_report()
     cost = report["Total Cost"]
     revenue = report["Total Revenue"]
     profit = revenue - cost
