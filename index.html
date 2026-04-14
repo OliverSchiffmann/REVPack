@@ -277,6 +277,12 @@
               style="max-height: 300px; width: 100%"
             ></canvas>
           </div>
+          <div class="flex-grow">
+            <canvas
+              id="stockChart"
+              style="max-height: 300px; width: 100%"
+            ></canvas>
+          </div>
         </div>
       </div>
     </div>
@@ -285,6 +291,7 @@
     <script>
       let statesChartInstance = null;
       let salesChartInstance = null;
+      let stockChartInstance = null;
 
       // 1. Collect form data and structure it exactly like dict_default
       function getFormConfig() {
@@ -469,6 +476,45 @@
             scales: {
               x: { title: { display: true, text: "Day" } },
               y: { title: { display: true, text: "Units" } },
+            },
+          },
+        });
+
+        // Plot Chart 4: Stock counts
+        const ctx3 = document.getElementById("stockChart").getContext("2d");
+        if (stockChartInstance) stockChartInstance.destroy();
+        stockChartInstance = new Chart(ctx3, {
+          type: "line",
+          data: {
+            labels: results.day,
+            datasets: [
+              {
+                label: "Virgin Stock",
+                data: results.virgin_stock,
+                borderColor: "#d91c1f",
+                pointRadius: 0,
+              },
+              {
+                label: "Reman Stock",
+                data: results.reman_stock,
+                borderColor: "#33a02c",
+                pointRadius: 0,
+              },
+              {
+                label: "Core Stock",
+                data: results.core_stock,
+                borderColor: "#2fa8e9",
+                pointRadius: 0,
+              },
+            ],
+            options: {
+              responsive: true,
+              maintainAspectRatio: false,
+              plugins: { title: { display: true, text: "Sales" } },
+              scales: {
+                x: { title: { display: true, text: "Day" } },
+                y: { title: { display: true, text: "Units" } },
+              },
             },
           },
         });
