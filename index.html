@@ -21,18 +21,25 @@
       src="https://pyscript.net/releases/2024.1.1/core.js"
     ></script>
 
-    <!-- PyScript Configuration (Loads your local Python files into the browser VFS) -->
-    <py-config>
-      { "packages": ["numpy", "matplotlib"], "fetch": [ {"from":
-      "examples/main_OS.py", "to_file": "main_OS.py"}, {"from":
-      "reuman/__init__.py", "to_file": "reuman/__init__.py"}, {"from":
-      "reuman/_agent.py", "to_file": "reuman/_agent.py"}, {"from":
-      "reuman/customer.py", "to_file": "reuman/customer.py"}, {"from":
-      "reuman/message.py", "to_file": "reuman/message.py"}, {"from":
-      "reuman/OEM.py", "to_file": "reuman/OEM.py"}, {"from":
-      "reuman/product.py", "to_file": "reuman/product.py"}, {"from":
-      "reuman/world.py", "to_file": "reuman/world.py"} ] }
-    </py-config>
+    <!-- Dynamic PyScript Configuration with Cache Busting -->
+    <script>
+      const ts = new Date().getTime();
+      const pyConfig = document.createElement("py-config");
+      pyConfig.innerHTML = JSON.stringify({
+        packages: ["numpy", "matplotlib"],
+        fetch: [
+          { from: `examples/main_OS.py?v=${ts}`, to_file: "main_OS.py" },
+          { from: `reuman/__init__.py?v=${ts}`, to_file: "reuman/__init__.py" },
+          { from: `reuman/_agent.py?v=${ts}`, to_file: "reuman/_agent.py" },
+          { from: `reuman/customer.py?v=${ts}`, to_file: "reuman/customer.py" },
+          { from: `reuman/message.py?v=${ts}`, to_file: "reuman/message.py" },
+          { from: `reuman/OEM.py?v=${ts}`, to_file: "reuman/OEM.py" },
+          { from: `reuman/product.py?v=${ts}`, to_file: "reuman/product.py" },
+          { from: `reuman/world.py?v=${ts}`, to_file: "reuman/world.py" },
+        ],
+      });
+      document.head.appendChild(pyConfig);
+    </script>
   </head>
   <body class="bg-gray-100 p-8 font-sans">
     <div class="max-w-7xl mx-auto space-y-6">
@@ -90,32 +97,115 @@
                   />
                 </div>
                 <div>
-                  <label class="block text-gray-600">Starting Customers</label>
+                  <label class="block text-gray-600">Total Population</label>
                   <input
                     type="number"
-                    id="start_cust"
+                    id="total_pop"
                     value="1000"
+                    min="0"
                     class="w-full border p-1 rounded mt-1"
                   />
                 </div>
                 <div>
-                  <label class="block text-gray-600">B2B Population</label>
+                  <div class="flex justify-between items-center">
+                    <label class="block text-gray-600"
+                      >Starting Customers:</label
+                    >
+                    <input
+                      type="number"
+                      id="start_cust_val"
+                      value="333"
+                      min="0"
+                      max="1000"
+                      class="w-16 border p-1 rounded text-right text-sm"
+                    />
+                  </div>
                   <input
-                    type="number"
+                    type="range"
+                    id="start_cust"
+                    value="333"
+                    min="0"
+                    max="1000"
+                    class="w-full mt-2"
+                  />
+                </div>
+                <div>
+                  <div class="flex justify-between items-center">
+                    <label class="block text-gray-600">B2B Population:</label>
+                    <input
+                      type="number"
+                      id="b2b_pop_val"
+                      value="1000"
+                      min="0"
+                      max="1000"
+                      class="w-16 border p-1 rounded text-right text-sm"
+                    />
+                  </div>
+                  <input
+                    type="range"
                     id="b2b_pop"
                     value="1000"
-                    class="w-full border p-1 rounded mt-1"
+                    min="0"
+                    max="1000"
+                    class="w-full mt-2"
                   />
                 </div>
-                <div class="flex items-center mt-6">
-                  <input
-                    type="checkbox"
-                    id="enable_reman"
-                    checked
-                    class="mr-2 h-4 w-4"
-                  />
-                  <label class="text-gray-600 font-medium">Enable Reman</label>
-                </div>
+                <script>
+                  const totalPopInput = document.getElementById("total_pop");
+                  const startCustSlider = document.getElementById("start_cust");
+                  const startCustVal =
+                    document.getElementById("start_cust_val");
+                  const b2bPopSlider = document.getElementById("b2b_pop");
+                  const b2bPopVal = document.getElementById("b2b_pop_val");
+
+                  function updateTotalPop() {
+                    const total = parseInt(totalPopInput.value) || 0;
+
+                    startCustSlider.max = total;
+                    startCustVal.max = total;
+                    if (parseInt(startCustSlider.value) > total) {
+                      startCustSlider.value = total;
+                    }
+                    startCustVal.value = startCustSlider.value;
+
+                    b2bPopSlider.max = total;
+                    b2bPopVal.max = total;
+                    if (parseInt(b2bPopSlider.value) > total) {
+                      b2bPopSlider.value = total;
+                    }
+                    b2bPopVal.value = b2bPopSlider.value;
+                  }
+
+                  totalPopInput.addEventListener("input", updateTotalPop);
+
+                  startCustSlider.addEventListener("input", function () {
+                    startCustVal.value = this.value;
+                  });
+
+                  b2bPopSlider.addEventListener("input", function () {
+                    b2bPopVal.value = this.value;
+                  });
+
+                  startCustVal.addEventListener("input", function () {
+                    let val = parseInt(this.value) || 0;
+                    const max = parseInt(this.max) || 0;
+                    if (val > max) {
+                      val = max;
+                      this.value = max;
+                    }
+                    startCustSlider.value = val;
+                  });
+
+                  b2bPopVal.addEventListener("input", function () {
+                    let val = parseInt(this.value) || 0;
+                    const max = parseInt(this.max) || 0;
+                    if (val > max) {
+                      val = max;
+                      this.value = max;
+                    }
+                    b2bPopSlider.value = val;
+                  });
+                </script>
               </div>
             </div>
 
@@ -175,7 +265,7 @@
                   <input
                     type="number"
                     id="reman_delay"
-                    value="13"
+                    value="4"
                     class="w-full border p-1 rounded mt-1"
                   />
                 </div>
@@ -205,7 +295,7 @@
                   <input
                     type="number"
                     id="b2b_patience"
-                    value="0"
+                    value="-1"
                     class="w-full border p-1 rounded mt-1"
                   />
                 </div>
@@ -214,7 +304,7 @@
                   <input
                     type="number"
                     id="b2b_mean_life"
-                    value="400"
+                    value="200"
                     class="w-full border p-1 rounded mt-1"
                   />
                 </div>
@@ -243,45 +333,127 @@
           </div>
 
           <!-- Financial Readout -->
-          <div class="grid grid-cols-3 gap-4">
-            <div class="bg-red-50 p-4 rounded-lg border border-red-100">
-              <p class="text-sm text-red-600 font-bold uppercase">Total Cost</p>
-              <p id="out-cost" class="text-2xl font-bold text-red-700">€0</p>
+          <div class="grid grid-cols-1 xl:grid-cols-2 gap-4">
+            <!-- No Reman -->
+            <div class="bg-gray-50 p-4 rounded-lg border border-gray-200">
+              <h3 class="font-bold text-gray-700 text-lg mb-3 border-b pb-1">
+                No Remanufacturing
+              </h3>
+              <div class="grid grid-cols-3 gap-2">
+                <div>
+                  <p class="text-xs text-red-600 font-bold uppercase">
+                    Total Cost
+                  </p>
+                  <p id="out-cost-base" class="text-lg font-bold text-red-700">
+                    €0
+                  </p>
+                </div>
+                <div>
+                  <p class="text-xs text-green-600 font-bold uppercase">
+                    Total Revenue
+                  </p>
+                  <p
+                    id="out-revenue-base"
+                    class="text-lg font-bold text-green-700"
+                  >
+                    €0
+                  </p>
+                </div>
+                <div>
+                  <p class="text-xs text-blue-600 font-bold uppercase">
+                    Net Profit
+                  </p>
+                  <p
+                    id="out-profit-base"
+                    class="text-lg font-bold text-blue-700"
+                  >
+                    €0
+                  </p>
+                </div>
+              </div>
             </div>
-            <div class="bg-green-50 p-4 rounded-lg border border-green-100">
-              <p class="text-sm text-green-600 font-bold uppercase">
-                Total Revenue
-              </p>
-              <p id="out-revenue" class="text-2xl font-bold text-green-700">
-                €0
-              </p>
-            </div>
-            <div class="bg-blue-50 p-4 rounded-lg border border-blue-100">
-              <p class="text-sm text-blue-600 font-bold uppercase">
-                Net Profit
-              </p>
-              <p id="out-profit" class="text-2xl font-bold text-blue-700">€0</p>
+            <!-- With Reman -->
+            <div class="bg-blue-50 p-4 rounded-lg border border-blue-200">
+              <h3
+                class="font-bold text-blue-800 text-lg mb-3 border-b border-blue-200 pb-1"
+              >
+                With Remanufacturing
+              </h3>
+              <div class="grid grid-cols-3 gap-2">
+                <div>
+                  <p class="text-xs text-red-600 font-bold uppercase">
+                    Total Cost
+                  </p>
+                  <p id="out-cost-reman" class="text-lg font-bold text-red-700">
+                    €0
+                  </p>
+                </div>
+                <div>
+                  <p class="text-xs text-green-600 font-bold uppercase">
+                    Total Revenue
+                  </p>
+                  <p
+                    id="out-revenue-reman"
+                    class="text-lg font-bold text-green-700"
+                  >
+                    €0
+                  </p>
+                </div>
+                <div>
+                  <p class="text-xs text-blue-600 font-bold uppercase">
+                    Net Profit
+                  </p>
+                  <p
+                    id="out-profit-reman"
+                    class="text-lg font-bold text-blue-700"
+                  >
+                    €0
+                  </p>
+                </div>
+              </div>
             </div>
           </div>
 
           <!-- Charts -->
-          <div class="flex-grow">
-            <canvas
-              id="statesChart"
-              style="max-height: 300px; width: 100%"
-            ></canvas>
-          </div>
-          <div class="flex-grow">
-            <canvas
-              id="salesChart"
-              style="max-height: 300px; width: 100%"
-            ></canvas>
-          </div>
-          <div class="flex-grow">
-            <canvas
-              id="stockChart"
-              style="max-height: 300px; width: 100%"
-            ></canvas>
+          <div class="grid grid-cols-1 xl:grid-cols-2 gap-6 mt-4">
+            <div class="flex-grow">
+              <canvas
+                id="statesChartBase"
+                style="max-height: 250px; width: 100%"
+              ></canvas>
+            </div>
+            <div class="flex-grow">
+              <canvas
+                id="statesChartReman"
+                style="max-height: 250px; width: 100%"
+              ></canvas>
+            </div>
+
+            <div class="flex-grow">
+              <canvas
+                id="salesChartBase"
+                style="max-height: 250px; width: 100%"
+              ></canvas>
+            </div>
+            <div class="flex-grow">
+              <canvas
+                id="salesChartReman"
+                style="max-height: 250px; width: 100%"
+              ></canvas>
+            </div>
+
+            <div class="flex-grow">
+              <canvas
+                id="stockChartBase"
+                style="max-height: 250px; width: 100%"
+              ></canvas>
+            </div>
+            <div class="flex-grow">
+              <canvas
+                id="stockChartReman"
+                style="max-height: 250px; width: 100%"
+              ></canvas>
+            </div>
           </div>
         </div>
       </div>
@@ -289,22 +461,22 @@
 
     <!-- Javascript Logic for handling the UI and drawing Charts -->
     <script>
-      let statesChartInstance = null;
-      let salesChartInstance = null;
-      let stockChartInstance = null;
+      const charts = {};
 
-      // 1. Collect form data and structure it exactly like dict_default
+      // 1. Collect form data and populate the dictionary of the same format as a typical scenario.
       function getFormConfig() {
+        const totalPop =
+          parseInt(document.getElementById("total_pop").value) || 0;
+        const b2bPop = parseInt(document.getElementById("b2b_pop").value) || 0;
         return {
           description: "Web Run",
           main: {
             simulation_length: parseInt(
               document.getElementById("sim_length").value,
             ),
-            B2B_population: parseInt(document.getElementById("b2b_pop").value),
+            B2B_population: b2bPop,
             B2C_population: 0,
             seed: 1,
-            enable_reman: document.getElementById("enable_reman").checked,
             starting_customers: parseInt(
               document.getElementById("start_cust").value,
             ),
@@ -352,6 +524,7 @@
             mean_lifetime: 1,
             lifetime_method: "uniform",
             lifetime_range: 3,
+            core_return_rate: 1.0,
           },
         };
       }
@@ -368,156 +541,197 @@
         maximumFractionDigits: 0,
       });
 
-      // 3. Receive results from Python and plot them using Chart.js
-      window.plotResults = function (resultsStr, reportStr) {
-        const results = JSON.parse(resultsStr);
-        const report = JSON.parse(reportStr);
-
-        // Update financial text
-        document.getElementById("out-cost").innerText =
-          "-" + formatter.format(report["Total Cost"]);
-        document.getElementById("out-revenue").innerText =
-          "+" + formatter.format(report["Total Revenue"]);
-        document.getElementById("out-profit").innerText = formatter.format(
-          report["Total Revenue"] - report["Total Cost"],
-        );
-
-        // Plot Chart 1: Customer States (Stacked Area)
-        const ctx1 = document.getElementById("statesChart").getContext("2d");
-        if (statesChartInstance) statesChartInstance.destroy();
-        statesChartInstance = new Chart(ctx1, {
-          type: "line",
-          data: {
-            labels: results.day,
-            datasets: [
-              {
-                label: "Potential Users",
-                data: results.potential_users,
-                backgroundColor: "#2fa8e9",
-                fill: true,
-                pointRadius: 0,
-              },
-              {
-                label: "Wants Virgin",
-                data: results.wants_virgin,
-                backgroundColor: "#fb9a99",
-                fill: true,
-                pointRadius: 0,
-              },
-              {
-                label: "Uses Virgin",
-                data: results.uses_virgin,
-                backgroundColor: "#d91c1f",
-                fill: true,
-                pointRadius: 0,
-              },
-              {
-                label: "Wants Reman",
-                data: results.wants_reman,
-                backgroundColor: "#bce499",
-                fill: true,
-                pointRadius: 0,
-              },
-              {
-                label: "Uses Reman",
-                data: results.uses_reman,
-                backgroundColor: "#33a02c",
-                fill: true,
-                pointRadius: 0,
-              },
-              {
-                label: "Wants Any",
-                data: results.wants_any,
-                backgroundColor: "#D1AB23",
-                fill: true,
-                pointRadius: 0,
-              },
-            ],
-          },
-          options: {
-            responsive: true,
-            maintainAspectRatio: false,
-            plugins: {
-              title: { display: true, text: "Customer States Over Time" },
+      function buildStatesChart(canvasId, results, titleText) {
+        if (charts[canvasId]) charts[canvasId].destroy();
+        charts[canvasId] = new Chart(
+          document.getElementById(canvasId).getContext("2d"),
+          {
+            type: "line",
+            data: {
+              labels: results.day,
+              datasets: [
+                {
+                  label: "Potential Users",
+                  data: results.potential_users,
+                  backgroundColor: "#2fa8e9",
+                  fill: true,
+                  pointRadius: 0,
+                },
+                {
+                  label: "Wants Virgin",
+                  data: results.wants_virgin,
+                  backgroundColor: "#fb9a99",
+                  fill: true,
+                  pointRadius: 0,
+                },
+                {
+                  label: "Uses Virgin",
+                  data: results.uses_virgin,
+                  backgroundColor: "#d91c1f",
+                  fill: true,
+                  pointRadius: 0,
+                },
+                {
+                  label: "Wants Reman",
+                  data: results.wants_reman,
+                  backgroundColor: "#bce499",
+                  fill: true,
+                  pointRadius: 0,
+                },
+                {
+                  label: "Uses Reman",
+                  data: results.uses_reman,
+                  backgroundColor: "#33a02c",
+                  fill: true,
+                  pointRadius: 0,
+                },
+                {
+                  label: "Wants Any",
+                  data: results.wants_any,
+                  backgroundColor: "#D1AB23",
+                  fill: true,
+                  pointRadius: 0,
+                },
+              ],
             },
-            scales: {
-              x: { title: { display: true, text: "Day" } },
-              y: { stacked: true, title: { display: true, text: "Customers" } },
-            },
-          },
-        });
-
-        // Plot Chart 2: Sales
-        const ctx2 = document.getElementById("salesChart").getContext("2d");
-        if (salesChartInstance) salesChartInstance.destroy();
-        salesChartInstance = new Chart(ctx2, {
-          type: "line",
-          data: {
-            labels: results.day,
-            datasets: [
-              {
-                label: "Virgin Sold",
-                data: results.virgin_sold,
-                borderColor: "#d91c1f",
-                pointRadius: 0,
-              },
-              {
-                label: "Reman Sold",
-                data: results.reman_sold,
-                borderColor: "#33a02c",
-                pointRadius: 0,
-              },
-            ],
-          },
-          options: {
-            responsive: true,
-            maintainAspectRatio: false,
-            plugins: { title: { display: true, text: "Sales" } },
-            scales: {
-              x: { title: { display: true, text: "Day" } },
-              y: { title: { display: true, text: "Units" } },
-            },
-          },
-        });
-
-        // Plot Chart 4: Stock counts
-        const ctx3 = document.getElementById("stockChart").getContext("2d");
-        if (stockChartInstance) stockChartInstance.destroy();
-        stockChartInstance = new Chart(ctx3, {
-          type: "line",
-          data: {
-            labels: results.day,
-            datasets: [
-              {
-                label: "Virgin Stock",
-                data: results.virgin_stock,
-                borderColor: "#d91c1f",
-                pointRadius: 0,
-              },
-              {
-                label: "Reman Stock",
-                data: results.reman_stock,
-                borderColor: "#33a02c",
-                pointRadius: 0,
-              },
-              {
-                label: "Core Stock",
-                data: results.core_stock,
-                borderColor: "#2fa8e9",
-                pointRadius: 0,
-              },
-            ],
             options: {
               responsive: true,
               maintainAspectRatio: false,
-              plugins: { title: { display: true, text: "Sales" } },
+              plugins: { title: { display: true, text: titleText } },
+              scales: {
+                x: { title: { display: true, text: "Day" } },
+                y: {
+                  stacked: true,
+                  title: { display: true, text: "Customers" },
+                },
+              },
+            },
+          },
+        );
+      }
+
+      function buildSalesChart(canvasId, results, titleText) {
+        if (charts[canvasId]) charts[canvasId].destroy();
+        charts[canvasId] = new Chart(
+          document.getElementById(canvasId).getContext("2d"),
+          {
+            type: "line",
+            data: {
+              labels: results.day,
+              datasets: [
+                {
+                  label: "Virgin Sold",
+                  data: results.virgin_sold,
+                  borderColor: "#d91c1f",
+                  pointRadius: 0,
+                },
+                {
+                  label: "Reman Sold",
+                  data: results.reman_sold,
+                  borderColor: "#33a02c",
+                  pointRadius: 0,
+                },
+              ],
+            },
+            options: {
+              responsive: true,
+              maintainAspectRatio: false,
+              plugins: { title: { display: true, text: titleText } },
               scales: {
                 x: { title: { display: true, text: "Day" } },
                 y: { title: { display: true, text: "Units" } },
               },
             },
           },
-        });
+        );
+      }
+
+      function buildStockChart(canvasId, results, titleText) {
+        if (charts[canvasId]) charts[canvasId].destroy();
+        charts[canvasId] = new Chart(
+          document.getElementById(canvasId).getContext("2d"),
+          {
+            type: "line",
+            data: {
+              labels: results.day,
+              datasets: [
+                {
+                  label: "Virgin Stock",
+                  data: results.virgin_stock,
+                  borderColor: "#d91c1f",
+                  pointRadius: 0,
+                },
+                {
+                  label: "Reman Stock",
+                  data: results.reman_stock,
+                  borderColor: "#33a02c",
+                  pointRadius: 0,
+                },
+                {
+                  label: "Core Stock",
+                  data: results.core_stock,
+                  borderColor: "#2fa8e9",
+                  pointRadius: 0,
+                },
+              ],
+            },
+            options: {
+              responsive: true,
+              maintainAspectRatio: false,
+              plugins: { title: { display: true, text: titleText } },
+              scales: {
+                x: { title: { display: true, text: "Day" } },
+                y: { title: { display: true, text: "Units" } },
+              },
+            },
+          },
+        );
+      }
+
+      // 3. Receive results from Python and plot them using Chart.js
+      window.plotResults = function (
+        resBaseStr,
+        repBaseStr,
+        resRemanStr,
+        repRemanStr,
+      ) {
+        const resBase = JSON.parse(resBaseStr);
+        const repBase = JSON.parse(repBaseStr);
+        const resReman = JSON.parse(resRemanStr);
+        const repReman = JSON.parse(repRemanStr);
+
+        // Update financial text (Base)
+        document.getElementById("out-cost-base").innerText =
+          "-" + formatter.format(repBase["Total Cost"]);
+        document.getElementById("out-revenue-base").innerText =
+          "+" + formatter.format(repBase["Total Revenue"]);
+        document.getElementById("out-profit-base").innerText = formatter.format(
+          repBase["Total Revenue"] - repBase["Total Cost"],
+        );
+
+        // Update financial text (Reman)
+        document.getElementById("out-cost-reman").innerText =
+          "-" + formatter.format(repReman["Total Cost"]);
+        document.getElementById("out-revenue-reman").innerText =
+          "+" + formatter.format(repReman["Total Revenue"]);
+        document.getElementById("out-profit-reman").innerText =
+          formatter.format(repReman["Total Revenue"] - repReman["Total Cost"]);
+
+        // Plot comparing charts
+        buildStatesChart(
+          "statesChartBase",
+          resBase,
+          "Customer States (No Reman)",
+        );
+        buildStatesChart(
+          "statesChartReman",
+          resReman,
+          "Customer States (With Reman)",
+        );
+        buildSalesChart("salesChartBase", resBase, "Sales (No Reman)");
+        buildSalesChart("salesChartReman", resReman, "Sales (With Reman)");
+        buildStockChart("stockChartBase", resBase, "Stock (No Reman)");
+        buildStockChart("stockChartReman", resReman, "Stock (With Reman)");
       };
 
       // 4. Export logic - creates a downloadable Python dictionary string
@@ -573,19 +787,37 @@
 
           prog_container = document.getElementById('progress-container')
           prog_container.classList.remove("hidden")
-          update_progress(0, 100)
 
           try:
               # 1. Fetch form settings from Javascript
               config_str = window.getFormConfigString()
-              config = json.loads(config_str)
+              config_base = json.loads(config_str)
+              config_base["main"]["enable_reman"] = False
 
-              # 2. Run simulation (Entirely within the user's browser!)
-              results, report = await main_OS.run_simulation(config, seed=None, progress_callback=update_progress)
+              config_reman = json.loads(config_str)
+              config_reman["main"]["enable_reman"] = True
 
-              # 3. Pass data back to Javascript for drawing charts
-              window.plotResults(json.dumps(results), json.dumps(report))
-              update_progress(config["main"]["simulation_length"], config["main"]["simulation_length"])
+              sim_length = config_base["main"]["simulation_length"]
+              total_days = sim_length * 2
+              update_progress(0, total_days)
+
+              def make_progress_callback(offset):
+                  def cb(current, total):
+                      update_progress(offset + current, total_days)
+                  return cb
+
+              # 2. Run both simulations (Entirely within the user's browser!)
+              results_base, report_base = await main_OS.run_simulation(
+                  config_base, seed=config_base["main"]["seed"], progress_callback=make_progress_callback(0)
+              )
+
+              results_reman, report_reman = await main_OS.run_simulation(
+                  config_reman, seed=config_reman["main"]["seed"], progress_callback=make_progress_callback(sim_length)
+              )
+
+              # 3. Pass all data back to Javascript for drawing comparative charts
+              window.plotResults(json.dumps(results_base), json.dumps(report_base), json.dumps(results_reman), json.dumps(report_reman))
+              update_progress(total_days, total_days)
 
           except Exception as e:
               window.alert(f"Simulation Error:\n{str(e)}")

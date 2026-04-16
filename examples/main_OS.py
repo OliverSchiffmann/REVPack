@@ -27,9 +27,9 @@ async def run_simulation(config, seed=None, progress_callback=None):
 
     results = {
         "day": [], "potential_users": [], "wants_virgin": [], "uses_virgin": [],
-        "wants_reman": [], "uses_reman": [], "wants_any": [], "core_stock": [],
-        "virgin_stock": [], "reman_stock": [], "virgin_sold": [], "reman_sold": [],
-        "cores_collected": [], "cores_rejected": [],
+        "wants_reman": [], "uses_reman": [], "wants_any": [], "waiting_for_delivery": [],
+        "core_stock": [], "virgin_stock": [], "reman_stock": [], "virgin_sold": [], 
+        "reman_sold": [], "cores_collected": [], "cores_rejected": [],
     }
 
     oemAgent = OEM(id=-1, world=world, config=config["oem"])
@@ -60,6 +60,7 @@ async def run_simulation(config, seed=None, progress_callback=None):
         results["wants_reman"].append(world._num_wants[ProductEnum.R])
         results["uses_reman"].append(world._num_uses[ProductEnum.R])
         results["wants_any"].append(world._num_wants_any)
+        results["waiting_for_delivery"].append(world._num_waiting_for_delivery)
         results["core_stock"].append(oemAgent._core_stock)
         results["virgin_stock"].append(oemAgent._factory_stock[ProductEnum.V])
         results["reman_stock"].append(oemAgent._factory_stock[ProductEnum.R])
@@ -166,6 +167,7 @@ if __name__ == "__main__":
             "#bce499",  # Wants Reman (Light Green)
             "#33a02c",  # Uses Reman (Dark Green)
             "#D1AB23",  # Wants any
+            "#F200FF",
         ]
 
         ax1.stackplot(
@@ -176,6 +178,7 @@ if __name__ == "__main__":
             results["wants_reman"],
             results["uses_reman"],
             results["wants_any"],
+            results["waiting_for_delivery"],
             labels=[
                 "Potential Users",
                 "Wants Virgin",
@@ -183,6 +186,7 @@ if __name__ == "__main__":
                 "Wants Reman",
                 "Uses Reman",
                 "Wants Any",
+                "Waiting for Delivery",
             ],
             colors=colours,
         )

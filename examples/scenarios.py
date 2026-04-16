@@ -3,17 +3,17 @@ import copy
 dict_default = {
         "description": "Standard run with default parameters",
         "main": {
-            "simulation_length": 365*20,
+            "simulation_length": 1000,
             "B2B_population": 1000,
             "B2C_population": 0,
             "seed": 1,
             "enable_reman": True,
-            "starting_customers": 1000,
+            "starting_customers": 333,
         },
         "oem": {
-            "delivery_delay": 1, # Doesn't change much, however also the potential to introduce local/national/international distribution?
+            "delivery_delay": 3, # Doesn't change much, however also the potential to introduce local/national/international distribution?
             "manufacture_delay": 5, # Really no idea
-            "remanufacture_delay": 3, # Depends on reman method
+            "remanufacture_delay": 4, # Depends on reman method
             "virgin_stock": 10,
             "reman_stock": 0,
             "core_stock": 0, 
@@ -26,8 +26,8 @@ dict_default = {
             "retail_price_R": 1000, # In theory the same since reman is good as new or better?
         },
         "b2b_customer": {
-            "patience": 10,
-            "mean_lifetime": 0.7*365, # AC's last for 10 or so years, how long is the sim meant to be?
+            "patience": 0,
+            "mean_lifetime": 200, # AC's last for 10 or so years, how long is the sim meant to be?
             "lifetime_method": "triangular",
             "lifetime_range": 100,
             "core_return_rate": 1.0,

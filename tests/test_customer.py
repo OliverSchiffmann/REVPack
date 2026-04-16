@@ -63,9 +63,11 @@ class TestCustomer(unittest.TestCase):
         self.assertEqual(self.oem._factory_stock[ProductEnum.V], 9)  # 1 unit should be deducted
 
     def test_try_buy_no_stock(self):
-        """Test purchasing when the OEM is out of stock, shifting the customer to a waiting state."""
+        """Test purchasing when the OEM is out of stock, scheduling patience timeout."""
         # Deplete OEM stock entirely
         self.oem._factory_stock[ProductEnum.V] = 0
+        self.customer._state = CustomerStatesEnum.WANTS_VIRGIN
+        self.customer._active_product = ProductEnum.V
         self.customer.try_and_buy(self.rng, ProductEnum.V)
         
         self.assertEqual(self.customer.state(), CustomerStatesEnum.WANTS_VIRGIN)

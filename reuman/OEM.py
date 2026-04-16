@@ -8,6 +8,7 @@ from typing import TYPE_CHECKING
 from ._agent import AgentEnum, BaseAgent
 from .message import Message, MessageType
 from .product import ProductEnum
+from .customer import CustomerStatesEnum
 
 if TYPE_CHECKING:
     from .world import World
@@ -76,6 +77,7 @@ class OEM(BaseAgent):
         self._production_rate = {ProductEnum.V: 0, ProductEnum.R: 0}
         self._products_sold = {ProductEnum.V: 0, ProductEnum.R: 0}
         self._total_products_produced = {ProductEnum.V: 0, ProductEnum.R: 0}
+        self._num_to_man = {ProductEnum.V: 0, ProductEnum.R: 0}
         self._core_stock = config["core_stock"]
         self._core_acceptance_rate = config["core_acceptance_rate"]
         self._total_cores_collected = 0
@@ -95,6 +97,7 @@ class OEM(BaseAgent):
         Args:
             rng (numpy.random.Generator): Random number generator.
         """
+        self.update_manufacturing_counts()
         self.update_production()
 
     # Checks the stock of a given product in storage
@@ -133,7 +136,24 @@ class OEM(BaseAgent):
             self._total_cores_rejected += 1
             pass
 
+    def update_manufacturing_counts(self):
+        """
+        Count all the agents waiting for products and use that to update the manufacturing targets.
+        """
+        
+        for agent in self._world._agents.values():
+            if agent.type() == AgentEnum.CUSTOMER:
+                if agent.state() == CustomerStatesEnum.WANTS_VIRGIN:
+                    self._num_to_man[ProductEnum.V] += 1
+                elif agent.state() == CustomerStatesEnum.WANTS_REMAN:
+                    self._num_to_man[ProductEnum.R] += 1
+                elif agent.state() == CustomerStatesEnum.WANTS_ANY:
+                    self._num_to_man[ProductEnum.V] += 1
+                    self._num_to_man[ProductEnum.R] += 1
 
+                
+            
+        
     def update_production(self):
         """
         Update production rates and inventory levels for both virgin and reman products.
@@ -141,10 +161,11 @@ class OEM(BaseAgent):
         Virgin production is determined by current demand and manufacture delay.
         Remanufactured product production is limited by both current demand and available core stock.
         """
+        
         for product in ProductEnum:
             match product:
                 case ProductEnum.V:
-                    self._production_rate[product] = self._world._num_to_man[product] / self._manufacture_delay
+                    self._production_rate[product] = self._num_to_man[product] / self._manufacture_delay
                     # if self._production_rate[product] < 3:
                     #     self._production_rate[product] = 3                        
                     self._factory_stock[product] += self._production_rate[product]
@@ -156,7 +177,7 @@ class OEM(BaseAgent):
                     #     f"Factory Stock of {product.name}: {self._factory_stock[product]:.4f}"
                     # )
                 case ProductEnum.R:
-                    desired_production = self._world._num_to_man[product] / self._remanufacture_delay
+                    desired_production = self ._num_to_man[product] / self._remanufacture_delay
                     maximum_production = self._core_stock / self._remanufacture_delay
 
                     self._production_rate[product] = min(
@@ -173,6 +194,9 @@ class OEM(BaseAgent):
                     # print(
                     #     f"Factory Stock of {product.name}: {self._factory_stock[product]:.4f}"
                     # )
+
+        for product in ProductEnum:
+            self._num_to_man[product] = 0
 
     def generate_financial_report(self) -> dict:
         """

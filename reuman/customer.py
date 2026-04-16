@@ -22,6 +22,7 @@ class CustomerStatesEnum(str, Enum):
     WANTS_REMAN = "wants_reman"
     USES_REMAN = "uses_reman"
     WANTS_ANY = "wants_any"
+    WAITING_FOR_DELIVERY = "waiting_for_delivery"
 
 
 class ProductDetails(TypedDict):
@@ -47,7 +48,7 @@ class ProductDetails(TypedDict):
 product_params: dict[ProductEnum, ProductDetails] = {
     ProductEnum.V: {
         "lifespan": (17, 24),  # number of days that a product might last for when in use
-        "advertising_effectiveness": 0,
+        "advertising_effectiveness": 0.1,
         "wom_threshold": 0.015,
         "wants_state": CustomerStatesEnum.WANTS_VIRGIN,
         "uses_state": CustomerStatesEnum.USES_VIRGIN,
@@ -62,7 +63,6 @@ product_params: dict[ProductEnum, ProductDetails] = {
         "buy_message": MessageType.BUY_R,
     },
 }
-
 
 class Customer(BaseAgent):
     """
@@ -119,6 +119,7 @@ class Customer(BaseAgent):
             case state if state in [
                 CustomerStatesEnum.WANTS_VIRGIN,
                 CustomerStatesEnum.WANTS_REMAN,
+                CustomerStatesEnum.WAITING_FOR_DELIVERY,
             ]:
                 self._handle_waiting_customer(rng)
             case CustomerStatesEnum.WANTS_ANY:
@@ -140,6 +141,8 @@ class Customer(BaseAgent):
             if (
                 rng.random() < product_params[product]["advertising_effectiveness"]
             ):  # if a potential user is successfully influenced by ads
+                self._state = product_params[product]["wants_state"]
+                self._active_product = product
                 self.try_and_buy(rng, product)
                 break
 
@@ -168,18 +171,10 @@ class Customer(BaseAgent):
         productsToConsider = self._world.get_active_products()
         rng.shuffle(productsToConsider)
         for product in productsToConsider:
-            if self._oem.request_product(product):
-                # Found something to buy
-                if self._oem._delivery_delay == 0:
-                    self.become_user(rng, product)
-                else:
-                    self._state = product_params[product]["wants_state"]
-                    self._active_product = product
-                    self._delivery_day = (
-                        self._world.now() + self._oem._delivery_delay
-                    )
-                    self._end_of_patience_day = -1
-                return
+            self.try_and_buy(rng, product)
+            if self._state != CustomerStatesEnum.WANTS_ANY:
+                break
+
 
     def _handle_active_user(self, rng):
         """
@@ -231,13 +226,12 @@ class Customer(BaseAgent):
             if self._oem._delivery_delay == 0:  # checking if delivery is instant
                 self.become_user(rng, product)
             else:
-                self._state = product_params[product]["wants_state"]
+                # self._state = product_params[product]["wants_state"]
+                self._state = CustomerStatesEnum.WAITING_FOR_DELIVERY
                 self._active_product = product
                 self._delivery_day = self._world.now() + self._oem._delivery_delay
             self._end_of_patience_day = -1
         else:
-            self._state = product_params[product]["wants_state"]
-            self._active_product = product
             if self._end_of_patience_day == -1 and self._patience != -1: # was a bug where patience being -1 was the same as 0, -1 should be infinite patience
                 self._end_of_patience_day = self._world.now() + self._patience
 
