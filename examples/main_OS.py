@@ -167,7 +167,7 @@ if __name__ == "__main__":
             "#bce499",  # Wants Reman (Light Green)
             "#33a02c",  # Uses Reman (Dark Green)
             "#D1AB23",  # Wants any
-            "#F200FF",
+            "#F200FF",  # Waiting for delivery
         ]
 
         ax1.stackplot(

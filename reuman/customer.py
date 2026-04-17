@@ -151,7 +151,7 @@ class Customer(BaseAgent):
         Handles logic for customers waiting for a specific product delivery or stock.
         """
         if self._delivery_day != -1:
-            if self._world.now() == self._delivery_day:
+            if self._world.now() >= self._delivery_day:
                 if self._active_product:
                     self.become_user(rng, self._active_product)
         elif (
@@ -180,7 +180,7 @@ class Customer(BaseAgent):
         """
         Handles logic for customers currently using a product until it reaches end-of-life. Going to add some logic so that customers lose interest at some point. 
         """
-        if self._world.now() == self._end_of_life_day:
+        if self._world.now() >= self._end_of_life_day:
             
             # I would say they go into a 'wants any' state
             # product_to_rebuy = self._active_product
@@ -196,7 +196,7 @@ class Customer(BaseAgent):
             # self._state = product_params[product_to_rebuy]["wants_state"]
             
             # Instead have a chance for them to lose interest and go back to being a non-user at some rate, 0.1 for show
-            if rng.random() < 0:
+            if rng.random() < self._config.get("lose_interest_rate", 0.0):
                 self._state = CustomerStatesEnum.POTENTIAL_USER
             else:
                 self._state = CustomerStatesEnum.WANTS_ANY

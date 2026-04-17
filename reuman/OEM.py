@@ -42,6 +42,8 @@ class OEM(BaseAgent):
     _unit_production_cost_R: float
     _core_collection_cost: float
     _core_disposal_cost: float
+    _core_storage_cost: float
+    _total_core_storage_cost: float
     _retail_price_V: float
     _retail_price_R: float
 
@@ -87,6 +89,8 @@ class OEM(BaseAgent):
         self._unit_production_cost_R = config["unit_production_cost_R"]
         self._core_collection_cost = config["core_collection_cost"]
         self._core_disposal_cost = config["core_disposal_cost"]
+        self._core_storage_cost = config.get("core_storage_cost", 0.0)
+        self._total_core_storage_cost = 0.0
         self._retail_price_V = config["retail_price_V"]
         self._retail_price_R = config["retail_price_R"]
 
@@ -99,6 +103,7 @@ class OEM(BaseAgent):
         """
         self.update_manufacturing_counts()
         self.update_production()
+        self._total_core_storage_cost += self._core_stock * self._core_storage_cost
 
     # Checks the stock of a given product in storage
     def request_product(self, product: ProductEnum) -> bool:
@@ -220,7 +225,10 @@ class OEM(BaseAgent):
         # Disposal costs
         cost_disposal = self._total_cores_rejected * self._core_disposal_cost
 
-        cost_to_meet_demand = cost_V + cost_R + cost_collection + cost_disposal
+        # Storage costs
+        cost_storage = self._total_core_storage_cost
+
+        cost_to_meet_demand = cost_V + cost_R + cost_collection + cost_disposal + cost_storage
 
         revenue_V = self._products_sold[ProductEnum.V] * self._retail_price_V
 
@@ -236,6 +244,7 @@ class OEM(BaseAgent):
                 "Production of remanufactured products": cost_R,
                 "Collecting cores": cost_collection,
                 "Disposal of unaccepted cores": cost_disposal,
+                "Storage of cores": cost_storage,
                 "Sale of virgin products": revenue_V,
                 "Sale of reman products": revenue_R,
             },

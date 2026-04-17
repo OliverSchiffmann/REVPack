@@ -25,6 +25,7 @@ class TestCustomer(unittest.TestCase):
             "core_acceptance_rate": 1.0,
             "core_collection_cost": 20,
             "core_disposal_cost": 20,
+            "core_storage_cost": 0.5,
             "retail_price_V": 1000,
             "retail_price_R": 1000,
         }

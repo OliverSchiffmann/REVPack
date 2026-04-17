@@ -22,11 +22,12 @@ dict_default = {
             "core_acceptance_rate": 1.0, # Depends on the reman method, fraction of usable cores produced from the returned ones
             "core_collection_cost": 20, # No idea, also local/national/international
             "core_disposal_cost": 20, # No idea
+            "core_storage_cost": 0.5, # Storage cost per core per day
             "retail_price_V": 1000, # Likewise Euros approx
             "retail_price_R": 1000, # In theory the same since reman is good as new or better?
         },
         "b2b_customer": {
-            "patience": 0,
+            "patience": 10,
             "mean_lifetime": 200, # AC's last for 10 or so years, how long is the sim meant to be?
             "lifetime_method": "triangular",
             "lifetime_range": 100,
