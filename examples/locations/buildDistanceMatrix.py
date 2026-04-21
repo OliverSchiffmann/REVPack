@@ -5,7 +5,7 @@ import time
 from itertools import product
 
 cities = {}
-csv_filename = "examples/locationLocationLocation/it.csv"
+csv_filename = "examples/locations/it.csv"
 
 print(f"Loading cities from {csv_filename}...")
 with open(csv_filename, mode='r', encoding='utf-8') as infile:
@@ -71,7 +71,7 @@ for origin, dest in product(city_names, repeat=2):
     if completed % 1000 == 0:
         print(f"Progress: {completed} / {total_routes} routes calculated...")
 
-output_file = "examples/locationLocationLocation/italy_100x100_matrix.json"
+output_file = "examples/locations/italy_100x100_matrix.json"
 with open(output_file, "w") as outfile:
     json.dump(nxn_matrix, outfile, indent=4)
     
