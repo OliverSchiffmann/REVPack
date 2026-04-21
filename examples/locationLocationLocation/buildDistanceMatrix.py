@@ -4,25 +4,22 @@ import requests
 import time
 from itertools import product
 
-# 2. Read the 100 Cities from your CSV
 cities = {}
-csv_filename = "examples/locationLocationLocation/it.csv" # Make sure this matches your file
+csv_filename = "examples/locationLocationLocation/it.csv"
 
 print(f"Loading cities from {csv_filename}...")
 with open(csv_filename, mode='r', encoding='utf-8') as infile:
     reader = csv.DictReader(infile)
     for row in reader:
         name = row['city']
-        # Ensure we cast to float
         lat = float(row['lat'])
         lng = float(row['lng'])
-        cities[name] = (lng, lat) # OSRM strictly needs (Longitude, Latitude)
+        cities[name] = (lng, lat) # OSRM takes (Longitude, Latitude)
 
 city_names = list(cities.keys())
 total_routes = len(city_names) ** 2
 print(f"Loaded {len(city_names)} cities. Preparing to calculate {total_routes} routes.")
 
-# 3. Build the Matrix
 nxn_matrix = {}
 completed = 0
 start_time = time.time()
@@ -31,7 +28,6 @@ for origin, dest in product(city_names, repeat=2):
     if origin not in nxn_matrix:
         nxn_matrix[origin] = {}
         
-    # Self-routing bypass
     if origin == dest:
         nxn_matrix[origin][dest] = {
             "distance_km": 0, "driving_hours": 0.0, "has_ferry": False
@@ -42,7 +38,7 @@ for origin, dest in product(city_names, repeat=2):
     lon1, lat1 = cities[origin]
     lon2, lat2 = cities[dest]
     
-    # Hit the LOCAL HPC OSRM Server
+    # load HPC OSRM Server
     url = f"http://localhost:6578/route/v1/driving/{lon1},{lat1};{lon2},{lat2}?steps=true&overview=false"
     
     try:
@@ -75,7 +71,6 @@ for origin, dest in product(city_names, repeat=2):
     if completed % 1000 == 0:
         print(f"Progress: {completed} / {total_routes} routes calculated...")
 
-# 4. Export the massive JSON
 output_file = "examples/locationLocationLocation/italy_100x100_matrix.json"
 with open(output_file, "w") as outfile:
     json.dump(nxn_matrix, outfile, indent=4)
