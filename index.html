@@ -1,0 +1,959 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>REVPack Web Scenario Builder</title>
+
+    <!-- Tailwind CSS for styling -->
+    <script src="https://cdn.tailwindcss.com"></script>
+
+    <!-- Chart.js for visualization -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+    <!-- Leaflet.js for mapping -->
+    <link
+      rel="stylesheet"
+      href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
+    />
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+
+    <!-- PyScript for running Python in the browser -->
+    <link
+      rel="stylesheet"
+      href="https://pyscript.net/releases/2024.1.1/core.css"
+    />
+    <script
+      type="module"
+      src="https://pyscript.net/releases/2024.1.1/core.js"
+    ></script>
+
+    <!-- Dynamic PyScript Configuration with Cache Busting -->
+    <script>
+      const ts = new Date().getTime();
+      const pyConfig = document.createElement("py-config");
+      pyConfig.innerHTML = JSON.stringify({
+        packages: ["numpy", "matplotlib"],
+        fetch: [
+          { from: `examples/main_OS.py?v=${ts}`, to_file: "main_OS.py" },
+          { from: `reuman/__init__.py?v=${ts}`, to_file: "reuman/__init__.py" },
+          { from: `reuman/_agent.py?v=${ts}`, to_file: "reuman/_agent.py" },
+          { from: `reuman/customer.py?v=${ts}`, to_file: "reuman/customer.py" },
+          { from: `reuman/message.py?v=${ts}`, to_file: "reuman/message.py" },
+          { from: `reuman/OEM.py?v=${ts}`, to_file: "reuman/OEM.py" },
+          { from: `reuman/product.py?v=${ts}`, to_file: "reuman/product.py" },
+          { from: `reuman/world.py?v=${ts}`, to_file: "reuman/world.py" },
+          {
+            from: `examples/locationLocationLocation/it.csv?v=${ts}`,
+            to_file: "examples/locationLocationLocation/it.csv",
+          },
+          {
+            from: `examples/locationLocationLocation/italy_100x100_matrix.json?v=${ts}`,
+            to_file:
+              "examples/locationLocationLocation/italy_100x100_matrix.json",
+          },
+        ],
+      });
+      document.head.appendChild(pyConfig);
+    </script>
+  </head>
+  <body class="bg-gray-100 p-8 font-sans">
+    <div class="max-w-7xl mx-auto space-y-6">
+      <!-- Header -->
+      <div
+        class="bg-white p-6 rounded-lg shadow-md flex justify-between items-center"
+      >
+        <div>
+          <h1 class="text-3xl font-bold text-gray-800">
+            REVPack Scenario Builder
+          </h1>
+          <p class="text-gray-500 mt-1">
+            Configure parameters, run the simulation, and export to Python.
+          </p>
+        </div>
+        <div class="space-x-4 flex">
+          <button
+            id="export-btn"
+            onclick="exportScenario()"
+            class="bg-gray-200 hover:bg-gray-300 text-gray-800 font-bold py-2 px-4 rounded transition"
+          >
+            📥 Export Scenario (.py)
+          </button>
+          <button
+            id="run-btn"
+            class="bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-6 rounded shadow transition"
+          >
+            ▶ Run Simulation
+          </button>
+        </div>
+      </div>
+
+      <!-- Main Layout -->
+      <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        <!-- Settings Panel -->
+        <div
+          class="bg-white p-6 rounded-lg shadow-md lg:col-span-1 h-[800px] overflow-y-auto"
+        >
+          <h2 class="text-xl font-bold mb-4 border-b pb-2">Parameters</h2>
+
+          <form id="scenario-form" class="space-y-6 text-sm">
+            <!-- MAIN CONFIG -->
+            <div>
+              <h3 class="font-bold text-gray-700 mb-2">Main Settings</h3>
+              <div class="grid grid-cols-2 gap-4">
+                <div>
+                  <label class="block text-gray-600"
+                    >Simulation Length (Days)</label
+                  >
+                  <input
+                    type="number"
+                    id="sim_length"
+                    value="1000"
+                    class="w-full border p-1 rounded mt-1"
+                  />
+                </div>
+                <div>
+                  <label class="block text-gray-600">Total Population</label>
+                  <input
+                    type="number"
+                    id="total_pop"
+                    value="1000"
+                    min="0"
+                    class="w-full border p-1 rounded mt-1"
+                  />
+                </div>
+                <div>
+                  <div class="flex justify-between items-center">
+                    <label class="block text-gray-600"
+                      >Starting Customers:</label
+                    >
+                    <input
+                      type="number"
+                      id="start_cust_val"
+                      value="333"
+                      min="0"
+                      max="1000"
+                      class="w-16 border p-1 rounded text-right text-sm"
+                    />
+                  </div>
+                  <input
+                    type="range"
+                    id="start_cust"
+                    value="333"
+                    min="0"
+                    max="1000"
+                    class="w-full mt-2"
+                  />
+                </div>
+                <div>
+                  <div class="flex justify-between items-center">
+                    <label class="block text-gray-600">B2B Population:</label>
+                    <input
+                      type="number"
+                      id="b2b_pop_val"
+                      value="1000"
+                      min="0"
+                      max="1000"
+                      class="w-16 border p-1 rounded text-right text-sm"
+                    />
+                  </div>
+                  <input
+                    type="range"
+                    id="b2b_pop"
+                    value="1000"
+                    min="0"
+                    max="1000"
+                    class="w-full mt-2"
+                  />
+                </div>
+                <script>
+                  const totalPopInput = document.getElementById("total_pop");
+                  const startCustSlider = document.getElementById("start_cust");
+                  const startCustVal =
+                    document.getElementById("start_cust_val");
+                  const b2bPopSlider = document.getElementById("b2b_pop");
+                  const b2bPopVal = document.getElementById("b2b_pop_val");
+
+                  function updateTotalPop() {
+                    const total = parseInt(totalPopInput.value) || 0;
+
+                    startCustSlider.max = total;
+                    startCustVal.max = total;
+                    if (parseInt(startCustSlider.value) > total) {
+                      startCustSlider.value = total;
+                    }
+                    startCustVal.value = startCustSlider.value;
+
+                    b2bPopSlider.max = total;
+                    b2bPopVal.max = total;
+                    if (parseInt(b2bPopSlider.value) > total) {
+                      b2bPopSlider.value = total;
+                    }
+                    b2bPopVal.value = b2bPopSlider.value;
+                  }
+
+                  totalPopInput.addEventListener("input", updateTotalPop);
+
+                  startCustSlider.addEventListener("input", function () {
+                    startCustVal.value = this.value;
+                  });
+
+                  b2bPopSlider.addEventListener("input", function () {
+                    b2bPopVal.value = this.value;
+                  });
+
+                  startCustVal.addEventListener("input", function () {
+                    let val = parseInt(this.value) || 0;
+                    const max = parseInt(this.max) || 0;
+                    if (val > max) {
+                      val = max;
+                      this.value = max;
+                    }
+                    startCustSlider.value = val;
+                  });
+
+                  b2bPopVal.addEventListener("input", function () {
+                    let val = parseInt(this.value) || 0;
+                    const max = parseInt(this.max) || 0;
+                    if (val > max) {
+                      val = max;
+                      this.value = max;
+                    }
+                    b2bPopSlider.value = val;
+                  });
+                </script>
+              </div>
+            </div>
+
+            <!-- OEM CONFIG -->
+            <div>
+              <h3 class="font-bold text-gray-700 mb-2 mt-4">OEM Settings</h3>
+              <div class="grid grid-cols-2 gap-4">
+                <div>
+                  <label class="block text-gray-600"
+                    >Virgin Prod Cost (€)</label
+                  >
+                  <input
+                    type="number"
+                    id="cost_v"
+                    value="500"
+                    class="w-full border p-1 rounded mt-1"
+                  />
+                </div>
+                <div>
+                  <label class="block text-gray-600">Reman Prod Cost (€)</label>
+                  <input
+                    type="number"
+                    id="cost_r"
+                    value="300"
+                    class="w-full border p-1 rounded mt-1"
+                  />
+                </div>
+                <div>
+                  <label class="block text-gray-600">Virgin Retail (€)</label>
+                  <input
+                    type="number"
+                    id="retail_v"
+                    value="1000"
+                    class="w-full border p-1 rounded mt-1"
+                  />
+                </div>
+                <div>
+                  <label class="block text-gray-600">Reman Retail (€)</label>
+                  <input
+                    type="number"
+                    id="retail_r"
+                    value="1000"
+                    class="w-full border p-1 rounded mt-1"
+                  />
+                </div>
+                <div>
+                  <label class="block text-gray-600">Manufacture Delay</label>
+                  <input
+                    type="number"
+                    id="man_delay"
+                    value="5"
+                    class="w-full border p-1 rounded mt-1"
+                  />
+                </div>
+                <div>
+                  <label class="block text-gray-600">Remanufacture Delay</label>
+                  <input
+                    type="number"
+                    id="reman_delay"
+                    value="4"
+                    class="w-full border p-1 rounded mt-1"
+                  />
+                </div>
+                <div>
+                  <label class="block text-gray-600"
+                    >Core Acceptance Rate</label
+                  >
+                  <input
+                    type="number"
+                    step="0.1"
+                    id="core_accept"
+                    value="1.0"
+                    class="w-full border p-1 rounded mt-1"
+                  />
+                </div>
+              </div>
+            </div>
+
+            <!-- CUSTOMER CONFIG -->
+            <div>
+              <h3 class="font-bold text-gray-700 mb-2 mt-4">
+                B2B Customer Settings
+              </h3>
+              <div class="grid grid-cols-2 gap-4">
+                <div>
+                  <label class="block text-gray-600">Patience</label>
+                  <input
+                    type="number"
+                    id="b2b_patience"
+                    value="-1"
+                    class="w-full border p-1 rounded mt-1"
+                  />
+                </div>
+                <div>
+                  <label class="block text-gray-600">Mean Lifetime</label>
+                  <input
+                    type="number"
+                    id="b2b_mean_life"
+                    value="200"
+                    class="w-full border p-1 rounded mt-1"
+                  />
+                </div>
+              </div>
+            </div>
+          </form>
+        </div>
+
+        <!-- Results Panel -->
+        <div
+          class="bg-white p-6 rounded-lg shadow-md lg:col-span-2 flex flex-col space-y-6"
+        >
+          <!-- Progress Bar (Hidden by default) -->
+          <div id="progress-container" class="hidden">
+            <div class="flex justify-between text-sm text-gray-600 mb-1">
+              <span class="font-bold">Simulation Progress</span>
+              <span id="progress-text">0 / 0 Days</span>
+            </div>
+            <div class="w-full bg-gray-200 rounded-full h-2.5">
+              <div
+                id="progress-bar"
+                class="bg-blue-600 h-2.5 rounded-full transition-all duration-100"
+                style="width: 0%"
+              ></div>
+            </div>
+          </div>
+
+          <!-- Financial Readout -->
+          <div class="grid grid-cols-1 xl:grid-cols-2 gap-4">
+            <!-- No Reman -->
+            <div class="bg-gray-50 p-4 rounded-lg border border-gray-200">
+              <h3 class="font-bold text-gray-700 text-lg mb-3 border-b pb-1">
+                No Remanufacturing
+              </h3>
+              <div class="grid grid-cols-3 gap-2">
+                <div>
+                  <p class="text-xs text-red-600 font-bold uppercase">
+                    Total Cost
+                  </p>
+                  <p id="out-cost-base" class="text-lg font-bold text-red-700">
+                    €0
+                  </p>
+                </div>
+                <div>
+                  <p class="text-xs text-green-600 font-bold uppercase">
+                    Total Revenue
+                  </p>
+                  <p
+                    id="out-revenue-base"
+                    class="text-lg font-bold text-green-700"
+                  >
+                    €0
+                  </p>
+                </div>
+                <div>
+                  <p class="text-xs text-blue-600 font-bold uppercase">
+                    Net Profit
+                  </p>
+                  <p
+                    id="out-profit-base"
+                    class="text-lg font-bold text-blue-700"
+                  >
+                    €0
+                  </p>
+                </div>
+              </div>
+              <details class="mt-4">
+                <summary
+                  class="cursor-pointer text-sm font-bold text-gray-600 outline-none hover:text-gray-800 transition-colors"
+                >
+                  View Breakdown
+                </summary>
+                <div
+                  class="mt-2 text-sm text-gray-700 bg-white p-3 rounded border border-gray-200 shadow-inner"
+                  id="breakdown-base"
+                >
+                  <span class="text-gray-400 italic"
+                    >Run simulation to see details...</span
+                  >
+                </div>
+              </details>
+            </div>
+            <!-- With Reman -->
+            <div class="bg-blue-50 p-4 rounded-lg border border-blue-200">
+              <h3
+                class="font-bold text-blue-800 text-lg mb-3 border-b border-blue-200 pb-1"
+              >
+                With Remanufacturing
+              </h3>
+              <div class="grid grid-cols-3 gap-2">
+                <div>
+                  <p class="text-xs text-red-600 font-bold uppercase">
+                    Total Cost
+                  </p>
+                  <p id="out-cost-reman" class="text-lg font-bold text-red-700">
+                    €0
+                  </p>
+                </div>
+                <div>
+                  <p class="text-xs text-green-600 font-bold uppercase">
+                    Total Revenue
+                  </p>
+                  <p
+                    id="out-revenue-reman"
+                    class="text-lg font-bold text-green-700"
+                  >
+                    €0
+                  </p>
+                </div>
+                <div>
+                  <p class="text-xs text-blue-600 font-bold uppercase">
+                    Net Profit
+                  </p>
+                  <p
+                    id="out-profit-reman"
+                    class="text-lg font-bold text-blue-700"
+                  >
+                    €0
+                  </p>
+                </div>
+              </div>
+              <details class="mt-4">
+                <summary
+                  class="cursor-pointer text-sm font-bold text-blue-800 outline-none hover:text-blue-900 transition-colors"
+                >
+                  View Breakdown
+                </summary>
+                <div
+                  class="mt-2 text-sm text-gray-700 bg-white p-3 rounded border border-blue-200 shadow-inner"
+                  id="breakdown-reman"
+                >
+                  <span class="text-gray-400 italic"
+                    >Run simulation to see details...</span
+                  >
+                </div>
+              </details>
+            </div>
+          </div>
+
+          <!-- Geographic Map -->
+          <div class="mt-2">
+            <h3 class="font-bold text-gray-700 text-lg mb-3 border-b pb-1">
+              Geographic Distribution
+            </h3>
+            <div
+              id="map"
+              class="w-full h-[400px] rounded-lg border border-gray-300"
+            ></div>
+          </div>
+
+          <!-- Charts -->
+          <div class="grid grid-cols-1 xl:grid-cols-2 gap-6 mt-4">
+            <div class="flex-grow">
+              <canvas
+                id="statesChartBase"
+                style="max-height: 250px; width: 100%"
+              ></canvas>
+            </div>
+            <div class="flex-grow">
+              <canvas
+                id="statesChartReman"
+                style="max-height: 250px; width: 100%"
+              ></canvas>
+            </div>
+
+            <div class="flex-grow">
+              <canvas
+                id="salesChartBase"
+                style="max-height: 250px; width: 100%"
+              ></canvas>
+            </div>
+            <div class="flex-grow">
+              <canvas
+                id="salesChartReman"
+                style="max-height: 250px; width: 100%"
+              ></canvas>
+            </div>
+
+            <div class="flex-grow">
+              <canvas
+                id="stockChartBase"
+                style="max-height: 250px; width: 100%"
+              ></canvas>
+            </div>
+            <div class="flex-grow">
+              <canvas
+                id="stockChartReman"
+                style="max-height: 250px; width: 100%"
+              ></canvas>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Javascript Logic for handling the UI and drawing Charts -->
+    <script>
+      const charts = {};
+      let map = null;
+      let mapMarkers = [];
+
+      // Initialize Leaflet Map (Centered on Italy)
+      function initMap() {
+        map = L.map("map").setView([41.8719, 12.5674], 5);
+        L.tileLayer(
+          "https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png",
+          {
+            attribution: "&copy; OpenStreetMap contributors &copy; CARTO",
+            subdomains: "abcd",
+            maxZoom: 20,
+          },
+        ).addTo(map);
+      }
+
+      // 1. Collect form data and populate the dictionary of the same format as a typical scenario.
+      function getFormConfig() {
+        const totalPop =
+          parseInt(document.getElementById("total_pop").value) || 0;
+        const b2bPop = parseInt(document.getElementById("b2b_pop").value) || 0;
+        return {
+          description: "Web Run",
+          main: {
+            simulation_length: parseInt(
+              document.getElementById("sim_length").value,
+            ),
+            B2B_population: b2bPop,
+            B2C_population: 0,
+            seed: 1,
+            starting_customers: parseInt(
+              document.getElementById("start_cust").value,
+            ),
+          },
+          oem: {
+            delivery_delay: 1,
+            manufacture_delay: parseInt(
+              document.getElementById("man_delay").value,
+            ),
+            remanufacture_delay: parseInt(
+              document.getElementById("reman_delay").value,
+            ),
+            virgin_stock: 10,
+            reman_stock: 0,
+            core_stock: 0,
+            unit_production_cost_V: parseFloat(
+              document.getElementById("cost_v").value,
+            ),
+            unit_production_cost_R: parseFloat(
+              document.getElementById("cost_r").value,
+            ),
+            core_acceptance_rate: parseFloat(
+              document.getElementById("core_accept").value,
+            ),
+            core_collection_cost: 20,
+            core_disposal_cost: 20,
+            core_storage_cost: 2,
+            retail_price_V: parseFloat(
+              document.getElementById("retail_v").value,
+            ),
+            retail_price_R: parseFloat(
+              document.getElementById("retail_r").value,
+            ),
+          },
+          b2b_customer: {
+            patience: parseInt(document.getElementById("b2b_patience").value),
+            mean_lifetime: parseInt(
+              document.getElementById("b2b_mean_life").value,
+            ),
+            lifetime_method: "triangular",
+            lifetime_range: 100,
+            core_return_rate: 1.0,
+          },
+          b2c_customer: {
+            patience: -1,
+            mean_lifetime: 1,
+            lifetime_method: "uniform",
+            lifetime_range: 3,
+            core_return_rate: 1.0,
+          },
+        };
+      }
+
+      // Wrapper to expose to PyScript Python
+      window.getFormConfigString = function () {
+        return JSON.stringify(getFormConfig());
+      };
+
+      // 2. Format numbers as currency
+      const formatter = new Intl.NumberFormat("en-IE", {
+        style: "currency",
+        currency: "EUR",
+        maximumFractionDigits: 0,
+      });
+
+      function buildStatesChart(canvasId, results, titleText) {
+        if (charts[canvasId]) charts[canvasId].destroy();
+        charts[canvasId] = new Chart(
+          document.getElementById(canvasId).getContext("2d"),
+          {
+            type: "line",
+            data: {
+              labels: results.day,
+              datasets: [
+                {
+                  label: "Potential Users",
+                  data: results.potential_users,
+                  backgroundColor: "#2fa8e9",
+                  fill: true,
+                  pointRadius: 0,
+                },
+                {
+                  label: "Wants Virgin",
+                  data: results.wants_virgin,
+                  backgroundColor: "#fb9a99",
+                  fill: true,
+                  pointRadius: 0,
+                },
+                {
+                  label: "Uses Virgin",
+                  data: results.uses_virgin,
+                  backgroundColor: "#d91c1f",
+                  fill: true,
+                  pointRadius: 0,
+                },
+                {
+                  label: "Wants Reman",
+                  data: results.wants_reman,
+                  backgroundColor: "#bce499",
+                  fill: true,
+                  pointRadius: 0,
+                },
+                {
+                  label: "Uses Reman",
+                  data: results.uses_reman,
+                  backgroundColor: "#33a02c",
+                  fill: true,
+                  pointRadius: 0,
+                },
+                {
+                  label: "Wants Any",
+                  data: results.wants_any,
+                  backgroundColor: "#D1AB23",
+                  fill: true,
+                  pointRadius: 0,
+                },
+              ],
+            },
+            options: {
+              responsive: true,
+              maintainAspectRatio: false,
+              plugins: { title: { display: true, text: titleText } },
+              scales: {
+                x: { title: { display: true, text: "Day" } },
+                y: {
+                  stacked: true,
+                  title: { display: true, text: "Customers" },
+                },
+              },
+            },
+          },
+        );
+      }
+
+      function buildSalesChart(canvasId, results, titleText) {
+        if (charts[canvasId]) charts[canvasId].destroy();
+        charts[canvasId] = new Chart(
+          document.getElementById(canvasId).getContext("2d"),
+          {
+            type: "line",
+            data: {
+              labels: results.day,
+              datasets: [
+                {
+                  label: "Virgin Sold",
+                  data: results.virgin_sold,
+                  borderColor: "#d91c1f",
+                  pointRadius: 0,
+                },
+                {
+                  label: "Reman Sold",
+                  data: results.reman_sold,
+                  borderColor: "#33a02c",
+                  pointRadius: 0,
+                },
+              ],
+            },
+            options: {
+              responsive: true,
+              maintainAspectRatio: false,
+              plugins: { title: { display: true, text: titleText } },
+              scales: {
+                x: { title: { display: true, text: "Day" } },
+                y: { title: { display: true, text: "Units" } },
+              },
+            },
+          },
+        );
+      }
+
+      function buildStockChart(canvasId, results, titleText) {
+        if (charts[canvasId]) charts[canvasId].destroy();
+        charts[canvasId] = new Chart(
+          document.getElementById(canvasId).getContext("2d"),
+          {
+            type: "line",
+            data: {
+              labels: results.day,
+              datasets: [
+                {
+                  label: "Virgin Stock",
+                  data: results.virgin_stock,
+                  borderColor: "#d91c1f",
+                  pointRadius: 0,
+                },
+                {
+                  label: "Reman Stock",
+                  data: results.reman_stock,
+                  borderColor: "#33a02c",
+                  pointRadius: 0,
+                },
+                {
+                  label: "Core Stock",
+                  data: results.core_stock,
+                  borderColor: "#2fa8e9",
+                  pointRadius: 0,
+                },
+              ],
+            },
+            options: {
+              responsive: true,
+              maintainAspectRatio: false,
+              plugins: { title: { display: true, text: titleText } },
+              scales: {
+                x: { title: { display: true, text: "Day" } },
+                y: { title: { display: true, text: "Units" } },
+              },
+            },
+          },
+        );
+      }
+
+      // 3. Receive results from Python and plot them using Chart.js
+      window.plotResults = function (
+        resBaseStr,
+        repBaseStr,
+        resRemanStr,
+        repRemanStr,
+      ) {
+        const resBase = JSON.parse(resBaseStr);
+        const repBase = JSON.parse(repBaseStr);
+        const resReman = JSON.parse(resRemanStr);
+        const repReman = JSON.parse(repRemanStr);
+
+        // Update financial text (Base)
+        document.getElementById("out-cost-base").innerText =
+          "-" + formatter.format(repBase["Total Cost"]);
+        document.getElementById("out-revenue-base").innerText =
+          "+" + formatter.format(repBase["Total Revenue"]);
+        document.getElementById("out-profit-base").innerText = formatter.format(
+          repBase["Total Revenue"] - repBase["Total Cost"],
+        );
+
+        // Update financial text (Reman)
+        document.getElementById("out-cost-reman").innerText =
+          "-" + formatter.format(repReman["Total Cost"]);
+        document.getElementById("out-revenue-reman").innerText =
+          "+" + formatter.format(repReman["Total Revenue"]);
+        document.getElementById("out-profit-reman").innerText =
+          formatter.format(repReman["Total Revenue"] - repReman["Total Cost"]);
+
+        // Build Breakdown HTML
+        const buildBreakdownHtml = (breakdownObj) => {
+          let html = '<ul class="space-y-1">';
+          for (const [key, value] of Object.entries(breakdownObj)) {
+            const isRevenue = key.includes("Sale");
+            const colorClass = isRevenue ? "text-green-600" : "text-red-600";
+            const sign = isRevenue ? "+" : "-";
+            html += `<li class="flex justify-between border-b border-gray-100 last:border-0 pb-1 last:pb-0"><span>${key}:</span> <span class="${colorClass} font-mono">${sign}${formatter.format(value)}</span></li>`;
+          }
+          html += "</ul>";
+          return html;
+        };
+
+        document.getElementById("breakdown-base").innerHTML =
+          buildBreakdownHtml(repBase["Breakdown"]);
+        document.getElementById("breakdown-reman").innerHTML =
+          buildBreakdownHtml(repReman["Breakdown"]);
+
+        // Initialize map if it hasn't been already
+        if (!map) initMap();
+
+        // Clear previous markers
+        mapMarkers.forEach((m) => map.removeLayer(m));
+        mapMarkers = [];
+
+        // Extract geographic data (using the Base scenario data)
+        const geoData = repBase["Geographic Distribution"]["City Data"];
+
+        // Plot cities on the map
+        for (const [cityName, data] of Object.entries(geoData)) {
+          if (data.customers > 0 || data.is_oem) {
+            let iconHtml = "";
+
+            if (data.is_oem) {
+              iconHtml += `<div style="font-size: 26px; text-align: center; line-height: 1; filter: drop-shadow(0px 2px 2px rgba(0,0,0,0.3));">🏭</div>`;
+            }
+            if (data.customers > 0) {
+              iconHtml += `<div style="background: white; border: 1px solid #ccc; border-radius: 12px; padding: 2px 6px; font-size: 12px; font-weight: bold; text-align: center; box-shadow: 0 1px 3px rgba(0,0,0,0.2); margin-top: ${data.is_oem ? "-5px" : "0"};">👤 ${data.customers}x</div>`;
+            }
+
+            const customIcon = L.divIcon({
+              html: `<div style="display: flex; flex-direction: column; align-items: center; justify-content: center;">${iconHtml}</div>`,
+              className: "", // Removes default Leaflet white square background
+              iconSize: [40, 40],
+              iconAnchor: [20, 20],
+            });
+
+            const marker = L.marker([data.lat, data.lng], { icon: customIcon })
+              .bindTooltip(cityName)
+              .addTo(map);
+            mapMarkers.push(marker);
+          }
+        }
+
+        // Plot comparing charts
+        buildStatesChart(
+          "statesChartBase",
+          resBase,
+          "Customer States (No Reman)",
+        );
+        buildStatesChart(
+          "statesChartReman",
+          resReman,
+          "Customer States (With Reman)",
+        );
+        buildSalesChart("salesChartBase", resBase, "Sales (No Reman)");
+        buildSalesChart("salesChartReman", resReman, "Sales (With Reman)");
+        buildStockChart("stockChartBase", resBase, "Stock (No Reman)");
+        buildStockChart("stockChartReman", resReman, "Stock (With Reman)");
+      };
+
+      // 4. Export logic - creates a downloadable Python dictionary string
+      window.exportScenario = function () {
+        const config = getFormConfig();
+
+        let pyString = `import copy\n\n`;
+        pyString += `dict_custom = {\n`;
+        pyString += `    "description": "Exported from Web App",\n`;
+
+        // Helper to format JSON blocks into Python dictionary layout
+        const formatDict = (obj) =>
+          JSON.stringify(obj, null, 4)
+            .replace(/true/g, "True")
+            .replace(/false/g, "False")
+            .replace(/\n/g, "\n    ");
+
+        pyString += `    "main": ${formatDict(config.main).trim()},\n`;
+        pyString += `    "oem": ${formatDict(config.oem).trim()},\n`;
+        pyString += `    "b2b_customer": ${formatDict(config.b2b_customer).trim()},\n`;
+        pyString += `    "b2c_customer": ${formatDict(config.b2c_customer).trim()}\n`;
+        pyString += `}\n\n`;
+        pyString += `SCENARIOS = {\n    "Custom": dict_custom\n}\n`;
+
+        // Trigger download
+        const blob = new Blob([pyString], { type: "text/plain" });
+        const a = document.createElement("a");
+        a.href = URL.createObjectURL(blob);
+        a.download = "custom_scenario.py";
+        a.click();
+      };
+    </script>
+
+    <!-- Python Logic mapping PyScript to UI -->
+    <script type="py">
+      import json
+      import asyncio
+      from pyscript import window, document
+      from pyodide.ffi import create_proxy
+
+      # Import your local refactored simulation logic!
+      import main_OS
+
+      def update_progress(current, total):
+          percentage = (current / total) * 100
+          document.getElementById('progress-bar').style.width = f"{percentage}%"
+          document.getElementById('progress-text').innerText = f"{current} / {total} Days"
+
+      async def run_sim_from_web(event):
+          btn = document.getElementById('run-btn')
+          btn.innerText = "Running... (Please Wait)"
+          btn.classList.add("opacity-50", "cursor-not-allowed")
+
+          prog_container = document.getElementById('progress-container')
+          prog_container.classList.remove("hidden")
+
+          try:
+              # 1. Fetch form settings from Javascript
+              config_str = window.getFormConfigString()
+              config_base = json.loads(config_str)
+              config_base["main"]["enable_reman"] = False
+
+              config_reman = json.loads(config_str)
+              config_reman["main"]["enable_reman"] = True
+
+              sim_length = config_base["main"]["simulation_length"]
+              total_days = sim_length * 2
+              update_progress(0, total_days)
+
+              def make_progress_callback(offset):
+                  def cb(current, total):
+                      update_progress(offset + current, total_days)
+                  return cb
+
+              # 2. Run both simulations (Entirely within the user's browser!)
+              results_base, report_base = await main_OS.run_simulation(
+                  config_base, seed=config_base["main"]["seed"], progress_callback=make_progress_callback(0)
+              )
+
+              results_reman, report_reman = await main_OS.run_simulation(
+                  config_reman, seed=config_reman["main"]["seed"], progress_callback=make_progress_callback(sim_length)
+              )
+
+              # 3. Pass all data back to Javascript for drawing comparative charts
+              window.plotResults(json.dumps(results_base), json.dumps(report_base), json.dumps(results_reman), json.dumps(report_reman))
+              update_progress(total_days, total_days)
+
+          except Exception as e:
+              window.alert(f"Simulation Error:\n{str(e)}")
+          finally:
+              btn.innerText = "▶ Run Simulation"
+              btn.classList.remove("opacity-50", "cursor-not-allowed")
+
+      # Bind the Python function to the button click event
+      document.getElementById("run-btn").addEventListener("click", create_proxy(run_sim_from_web))
+    </script>
+  </body>
+</html>
