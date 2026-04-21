@@ -103,9 +103,11 @@ class OEM(BaseAgent):
     def get_shipping_delay(self, destination: str) -> int:
         """
         Calculates the shipping delay based on routing data if available.
-        Heuristic: 1 day base + 1 day per 8 hours driving, +1 if ferry.
+        1 day base + 1 day per 8 hours driving, +1 if ferry. Not sure of the validity or worth of this. Could be standard 2 days.
         """
+        # Checks that there is a distance matrix and that the location being looked for is in that matrix
         if self._distance_matrix and self._location in self._distance_matrix:
+            # Checks if you are sending it to the same place you are
             if self._location == destination:
                 return 1
             route = self._distance_matrix[self._location].get(destination)
@@ -117,22 +119,23 @@ class OEM(BaseAgent):
                 return days
         return self._delivery_delay
 
-    def get_shipping_cost(self, destination: str, fallback_cost: float) -> float:
+    def get_shipping_cost(self, destination: str, default_cost: float) -> float:
         """
         Calculates shipping cost based on distance and route properties.
-        Heuristic: €0.5 per km + €50 flat rate if ferry is involved.
+        Heuristic: €0.5 per km + €50 flat rate if ferry is involved. Again not sure if this is needed, really depends on the logistics method.
         """
         if self._distance_matrix and self._location in self._distance_matrix:
             if self._location == destination:
                 return 10.0 # Standard local delivery cost
             route = self._distance_matrix[self._location].get(destination)
+            # Really all made up, will get something more representative if needed or can remove and change to be static instead.
             if route:
                 km = route["distance_km"]
                 cost = km * 0.01
                 if route.get("has_ferry"):
                     cost += 10.0
                 return cost
-        return fallback_cost
+        return default_cost
 
     def next(self, rng):
         """
@@ -185,9 +188,11 @@ class OEM(BaseAgent):
             self._total_core_collection_cost_dynamic += self._core_collection_cost
 
         if rng.random() < self._core_acceptance_rate:
-            if self._core_stock <= 100:
+            # Set a limit on how many cores to have in storage
+            if self._core_stock < 100:
                 self._core_stock += 1
             else:
+                # Saves the number of cores disposed of when the storage was full
                 self._total_cores_over_capacity += 1
         else:
             self._total_cores_rejected += 1
@@ -208,8 +213,6 @@ class OEM(BaseAgent):
                     self._num_to_man[ProductEnum.V] += 1
                     self._num_to_man[ProductEnum.R] += 1
 
-                
-            
         
     def update_production(self):
         """
@@ -223,19 +226,14 @@ class OEM(BaseAgent):
             match product:
                 case ProductEnum.V:
                     self._production_rate[product] = self._num_to_man[product] / self._manufacture_delay
-                    # if self._production_rate[product] < 3:
+                    # if self._production_rate[product] < 3: # Could set a maximum production capacity
                     #     self._production_rate[product] = 3                        
                     self._factory_stock[product] += self._production_rate[product]
                     self._total_products_produced[product] += self._production_rate[product]
-                    # print(
-                    #     f"Production Rate for {product.name}: {self._production_rate[product]:.4f}"
-                    # )
-                    # print(
-                    #     f"Factory Stock of {product.name}: {self._factory_stock[product]:.4f}"
-                    # )
+                
                 case ProductEnum.R:
                     desired_production = self ._num_to_man[product] / self._remanufacture_delay
-                    maximum_production = self._core_stock / self._remanufacture_delay
+                    maximum_production = self._core_stock / self._remanufacture_delay # Could set a maximum production capacity on top of the core limitation
 
                     self._production_rate[product] = min(
                         desired_production, maximum_production
@@ -244,13 +242,6 @@ class OEM(BaseAgent):
                     self._factory_stock[product] += self._production_rate[product]
                     self._total_products_produced[product] += self._production_rate[product]
                     self._core_stock -= self._production_rate[product]
-                    # print(f"Core stock: {self._core_stock:.4f}")
-                    # print(
-                    #     f"Production Rate for {product.name}: {self._production_rate[product]:.4f}"
-                    # )
-                    # print(
-                    #     f"Factory Stock of {product.name}: {self._factory_stock[product]:.4f}"
-                    # )
 
         for product in ProductEnum:
             self._num_to_man[product] = 0
@@ -278,7 +269,7 @@ class OEM(BaseAgent):
             cost_collection = self._total_cores_collected * self._core_collection_cost
 
         # Disposal costs
-        cost_disposal = (self._total_cores_rejected + self._total_cores_over_capacity)* self._core_disposal_cost
+        cost_disposal = (self._total_cores_rejected + self._total_cores_over_capacity) * self._core_disposal_cost
 
         # Storage costs
         cost_storage = self._total_core_storage_cost

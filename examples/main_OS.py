@@ -64,16 +64,16 @@ async def run_simulation(config, seed=None, progress_callback=None):
     
     customer_counts_by_city = {city: 0 for city in cities}
     if not cities:
-        customer_counts_by_city["Brescia"] = 0
+        customer_counts_by_city["Rome"] = 0
 
     for id_ in range(idIterator, idIterator + B2B_population):
-        loc = rng.choice(cities, p=probabilities) if cities else "Brescia"
+        loc = rng.choice(cities, p=probabilities) if cities else "Rome"
         customer_counts_by_city[loc] += 1
         customer_agents.append(B2B_Customer(id=id_, world=world, oem=oemAgent, config=config["b2b_customer"], location=loc))
     idIterator += B2B_population
 
     for id_ in range(idIterator, idIterator + B2C_population):
-        loc = rng.choice(cities, p=probabilities) if cities else "Brescia"
+        loc = rng.choice(cities, p=probabilities) if cities else "Rome"
         customer_counts_by_city[loc] += 1
         customer_agents.append(B2C_Customer(id=id_, world=world, oem=oemAgent, config=config["b2c_customer"], location=loc))
     idIterator += B2C_population
