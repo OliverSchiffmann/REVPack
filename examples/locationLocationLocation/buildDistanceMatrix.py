@@ -34,7 +34,7 @@ for origin, dest in product(city_names, repeat=2):
     # Self-routing bypass
     if origin == dest:
         nxn_matrix[origin][dest] = {
-            "distance_km": 0, "transit_days": 1, "cost_eur": 35.0, "has_ferry": False
+            "distance_km": 0, "driving_hours": 0.0, "has_ferry": False
         }
         completed += 1
         continue

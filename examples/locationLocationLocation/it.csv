@@ -1,100 +1,25 @@
 city,lat,lng,country,iso2,admin_name,capital,population_proper,probability
-Rome,41.8933,12.4828,Italy,IT,Lazio,primary,2748109,16.2247449
-Milan,45.4669,9.19,Italy,IT,Lombardy,admin,1354196,7.995128519
-Naples,40.8333,14.25,Italy,IT,Campania,admin,913462,5.393049519
-Turin,45.0792,7.6761,Italy,IT,Piedmont,admin,841600,4.968778642
-Palermo,38.1111,13.3517,Italy,IT,Sicilia,admin,630167,3.720485183
-Genoa,44.4111,8.9328,Italy,IT,Liguria,admin,558745,3.298812051
-Bologna,44.4939,11.3428,Italy,IT,Emilia-Romagna,admin,387971,2.290567988
-Florence,43.7714,11.2542,Italy,IT,Tuscany,admin,360930,2.130918815
-Bari,41.1253,16.8667,Italy,IT,Puglia,admin,316015,1.865742137
-Catania,37.5,15.0903,Italy,IT,Sicilia,minor,298762,1.763880994
-Verona,45.4386,10.9928,Italy,IT,Veneto,minor,255588,1.508983122
-Venice,45.4375,12.3358,Italy,IT,Veneto,admin,250369,1.478170318
-Messina,38.1936,15.5542,Italy,IT,Sicilia,minor,218786,1.291705328
-Padova,45.4167,11.8667,Italy,IT,Veneto,minor,206496,1.219145573
-Cosenza,39.3,16.25,Italy,IT,Calabria,minor,63760,0.376436937
-Trieste,45.6503,13.7703,Italy,IT,Friuli Venezia Giulia,admin,198417,1.171447424
-Parma,44.8015,10.328,Italy,IT,Emilia-Romagna,minor,196764,1.161688166
-Brescia,45.5417,10.2167,Italy,IT,Lombardy,minor,196446,1.159810705
-Prato,43.88,11.0983,Italy,IT,Tuscany,minor,195736,1.155618888
-Taranto,40.4711,17.2431,Italy,IT,Puglia,minor,188098,1.110524388
-Modena,44.6469,10.9256,Italy,IT,Emilia-Romagna,minor,184153,1.087233238
-Reggio di Calabria,38.1114,15.6619,Italy,IT,Calabria,minor,170951,1.009289066
-Reggio Emilia,44.7,10.6333,Italy,IT,Emilia-Romagna,minor,169545,1.000988088
-Perugia,43.1122,12.3889,Italy,IT,Umbria,admin,161748,0.954954857
-Ravenna,44.4161,12.2017,Italy,IT,Emilia-Romagna,minor,155751,0.919548767
-Livorno,43.5519,10.3083,Italy,IT,Tuscany,minor,152914,0.902799212
-Rimini,44.0594,12.5683,Italy,IT,Emilia-Romagna,minor,149211,0.880936823
-Cagliari,39.2278,9.1111,Italy,IT,Sardegna,admin,148117,0.874477883
-Foggia,41.4642,15.5461,Italy,IT,Puglia,minor,145348,0.858129798
-Ferrara,44.8333,11.6167,Italy,IT,Emilia-Romagna,minor,129340,0.763619094
-Latina,41.4672,12.9036,Italy,IT,Lazio,minor,127564,0.753133649
-Salerno,40.6806,14.7594,Italy,IT,Campania,minor,127186,0.750901949
-Giugliano in Campania,40.9333,14.2,Italy,IT,Campania,,123679,0.730196737
-Monza,45.5836,9.2736,Italy,IT,Lombardy,minor,121799,0.719097279
-Sassari,40.725,8.5586,Italy,IT,Sardegna,minor,121021,0.714503992
-Bergamo,45.695,9.67,Italy,IT,Lombardy,minor,119534,0.705724793
-Pescara,42.4639,14.2142,Italy,IT,Abruzzo,minor,118657,0.700547014
-Trento,46.0667,11.1167,Italy,IT,Trentino-Alto Adige,admin,118046,0.696939691
-Forlì,44.2333,12.05,Italy,IT,Emilia-Romagna,minor,116440,0.687457919
-Siracusa,37.0692,15.2875,Italy,IT,Sicilia,minor,116244,0.686300742
-Vicenza,45.55,11.55,Italy,IT,Veneto,minor,109823,0.64839137
-Terni,42.5619,12.6414,Italy,IT,Umbria,minor,106370,0.628004972
-Bolzano,46.5,11.35,Italy,IT,Trentino-Alto Adige,minor,106107,0.626452228
-Roncaglia,45.0478,9.7006,Italy,IT,Emilia-Romagna,,103607,0.611692311
-Piacenza,45.0478,9.7006,Italy,IT,Emilia-Romagna,minor,102465,0.60494998
-Novara,45.45,8.62,Italy,IT,Piedmont,minor,101257,0.597817988
-Ancona,43.6169,13.5167,Italy,IT,Marche,admin,98356,0.58069058
-Udine,46.0667,13.2333,Italy,IT,Friuli Venezia Giulia,minor,97808,0.577455206
-Mestre,45.4906,12.2381,Italy,IT,Veneto,,89376,0.527672956
-Catanzaro,38.9,16.6,Italy,IT,Calabria,admin,84670,0.499888887
-Treviso,45.6667,12.25,Italy,IT,Veneto,minor,84607,0.499516937
-Como,45.8167,9.0833,Italy,IT,Lombardy,minor,83184,0.491115592
-Busto Arsizio,45.6119,8.85,Italy,IT,Lombardy,,82951,0.489739968
-Torre del Greco,40.7833,14.3667,Italy,IT,Campania,,80508,0.475316577
-Sesto San Giovanni,45.5333,9.2333,Italy,IT,Lombardy,,78884,0.465728534
-Varese,45.8167,8.8333,Italy,IT,Lombardy,minor,78409,0.46292415
-Pozzuoli,40.8444,14.0933,Italy,IT,Campania,,76331,0.450655706
-Cinisello Balsamo,45.55,9.2167,Italy,IT,Lombardy,,74528,0.440010854
-Casoria,40.9,14.3,Italy,IT,Campania,,74021,0.437017543
-Caserta,41.0667,14.3333,Italy,IT,Campania,minor,72805,0.429838319
-L’Aquila,42.35,13.4,Italy,IT,Abruzzo,admin,69558,0.410668138
-Acilia,41.7833,12.3667,Italy,IT,Lazio,,66932,0.39516432
-Calimera,40.25,18.2833,Italy,IT,Puglia,,66777,0.394249206
-Potenza,40.6333,15.8,Italy,IT,Basilicata,admin,64406,0.3802509
-Castellammare di Stabia,40.6947,14.4803,Italy,IT,Campania,,62772,0.370603818
-Afragola,40.9167,14.3167,Italy,IT,Campania,,61712,0.364345613
-Viareggio,43.8667,10.2333,Italy,IT,Tuscany,,60579,0.357656418
-Legnano,45.5781,8.9183,Italy,IT,Lombardy,,59941,0.353889687
-Anzio,41.4472,12.6283,Italy,IT,Lazio,,58949,0.348032952
-Marano di Napoli,40.9,14.1833,Italy,IT,Campania,,57777,0.341113502
-Bagheria,38.0803,13.5086,Italy,IT,Sicilia,,52928,0.312485166
-Gallarate,45.6667,8.8,Italy,IT,Lombardy,,52811,0.311794402
-Portici,40.8197,14.3411,Italy,IT,Campania,,52054,0.307325099
-Pordenone,45.95,12.65,Italy,IT,Friuli Venezia Giulia,minor,51725,0.305382694
-Cava de’ Tirreni,40.7,14.7,Italy,IT,Campania,,50539,0.298380589
-Acireale,37.6167,15.1667,Italy,IT,Sicilia,,50515,0.298238894
-Rho,45.5311,9.0406,Italy,IT,Lombardy,,50299,0.296963637
-Ercolano,40.8,14.35,Italy,IT,Campania,,50124,0.295930443
-Aversa,40.9667,14.2,Italy,IT,Campania,,49612,0.292907612
-Misterbianco,37.5167,15,Italy,IT,Sicilia,,49017,0.289394751
-Collegno,45.0833,7.5833,Italy,IT,Piedmont,,48340,0.285397766
-Scafati,40.7536,14.5253,Italy,IT,Campania,,48045,0.283656095
-Campi Bisenzio,43.8167,11.1333,Italy,IT,Tuscany,,47462,0.280214083
-Rivoli,45.0667,7.5167,Italy,IT,Piedmont,,47147,0.278354333
-Paderno Dugnano,45.5667,9.1667,Italy,IT,Lombardy,,47118,0.278183118
-Campobasso,41.5667,14.6667,Italy,IT,Molise,admin,47075,0.277929247
-San Benedetto del Tronto,42.95,13.8833,Italy,IT,Marche,,46957,0.277232579
-Cologno Monzese,45.5286,9.2783,Italy,IT,Lombardy,,46707,0.275756587
-Lissone,45.6167,9.25,Italy,IT,Lombardy,,46394,0.273908646
-Marino,41.7667,12.6667,Italy,IT,Lazio,,46347,0.273631159
-Nichelino,45,7.65,Italy,IT,Piedmont,,46244,0.273023051
-Settimo Torinese,45.1333,7.7667,Italy,IT,Piedmont,,45840,0.270637848
-Seregno,45.65,9.2,Italy,IT,Lombardy,,44917,0.265188487
-San Giorgio a Cremano,40.8333,14.3333,Italy,IT,Campania,,42485,0.250830039
-Desio,45.6167,9.2167,Italy,IT,Lombardy,,41463,0.244796184
-Rozzano,45.3833,9.15,Italy,IT,Lombardy,,41240,0.2434796
-Merano,46.6667,11.1667,Italy,IT,Trentino-Alto Adige,,41071,0.242481829
-Torre Annunziata,40.75,14.45,Italy,IT,Campania,,40153,0.237061988
-Nicastro,38.9833,16.3167,Italy,IT,Calabria,,40000,0.236158681
+Rome,41.8933,12.4828,Italy,IT,Lazio,primary,2748109,0.162247449
+Milan,45.4669,9.19,Italy,IT,Lombardy,admin,1354196,0.079951285
+Naples,40.8333,14.25,Italy,IT,Campania,admin,913462,0.053930495
+Turin,45.0792,7.6761,Italy,IT,Piedmont,admin,841600,0.049687786
+Palermo,38.1111,13.3517,Italy,IT,Sicilia,admin,630167,0.037204852
+Genoa,44.4111,8.9328,Italy,IT,Liguria,admin,558745,0.032988121
+Bologna,44.4939,11.3428,Italy,IT,Emilia-Romagna,admin,387971,0.02290568
+Florence,43.7714,11.2542,Italy,IT,Tuscany,admin,360930,0.021309188
+Bari,41.1253,16.8667,Italy,IT,Puglia,admin,316015,0.018657421
+Catania,37.5,15.0903,Italy,IT,Sicilia,minor,298762,0.01763881
+Verona,45.4386,10.9928,Italy,IT,Veneto,minor,255588,0.015089831
+Venice,45.4375,12.3358,Italy,IT,Veneto,admin,250369,0.014781703
+Messina,38.1936,15.5542,Italy,IT,Sicilia,minor,218786,0.012917053
+Padova,45.4167,11.8667,Italy,IT,Veneto,minor,206496,0.012191456
+Cosenza,39.3,16.25,Italy,IT,Calabria,minor,63760,0.003764369
+Trieste,45.6503,13.7703,Italy,IT,Friuli Venezia Giulia,admin,198417,0.011714474
+Parma,44.8015,10.328,Italy,IT,Emilia-Romagna,minor,196764,0.011616882
+Brescia,45.5417,10.2167,Italy,IT,Lombardy,minor,196446,0.011598107
+Prato,43.88,11.0983,Italy,IT,Tuscany,minor,195736,0.011556189
+Taranto,40.4711,17.2431,Italy,IT,Puglia,minor,188098,0.011105244
+Modena,44.6469,10.9256,Italy,IT,Emilia-Romagna,minor,184153,0.010872332
+Reggio di Calabria,38.1114,15.6619,Italy,IT,Calabria,minor,170951,0.010092891
+Reggio Emilia,44.7,10.6333,Italy,IT,Emilia-Romagna,minor,169545,0.010009881
+Perugia,43.1122,12.3889,Italy,IT,Umbria,admin,161748,0.009549549
