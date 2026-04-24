@@ -11,6 +11,7 @@ import matplotlib.pyplot as plt
 import importlib.util
 import os, json
 import asyncio
+import csv
 
 async def run_simulation(config, seed=None, progress_callback=None):
     """Runs the simulation given a config dictionary and returns the results arrays and report."""
@@ -25,6 +26,29 @@ async def run_simulation(config, seed=None, progress_callback=None):
     B2C_population: int = config["main"]["B2C_population"]
     simulation_length: int = config["main"]["simulation_length"]
 
+    # Load geographic data
+    cities = []
+    probabilities = []
+    city_coords = {}
+    with open("examples/locationLocationLocation/it.csv", "r", encoding="utf-8") as f:
+        reader = csv.DictReader(f)
+        for row in reader:
+            city_name = row["city"]
+            cities.append(city_name)
+            city_coords[city_name] = {"lat": float(row["lat"]), "lng": float(row["lng"])}
+            prob = row.get('probability')
+            if prob is not None:
+                probabilities.append(float(prob))
+            else:
+                probabilities.append(1.0)
+        probabilities[-1] = 1.0 - sum(probabilities[:-1]) # To avoid precision float errors summing > 1.0
+
+    with open("examples/locationLocationLocation/italy_100x100_matrix.json", "r") as f:
+        distance_matrix = json.load(f)
+        
+    config["oem"]["location"] = "Brescia"
+    config["oem"]["distance_matrix"] = distance_matrix
+
     results = {
         "day": [], "potential_users": [], "wants_virgin": [], "uses_virgin": [],
         "wants_reman": [], "uses_reman": [], "wants_any": [], "waiting_for_delivery": [],
@@ -37,10 +61,21 @@ async def run_simulation(config, seed=None, progress_callback=None):
 
     idIterator = 1
     customer_agents = []
+    
+    customer_counts_by_city = {city: 0 for city in cities}
+    if not cities:
+        customer_counts_by_city["Rome"] = 0
 
-    [customer_agents.append(B2B_Customer(id=id, world=world, oem=oemAgent, config=config["b2b_customer"])) for id in range(idIterator, idIterator + B2B_population)]    
+    for id_ in range(idIterator, idIterator + B2B_population):
+        loc = rng.choice(cities, p=probabilities) if cities else "Rome"
+        customer_counts_by_city[loc] += 1
+        customer_agents.append(B2B_Customer(id=id_, world=world, oem=oemAgent, config=config["b2b_customer"], location=loc))
     idIterator += B2B_population
-    [customer_agents.append(B2C_Customer(id=id, world=world, oem=oemAgent, config=config["b2c_customer"])) for id in range(idIterator, idIterator + B2C_population)]
+
+    for id_ in range(idIterator, idIterator + B2C_population):
+        loc = rng.choice(cities, p=probabilities) if cities else "Rome"
+        customer_counts_by_city[loc] += 1
+        customer_agents.append(B2C_Customer(id=id_, world=world, oem=oemAgent, config=config["b2c_customer"], location=loc))
     idIterator += B2C_population
 
     world.add_agents_from_list(customer_agents)
@@ -78,6 +113,21 @@ async def run_simulation(config, seed=None, progress_callback=None):
                 await asyncio.sleep(0)
 
     report = oemAgent.generate_financial_report()
+    
+    # Package the geographic data into the report for the webapp overlay
+    report["Geographic Distribution"] = {
+        "OEM Location": config["oem"]["location"],
+        "City Data": {}
+    }
+    for city, count in customer_counts_by_city.items():
+        if count > 0 or city == config["oem"]["location"]:
+            report["Geographic Distribution"]["City Data"][city] = {
+                "lat": city_coords.get(city, {"lat": 0.0})["lat"],
+                "lng": city_coords.get(city, {"lng": 0.0})["lng"],
+                "customers": count,
+                "is_oem": city == config["oem"]["location"]
+            }
+
     return results, report
 
 if __name__ == "__main__":

@@ -75,8 +75,8 @@ class TestOEM(unittest.TestCase):
     
     def test_update_production_no_cores(self):
         """ Test whether the production rates act as expected, assuming baseline no cores."""
-        self.oem._world._num_to_man[ProductEnum.V] = 10
-        self.oem._world._num_to_man[ProductEnum.R] = 10
+        self.oem._num_to_man[ProductEnum.V] = 10
+        self.oem._num_to_man[ProductEnum.R] = 10
         self.oem.update_production()
         self.assertEqual(self.oem._production_rate[ProductEnum.V], 2)
         self.assertEqual(self.oem._production_rate[ProductEnum.R], 0)
@@ -87,8 +87,8 @@ class TestOEM(unittest.TestCase):
     def test_update_production_cores(self):
         """ Test whether the production rates act as expected, with available cores."""
 
-        self.oem._world._num_to_man[ProductEnum.V] = 10
-        self.oem._world._num_to_man[ProductEnum.R] = 10
+        self.oem._num_to_man[ProductEnum.V] = 10
+        self.oem._num_to_man[ProductEnum.R] = 10
         self.oem._core_stock = 10
         self.oem.update_production()
         

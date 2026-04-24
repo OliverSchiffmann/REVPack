@@ -38,7 +38,7 @@ done
 echo "OSRM Server is UP! Starting Python..."
 
 # 3. Execute python script
-python -u examples/locationLocationLocation/buildDistanceMatrix.py
+python -u examples/locations/buildDistanceMatrix.py
 
 # 4. Kill the server so the job ends cleanly
 kill $OSRM_PID

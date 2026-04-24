@@ -83,7 +83,7 @@ class Customer(BaseAgent):
     _core_return_rate: float
     _config: dict
 
-    def __init__(self, id: int, world: World, oem: OEM, config: dict):
+    def __init__(self, id: int, world: World, oem: OEM, config: dict, location: str = "Brescia"):
         """
         Initialise the Customer agent.
 
@@ -92,9 +92,11 @@ class Customer(BaseAgent):
             world (World): The simulation world the agent belongs to.
             oem (OEM): The OEM agent to interact with.
             config (dict): Configuration dictionary with the customer parameters.
+            location (str): Geographical location of the customer.
         """
         self._state = CustomerStatesEnum.POTENTIAL_USER
         self._config = config
+        self._location = location
         self._delivery_day = -1
         self._end_of_life_day = -1
         self._active_product = None
@@ -181,21 +183,8 @@ class Customer(BaseAgent):
         Handles logic for customers currently using a product until it reaches end-of-life. Going to add some logic so that customers lose interest at some point. 
         """
         if self._world.now() >= self._end_of_life_day:
-            
-            # I would say they go into a 'wants any' state
-            # product_to_rebuy = self._active_product
-
-            # if (
-            #     product_to_rebuy is None
-            # ):  # This seems superfluous but its so python/IDE knows that product to rebuy wont be None
-            #     if self._state == CustomerStatesEnum.USES_REMAN:
-            #         product_to_rebuy = ProductEnum.R
-            #     else:
-            #         product_to_rebuy = ProductEnum.V
-            # 
-            # self._state = product_params[product_to_rebuy]["wants_state"]
-            
-            # Instead have a chance for them to lose interest and go back to being a non-user at some rate, 0.1 for show
+                      
+            # Instead have a chance for them to lose interest and go back to being a non-user at some rate, removed by setting to 0.0 not sure if its worth keeping
             if rng.random() < self._config.get("lose_interest_rate", 0.0):
                 self._state = CustomerStatesEnum.POTENTIAL_USER
             else:
@@ -206,7 +195,7 @@ class Customer(BaseAgent):
             self._end_of_life_day = -1
             if ProductEnum.R in self._world.get_active_products():
                 if rng.random() < self._core_return_rate:
-                    self._oem.return_product(rng)
+                    self._oem.return_product(rng, self._location)
                 else:
                     self._oem._total_cores_not_collected += 1
             else:
@@ -220,16 +209,16 @@ class Customer(BaseAgent):
             rng (numpy.random.Generator): Random number generator.
             product (ProductEnum): The type of product to attempt to buy.
         """
-        purchaseSuccessful = self._oem.request_product(product)
+        purchaseSuccessful = self._oem.request_product(product, self._location)
 
         if purchaseSuccessful:
-            if self._oem._delivery_delay == 0:  # checking if delivery is instant
+            delay = self._oem.get_shipping_delay(self._location)
+            if delay == 0:  # checking if delivery is instant
                 self.become_user(rng, product)
             else:
-                # self._state = product_params[product]["wants_state"]
                 self._state = CustomerStatesEnum.WAITING_FOR_DELIVERY
                 self._active_product = product
-                self._delivery_day = self._world.now() + self._oem._delivery_delay
+                self._delivery_day = self._world.now() + delay
             self._end_of_patience_day = -1
         else:
             if self._end_of_patience_day == -1 and self._patience != -1: # was a bug where patience being -1 was the same as 0, -1 should be infinite patience
@@ -237,7 +226,7 @@ class Customer(BaseAgent):
 
     def initialise_as_active_user(self, rng, product: ProductEnum):
         """
-        Initialises the customer as an active user of the specified product with a randomised remaining lifespan.
+        Initialises the customer as an active user of the specified product with a random remaining lifespan.
         For creating some existing users.
         """
         self.become_user(rng, product)
@@ -259,7 +248,7 @@ class Customer(BaseAgent):
         self._delivery_day = -1
         self._end_of_patience_day = -1
         
-        # Determine the lifetime distribution method from config, defaulting to triangular
+        # Determine the lifetime distribution method from config, defaults to triangular
         lifetime_method = self._config.get("lifetime_method", "triangular")
         
         if lifetime_method == "uniform":
