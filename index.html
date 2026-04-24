@@ -44,13 +44,12 @@
           { from: `reuman/product.py?v=${ts}`, to_file: "reuman/product.py" },
           { from: `reuman/world.py?v=${ts}`, to_file: "reuman/world.py" },
           {
-            from: `examples/locationLocationLocation/it.csv?v=${ts}`,
-            to_file: "examples/locationLocationLocation/it.csv",
+            from: `examples/locations/it.csv?v=${ts}`,
+            to_file: "examples/locations/it.csv",
           },
           {
-            from: `examples/locationLocationLocation/italy_100x100_matrix.json?v=${ts}`,
-            to_file:
-              "examples/locationLocationLocation/italy_100x100_matrix.json",
+            from: `examples/locations/italy_100x100_matrix.json?v=${ts}`,
+            to_file: "examples/locations/italy_100x100_matrix.json",
           },
         ],
       });
@@ -130,7 +129,7 @@
                     <input
                       type="number"
                       id="start_cust_val"
-                      value="333"
+                      value="1000"
                       min="0"
                       max="1000"
                       class="w-16 border p-1 rounded text-right text-sm"
@@ -139,7 +138,7 @@
                   <input
                     type="range"
                     id="start_cust"
-                    value="333"
+                    value="1000"
                     min="0"
                     max="1000"
                     class="w-full mt-2"
@@ -297,6 +296,15 @@
                     class="w-full border p-1 rounded mt-1"
                   />
                 </div>
+                <div>
+                  <label class="block text-gray-600">Bounty Value (€)</label>
+                  <input
+                    type="number"
+                    id="bounty_value"
+                    value="10"
+                    class="w-full border p-1 rounded mt-1"
+                  />
+                </div>
               </div>
             </div>
 
@@ -311,7 +319,7 @@
                   <input
                     type="number"
                     id="b2b_patience"
-                    value="-1"
+                    value="14"
                     class="w-full border p-1 rounded mt-1"
                   />
                 </div>
@@ -333,18 +341,35 @@
         <div
           class="bg-white p-6 rounded-lg shadow-md lg:col-span-2 flex flex-col space-y-6"
         >
-          <!-- Progress Bar (Hidden by default) -->
-          <div id="progress-container" class="hidden">
-            <div class="flex justify-between text-sm text-gray-600 mb-1">
-              <span class="font-bold">Simulation Progress</span>
-              <span id="progress-text">0 / 0 Days</span>
+          <!-- Progress Bars (Hidden by default) -->
+          <div id="progress-container" class="hidden space-y-4 mb-4">
+            <!-- Base Simulation -->
+            <div>
+              <div class="flex justify-between text-sm text-gray-600 mb-1">
+                <span class="font-bold">No Remanufacturing</span>
+                <span id="progress-text-base">0 / 0 Days</span>
+              </div>
+              <div class="w-full bg-gray-200 rounded-full h-2.5">
+                <div
+                  id="progress-bar-base"
+                  class="bg-gray-500 h-2.5 rounded-full transition-all duration-100"
+                  style="width: 0%"
+                ></div>
+              </div>
             </div>
-            <div class="w-full bg-gray-200 rounded-full h-2.5">
-              <div
-                id="progress-bar"
-                class="bg-blue-600 h-2.5 rounded-full transition-all duration-100"
-                style="width: 0%"
-              ></div>
+            <!-- Reman Simulation -->
+            <div>
+              <div class="flex justify-between text-sm text-gray-600 mb-1">
+                <span class="font-bold">With Remanufacturing</span>
+                <span id="progress-text-reman">0 / 0 Days</span>
+              </div>
+              <div class="w-full bg-gray-200 rounded-full h-2.5">
+                <div
+                  id="progress-bar-reman"
+                  class="bg-blue-600 h-2.5 rounded-full transition-all duration-100"
+                  style="width: 0%"
+                ></div>
+              </div>
             </div>
           </div>
 
@@ -396,6 +421,21 @@
                 <div
                   class="mt-2 text-sm text-gray-700 bg-white p-3 rounded border border-gray-200 shadow-inner"
                   id="breakdown-base"
+                >
+                  <span class="text-gray-400 italic"
+                    >Run simulation to see details...</span
+                  >
+                </div>
+              </details>
+              <details class="mt-2">
+                <summary
+                  class="cursor-pointer text-sm font-bold text-gray-600 outline-none hover:text-gray-800 transition-colors"
+                >
+                  View Statistics
+                </summary>
+                <div
+                  class="mt-2 text-sm text-gray-700 bg-white p-3 rounded border border-gray-200 shadow-inner"
+                  id="stats-base"
                 >
                   <span class="text-gray-400 italic"
                     >Run simulation to see details...</span
@@ -457,6 +497,21 @@
                   >
                 </div>
               </details>
+              <details class="mt-2">
+                <summary
+                  class="cursor-pointer text-sm font-bold text-blue-800 outline-none hover:text-blue-900 transition-colors"
+                >
+                  View Statistics
+                </summary>
+                <div
+                  class="mt-2 text-sm text-gray-700 bg-white p-3 rounded border border-blue-200 shadow-inner"
+                  id="stats-reman"
+                >
+                  <span class="text-gray-400 italic"
+                    >Run simulation to see details...</span
+                  >
+                </div>
+              </details>
             </div>
           </div>
 
@@ -511,6 +566,19 @@
                 style="max-height: 250px; width: 100%"
               ></canvas>
             </div>
+
+            <div class="flex-grow">
+              <canvas
+                id="balanceChartBase"
+                style="max-height: 250px; width: 100%"
+              ></canvas>
+            </div>
+            <div class="flex-grow">
+              <canvas
+                id="balanceChartReman"
+                style="max-height: 250px; width: 100%"
+              ></canvas>
+            </div>
           </div>
         </div>
       </div>
@@ -561,7 +629,7 @@
             remanufacture_delay: parseInt(
               document.getElementById("reman_delay").value,
             ),
-            virgin_stock: 10,
+            virgin_stock: 0,
             reman_stock: 0,
             core_stock: 0,
             unit_production_cost_V: parseFloat(
@@ -572,6 +640,9 @@
             ),
             core_acceptance_rate: parseFloat(
               document.getElementById("core_accept").value,
+            ),
+            bounty_value: parseFloat(
+              document.getElementById("bounty_value").value,
             ),
             core_collection_cost: 20,
             core_disposal_cost: 20,
@@ -589,7 +660,7 @@
               document.getElementById("b2b_mean_life").value,
             ),
             lifetime_method: "triangular",
-            lifetime_range: 100,
+            lifetime_range: 5,
             core_return_rate: 1.0,
           },
           b2c_customer: {
@@ -761,6 +832,38 @@
         );
       }
 
+      function buildBalanceChart(canvasId, results, titleText) {
+        if (charts[canvasId]) charts[canvasId].destroy();
+        charts[canvasId] = new Chart(
+          document.getElementById(canvasId).getContext("2d"),
+          {
+            type: "line",
+            data: {
+              labels: results.day,
+              datasets: [
+                {
+                  label: "Bank Balance (€)",
+                  data: results.oem_balance,
+                  borderColor: "#8b5cf6",
+                  backgroundColor: "rgba(139, 92, 246, 0.2)",
+                  fill: true,
+                  pointRadius: 0,
+                },
+              ],
+            },
+            options: {
+              responsive: true,
+              maintainAspectRatio: false,
+              plugins: { title: { display: true, text: titleText } },
+              scales: {
+                x: { title: { display: true, text: "Day" } },
+                y: { title: { display: true, text: "Balance (€)" } },
+              },
+            },
+          },
+        );
+      }
+
       // 3. Receive results from Python and plot them using Chart.js
       window.plotResults = function (
         resBaseStr,
@@ -807,6 +910,23 @@
           buildBreakdownHtml(repBase["Breakdown"]);
         document.getElementById("breakdown-reman").innerHTML =
           buildBreakdownHtml(repReman["Breakdown"]);
+
+        // Build Statistics HTML
+        const buildStatsHtml = (statsObj) => {
+          let html = '<ul class="space-y-1">';
+          for (const [key, value] of Object.entries(statsObj)) {
+            html += `<li class="flex justify-between border-b border-gray-100 last:border-0 pb-1 last:pb-0"><span>${key}:</span> <span class="font-mono text-gray-800">${value.toLocaleString()}</span></li>`;
+          }
+          html += "</ul>";
+          return html;
+        };
+
+        document.getElementById("stats-base").innerHTML = buildStatsHtml(
+          repBase["Statistics"],
+        );
+        document.getElementById("stats-reman").innerHTML = buildStatsHtml(
+          repReman["Statistics"],
+        );
 
         // Initialize map if it hasn't been already
         if (!map) initMap();
@@ -859,6 +979,16 @@
         buildSalesChart("salesChartReman", resReman, "Sales (With Reman)");
         buildStockChart("stockChartBase", resBase, "Stock (No Reman)");
         buildStockChart("stockChartReman", resReman, "Stock (With Reman)");
+        buildBalanceChart(
+          "balanceChartBase",
+          resBase,
+          "Bank Balance (No Reman)",
+        );
+        buildBalanceChart(
+          "balanceChartReman",
+          resReman,
+          "Bank Balance (With Reman)",
+        );
       };
 
       // 4. Export logic - creates a downloadable Python dictionary string
@@ -902,10 +1032,10 @@
       # Import your local refactored simulation logic!
       import main_OS
 
-      def update_progress(current, total):
+      def update_progress(bar_id, text_id, current, total):
           percentage = (current / total) * 100
-          document.getElementById('progress-bar').style.width = f"{percentage}%"
-          document.getElementById('progress-text').innerText = f"{current} / {total} Days"
+          document.getElementById(bar_id).style.width = f"{percentage}%"
+          document.getElementById(text_id).innerText = f"{current} / {total} Days"
 
       async def run_sim_from_web(event):
           btn = document.getElementById('run-btn')
@@ -925,26 +1055,27 @@
               config_reman["main"]["enable_reman"] = True
 
               sim_length = config_base["main"]["simulation_length"]
-              total_days = sim_length * 2
-              update_progress(0, total_days)
+              update_progress("progress-bar-base", "progress-text-base", 0, sim_length)
+              update_progress("progress-bar-reman", "progress-text-reman", 0, sim_length)
 
-              def make_progress_callback(offset):
+              def make_progress_callback(bar_id, text_id):
                   def cb(current, total):
-                      update_progress(offset + current, total_days)
+                      update_progress(bar_id, text_id, current, total)
                   return cb
 
               # 2. Run both simulations (Entirely within the user's browser!)
               results_base, report_base = await main_OS.run_simulation(
-                  config_base, seed=config_base["main"]["seed"], progress_callback=make_progress_callback(0)
+                  config_base, seed=config_base["main"]["seed"], progress_callback=make_progress_callback("progress-bar-base", "progress-text-base")
               )
+              update_progress("progress-bar-base", "progress-text-base", sim_length, sim_length)
 
               results_reman, report_reman = await main_OS.run_simulation(
-                  config_reman, seed=config_reman["main"]["seed"], progress_callback=make_progress_callback(sim_length)
+                  config_reman, seed=config_reman["main"]["seed"], progress_callback=make_progress_callback("progress-bar-reman", "progress-text-reman")
               )
+              update_progress("progress-bar-reman", "progress-text-reman", sim_length, sim_length)
 
               # 3. Pass all data back to Javascript for drawing comparative charts
               window.plotResults(json.dumps(results_base), json.dumps(report_base), json.dumps(results_reman), json.dumps(report_reman))
-              update_progress(total_days, total_days)
 
           except Exception as e:
               window.alert(f"Simulation Error:\n{str(e)}")

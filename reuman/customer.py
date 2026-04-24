@@ -48,7 +48,7 @@ class ProductDetails(TypedDict):
 product_params: dict[ProductEnum, ProductDetails] = {
     ProductEnum.V: {
         "lifespan": (17, 24),  # number of days that a product might last for when in use
-        "advertising_effectiveness": 0.1,
+        "advertising_effectiveness": 0.0006,
         "wom_threshold": 0.015,
         "wants_state": CustomerStatesEnum.WANTS_VIRGIN,
         "uses_state": CustomerStatesEnum.USES_VIRGIN,
@@ -56,7 +56,7 @@ product_params: dict[ProductEnum, ProductDetails] = {
     },
     ProductEnum.R: {
         "lifespan": (17, 24),
-        "advertising_effectiveness": 0.0006,
+        "advertising_effectiveness": 0.0003,
         "wom_threshold": 0.015,
         "wants_state": CustomerStatesEnum.WANTS_REMAN,
         "uses_state": CustomerStatesEnum.USES_REMAN,
@@ -187,15 +187,16 @@ class Customer(BaseAgent):
             # Instead have a chance for them to lose interest and go back to being a non-user at some rate, removed by setting to 0.0 not sure if its worth keeping
             if rng.random() < self._config.get("lose_interest_rate", 0.0):
                 self._state = CustomerStatesEnum.POTENTIAL_USER
-            else:
-                self._state = CustomerStatesEnum.WANTS_ANY
+                self._active_product = None
+            elif self._active_product is not None:
+                self._state = product_params[self._active_product]["wants_state"]
+                # Retain self._active_product so they attempt to buy the same product again
             
-            self._active_product = None
             self._delivery_day = -1           
             self._end_of_life_day = -1
             if ProductEnum.R in self._world.get_active_products():
                 if rng.random() < self._core_return_rate:
-                    self._oem.return_product(rng, self._location)
+                    self._oem.schedule_core_return(self._location)
                 else:
                     self._oem._total_cores_not_collected += 1
             else:

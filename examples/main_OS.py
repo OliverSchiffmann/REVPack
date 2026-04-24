@@ -5,7 +5,7 @@ from reuman.world import World
 from reuman._agent import AgentEnum
 from reuman.customer import B2B_Customer, B2C_Customer, CustomerStatesEnum
 from reuman.product import ProductEnum
-from reuman.OEM import OEM
+from reuman.OEM import OEM, OEMStatesEnum
 from numpy import random
 import matplotlib.pyplot as plt
 import importlib.util
@@ -30,7 +30,7 @@ async def run_simulation(config, seed=None, progress_callback=None):
     cities = []
     probabilities = []
     city_coords = {}
-    with open("examples/locationLocationLocation/it.csv", "r", encoding="utf-8") as f:
+    with open("examples/locations/it.csv", "r", encoding="utf-8") as f:
         reader = csv.DictReader(f)
         for row in reader:
             city_name = row["city"]
@@ -43,7 +43,7 @@ async def run_simulation(config, seed=None, progress_callback=None):
                 probabilities.append(1.0)
         probabilities[-1] = 1.0 - sum(probabilities[:-1]) # To avoid precision float errors summing > 1.0
 
-    with open("examples/locationLocationLocation/italy_100x100_matrix.json", "r") as f:
+    with open("examples/locations/italy_100x100_matrix.json", "r") as f:
         distance_matrix = json.load(f)
         
     config["oem"]["location"] = "Brescia"
@@ -53,7 +53,8 @@ async def run_simulation(config, seed=None, progress_callback=None):
         "day": [], "potential_users": [], "wants_virgin": [], "uses_virgin": [],
         "wants_reman": [], "uses_reman": [], "wants_any": [], "waiting_for_delivery": [],
         "core_stock": [], "virgin_stock": [], "reman_stock": [], "virgin_sold": [], 
-        "reman_sold": [], "cores_collected": [], "cores_rejected": [],
+        "reman_sold": [], "cores_collected": [], "cores_rejected": [], "inspection_cost": [],
+        "bounty_values_paid": [], "oem_balance": [],
     }
 
     oemAgent = OEM(id=-1, world=world, config=config["oem"])
@@ -103,6 +104,9 @@ async def run_simulation(config, seed=None, progress_callback=None):
         results["reman_sold"].append(oemAgent._products_sold[ProductEnum.R])
         results["cores_collected"].append(oemAgent._total_cores_collected)
         results["cores_rejected"].append(oemAgent._total_cores_rejected)
+        results["inspection_cost"].append(oemAgent._total_inspection_costs)
+        results["bounty_values_paid"].append(oemAgent._bounty_value * oemAgent._bounties_returned)
+        results["oem_balance"].append(oemAgent._balance)
         world.call_next(rng)
 
         # Yield to the browser every 1% of the simulation so it can update the UI progress bar
@@ -112,7 +116,7 @@ async def run_simulation(config, seed=None, progress_callback=None):
                 progress_callback(i, simulation_length)
                 await asyncio.sleep(0)
 
-    report = oemAgent.generate_financial_report()
+    report = oemAgent.generate_financial_report() # type: ignore
     
     # Package the geographic data into the report for the webapp overlay
     report["Geographic Distribution"] = {
