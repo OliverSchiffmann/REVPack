@@ -4,12 +4,24 @@ import copy
 from SALib.sample import sobol
 
 # 1. Import the problem from another file, so that its consistent across scenario generation and the analysis file
-from problemBounds import problem
+from examples.parameterSweepStudy.problemBounds import problem
 # Import the baseline scenario to use as a template
 from examples.scenarios import SCENARIOS
 
 
 if __name__ == "__main__":
+
+    # Define where each parameter belongs in the scenario config dictionary
+    PARAM_MAPPING = {
+        'manufacture_delay': ['oem'],
+        'remanufacture_delay': ['oem'],
+        'unit_production_cost_V': ['oem'],
+        'unit_production_cost_R': ['oem'],
+        'core_acceptance_rate': ['oem'],
+        'patience': ['b2b_customer', 'b2c_customer'],
+        'retail_price_V': ['oem'],
+        'retail_price_R': ['oem']
+    }
 
     # --- 2. Generate Saltelli Samples ---
     # N is the baseline sample size. Typically 512, 1024, or 2048.
@@ -39,15 +51,16 @@ if __name__ == "__main__":
             else:
                 val = int(round(val))
 
-            # Update the value in the nested dictionary if the key exists
-            for category in ["main", "oem", "b2b_customer", "b2c_customer"]:
-                if var_name in new_scenario.get(category, {}):
+            # Force the new value into the correct agent configuration block(s)
+            target_categories = PARAM_MAPPING.get(var_name, ["main"])
+            for category in target_categories:
+                if category in new_scenario:
                     new_scenario[category][var_name] = val
 
         all_scenarios[scenario_id] = new_scenario
 
     # --- 4. Save to .py ---
-    output_filename = "examples/parameterSweepStudy/saltelli_parameters_v3.py"
+    output_filename = "examples/parameterSweepStudy/saltelli_parameters_24_4.py"
     with open(output_filename, "w") as f:
         f.write("import numpy as np \n")
         f.write("SCENARIOS = " + pprint.pformat(all_scenarios, indent=4))
