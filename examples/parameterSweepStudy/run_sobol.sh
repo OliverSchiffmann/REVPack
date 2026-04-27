@@ -30,7 +30,7 @@ mkdir -p $OUTPUT_DIR
 mkdir -p $LOGS_DIR
 
 # N=1024, D=9 -> Total Scenarios = 1024 * (2*9 + 2) = 20480
-MAX_SCENARIOS=18432
+MAX_SCENARIOS=20480
 CHUNK_SIZE=100
 SEEDS=10 # Set this if you want multiple stochastic seeds per scenario
 
@@ -44,6 +44,7 @@ echo "Task $SLURM_ARRAY_TASK_ID handling scenarios $START_ID to $END_ID"
 
 for (( SCENARIO_ID=$START_ID; SCENARIO_ID<=$END_ID; SCENARIO_ID++ )); do
     if [ $SCENARIO_ID -gt $MAX_SCENARIOS ]; then
+    echo "Breaking ID ${SCENARIO_ID} too large"
         break
     fi
     
