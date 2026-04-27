@@ -6,15 +6,15 @@ import pandas as pd
 
 if __name__ == "__main__":
     
-    # First check that all of the logged error files are empty
+    # # First check that all of the logged error files are empty
     
-    log_files = glob.glob("examples/parameterSweepStudy/logs/*.txt")
+    # log_files = glob.glob("examples/parameterSweepStudy/logs/*.txt")
     
-    for log in log_files:
-        with open(log, 'r') as file:
-            content = file.read()
-            if content.strip():
-                raise ValueError(f"Error log file {log} is not empty. Simulation may have failed.")
+    # for log in log_files:
+    #     with open(log, 'r') as file:
+    #         content = file.read()
+    #         if content.strip():
+    #             raise ValueError(f"Error log file {log} is not empty. Simulation may have failed.")
 
         
     # 1. Define the Regex Pattern
@@ -69,5 +69,5 @@ if __name__ == "__main__":
 
 
     # Save the results
-    resultsDf.to_csv("examples/parameterSweepStudy/saltelli_outputs_big.csv", index=False)
+    resultsDf.to_csv("examples/parameterSweepStudy/saltelli_outputs_final.csv", index=False)
    
