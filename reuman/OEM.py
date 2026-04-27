@@ -26,6 +26,7 @@ class OEM(BaseAgent):
     """
 
     _state: OEMStatesEnum
+    _balance: float
     _delivery_delay: int
     _manufacture_delay: int  # Sort of the time it takes to meet the demand (must be >=1 as you cant divide by 0)
     _remanufacture_delay: int
@@ -45,8 +46,14 @@ class OEM(BaseAgent):
     _core_disposal_cost: float
     _core_storage_cost: float
     _total_core_storage_cost: float
+    _bounties_returned: int
+    _bounty_value: float
     _retail_price_V: float
     _retail_price_R: float
+    _inspection_cost: float
+    _total_inspection_costs: float
+    _incoming_cores: list[tuple[int, str | None]]
+
 
     def __init__(self, id: int, world: World, config: dict) -> None:
         """
@@ -69,11 +76,14 @@ class OEM(BaseAgent):
                 f"remanufacture_delay must be >=1. Received: {config['remanufacture_delay']}"
             )
         super().__init__(id=id, type=AgentEnum.OEM, world=world)
+        
+        self._balance = config.get("balance", 0.0)
+        
         self._state = OEMStatesEnum.OPERATIONAL
         self._location = config.get("location", "Brescia")
         self._distance_matrix = config.get("distance_matrix", {})
         self._total_shipping_cost = 0.0
-        self._total_core_collection_cost_dynamic = 0.0
+        self._total_core_collection_cost = 0.0
         self._delivery_delay = config["delivery_delay"]
         self._manufacture_delay = config["manufacture_delay"]
         self._remanufacture_delay = config["remanufacture_delay"]
@@ -97,8 +107,13 @@ class OEM(BaseAgent):
         self._core_disposal_cost = config["core_disposal_cost"]
         self._core_storage_cost = config.get("core_storage_cost", 0.0)
         self._total_core_storage_cost = 0.0
+        self._bounties_returned = 0
+        self._bounty_value = config.get("bounty_value", 10.0)
         self._retail_price_V = config["retail_price_V"]
         self._retail_price_R = config["retail_price_R"]
+        self._inspection_cost = config.get("inspection_cost", 0.0)
+        self._total_inspection_costs = 0.0
+        self._incoming_cores = []
 
     def get_shipping_delay(self, destination: str) -> int:
         """
@@ -137,6 +152,14 @@ class OEM(BaseAgent):
                 return cost
         return default_cost
 
+    def get_core_collection_cost(self, origin: str, default_cost: float) -> float:
+        """
+        Calculates core collection cost based on distance and route properties.
+        Currently is the same logic as the shipping cost, but can be changed later.
+        """        
+        return self.get_shipping_cost(origin, default_cost)
+
+
     def next(self, rng):
         """
         Execute the agent's actions for the current simulation tick.
@@ -144,9 +167,11 @@ class OEM(BaseAgent):
         Args:
             rng (numpy.random.Generator): Random number generator.
         """
+        self.process_incoming_cores(rng)
         self.update_manufacturing_counts()
         self.update_production()
         self._total_core_storage_cost += self._core_stock * self._core_storage_cost
+        self._balance -= self._core_stock * self._core_storage_cost
 
     # Checks the stock of a given product in storage
     def request_product(self, product: ProductEnum, customer_location: str | None = None) -> bool:
@@ -166,10 +191,37 @@ class OEM(BaseAgent):
             self._factory_stock[product] -= 1
             self._products_sold[product] += 1
             if customer_location:
-                self._total_shipping_cost += self.get_shipping_cost(customer_location, 20.0)
+                shipping_cost = self.get_shipping_cost(customer_location, 20.0)
+                self._total_shipping_cost += shipping_cost
+                self._balance -= shipping_cost
+                
+            self._balance += self._retail_price_V if product == ProductEnum.V else self._retail_price_R
             return True
 
         return False
+
+    def schedule_core_return(self, customer_location: str | None = None) -> None:
+        """
+        Schedules a core to be returned to the OEM after a shipping delay.
+        
+        Args:
+            customer_location (str): The location of the customer returning the core.
+        """
+        delay = self.get_shipping_delay(customer_location) if customer_location else self._delivery_delay # Works depending on whether the customer location logic is used
+        arrival_day = self._world.now() + delay
+        self._incoming_cores.append((arrival_day, customer_location))
+
+    def process_incoming_cores(self, rng):
+        """
+        Process cores that have arrived after their return transit delay.
+        """
+        remaining_cores = []
+        for arrival_day, location in self._incoming_cores:
+            if self._world.now() >= arrival_day:
+                self.return_product(rng, location)
+            else:
+                remaining_cores.append((arrival_day, location))
+        self._incoming_cores = remaining_cores
 
     def return_product(self, rng, customer_location: str | None = None) -> None:
         """
@@ -182,11 +234,24 @@ class OEM(BaseAgent):
             customer_location (str): The geographical location of the customer.
         """
         self._total_cores_collected += 1
-        if customer_location:
-            self._total_core_collection_cost_dynamic += self.get_shipping_cost(customer_location, self._core_collection_cost)
-        else:
-            self._total_core_collection_cost_dynamic += self._core_collection_cost
+        
+        # Pay the bounty
+        self._bounties_returned += 1
+        self._balance -= self._bounty_value
 
+        if customer_location:
+            collection_cost = self.get_core_collection_cost(customer_location, self._core_collection_cost)
+        else:
+            collection_cost = self._core_collection_cost
+
+        self._total_core_collection_cost += collection_cost
+        self._balance -= collection_cost
+        
+        # Add in inspection cost
+        self._total_inspection_costs += self._inspection_cost
+        self._balance -= self._inspection_cost
+        
+        
         if rng.random() < self._core_acceptance_rate:
             # Set a limit on how many cores to have in storage
             if self._core_stock < 100:
@@ -194,8 +259,11 @@ class OEM(BaseAgent):
             else:
                 # Saves the number of cores disposed of when the storage was full
                 self._total_cores_over_capacity += 1
+                self._balance -= self._core_disposal_cost
+                pass
         else:
             self._total_cores_rejected += 1
+            self._balance -= self._core_disposal_cost
             pass
 
     def update_manufacturing_counts(self):
@@ -230,6 +298,8 @@ class OEM(BaseAgent):
                     #     self._production_rate[product] = 3                        
                     self._factory_stock[product] += self._production_rate[product]
                     self._total_products_produced[product] += self._production_rate[product]
+                    
+                    self._balance -= self._production_rate[product] * self._unit_production_cost_V
                 
                 case ProductEnum.R:
                     desired_production = self ._num_to_man[product] / self._remanufacture_delay
@@ -242,6 +312,9 @@ class OEM(BaseAgent):
                     self._factory_stock[product] += self._production_rate[product]
                     self._total_products_produced[product] += self._production_rate[product]
                     self._core_stock -= self._production_rate[product]
+                    
+                    self._balance -= self._production_rate[product] * self._unit_production_cost_R
+
 
         for product in ProductEnum:
             self._num_to_man[product] = 0
@@ -261,10 +334,13 @@ class OEM(BaseAgent):
         cost_R = (
             self._total_products_produced[ProductEnum.R] * self._unit_production_cost_R
         )
+        
+        # Return bounties paid
+        cost_bounty = self._bounties_returned * self._bounty_value
 
         # Reverse logistics costs
-        if self._total_core_collection_cost_dynamic > 0:
-            cost_collection = self._total_core_collection_cost_dynamic
+        if self._total_core_collection_cost > 0:
+            cost_collection = self._total_core_collection_cost
         else:
             cost_collection = self._total_cores_collected * self._core_collection_cost
 
@@ -277,7 +353,10 @@ class OEM(BaseAgent):
         # Outbound shipping cost
         cost_outbound_shipping = self._total_shipping_cost
 
-        cost_to_meet_demand = cost_V + cost_R + cost_collection + cost_disposal + cost_storage + cost_outbound_shipping
+        # Inspection costs
+        cost_inspection = self._total_inspection_costs
+
+        cost_to_meet_demand = cost_V + cost_R + cost_collection + cost_disposal + cost_storage + cost_outbound_shipping + cost_bounty + cost_inspection
 
         revenue_V = self._products_sold[ProductEnum.V] * self._retail_price_V
 
@@ -290,9 +369,11 @@ class OEM(BaseAgent):
             "Total Revenue": revenue_total,
             "Breakdown": {
                 "Production of virgin products": cost_V,
-                "Production of remanufactured products": cost_R,
+                "Production of reman products": cost_R,
                 "Outbound shipping": cost_outbound_shipping,
                 "Collecting cores": cost_collection,
+                "Total bounties paid": cost_bounty,
+                "Inspection of cores": cost_inspection,
                 "Disposal of unaccepted cores": cost_disposal,
                 "Storage of cores": cost_storage,
                 "Sale of virgin products": revenue_V,
@@ -307,6 +388,7 @@ class OEM(BaseAgent):
                 "Virgin units sold": self._products_sold[ProductEnum.V],
                 "Reman units produced": self._total_products_produced[ProductEnum.R],
                 "Reman units sold": self._products_sold[ProductEnum.R],
+                "Bounties returned": self._bounties_returned,
                 "Cores collected": self._total_cores_collected,
                 "Cores not collected": self._total_cores_not_collected,
                 "Cores accepted": (
