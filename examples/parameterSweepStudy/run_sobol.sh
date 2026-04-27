@@ -6,8 +6,8 @@
 #SBATCH --ntasks=1
 #SBATCH --cpus-per-task=1
 #SBATCH --time=03:00:00             
-#SBATCH --mem=2G                    # Memory per task
-#SBATCH --array=1-210               # 18432 total scenarios / 100 per chunk = 185
+#SBATCH --mem=4G                    # Memory per task
+#SBATCH --array=1-410               # 20480 total scenarios / 50 per chunk = 410
 #SBATCH --output=examples/parameterSweepStudy/logs/out_%A_%a.log
 #SBATCH --error=examples/parameterSweepStudy/logs/error_%A_%a.txt
 
@@ -33,7 +33,7 @@ mkdir -p $LOGS_DIR
 
 # N=1024, D=9 -> Total Scenarios = 1024 * (2*9 + 2) = 20480
 MAX_SCENARIOS=20480
-CHUNK_SIZE=100
+CHUNK_SIZE=50
 SEEDS=10 # Set this if you want multiple stochastic seeds per scenario
 
 START_ID=$(( (SLURM_ARRAY_TASK_ID - 1) * CHUNK_SIZE + 1 ))
