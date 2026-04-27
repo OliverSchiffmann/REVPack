@@ -5,9 +5,9 @@
 #SBATCH --nodes=1
 #SBATCH --ntasks=1
 #SBATCH --cpus-per-task=1
-#SBATCH --time=00:15:00             
-#SBATCH --mem=250M                    # Memory per task
-#SBATCH --array=1-185               # 18432 total scenarios / 100 per chunk = 185
+#SBATCH --time=03:00:00             
+#SBATCH --mem=2G                    # Memory per task
+#SBATCH --array=1-210               # 18432 total scenarios / 100 per chunk = 185
 #SBATCH --output=examples/parameterSweepStudy/logs/out_%A_%a.log
 #SBATCH --error=examples/parameterSweepStudy/logs/error_%A_%a.txt
 
@@ -15,8 +15,10 @@
 # Run: python examples/parameterSweepStudy/saltelli_scenarioGenerator.py
 
 # Load environment (Adjust based on your HPC configuration)
-module load python/3.10
-source venv/bin/activate
+module add languages/python/3.14.0
+source .venv/bin/activate
+
+cd /user/work/nj21997/REVPack/
 
 export PYTHONPATH=$(pwd)
 
@@ -30,7 +32,7 @@ mkdir -p $OUTPUT_DIR
 mkdir -p $LOGS_DIR
 
 # N=1024, D=9 -> Total Scenarios = 1024 * (2*9 + 2) = 20480
-MAX_SCENARIOS=18432
+MAX_SCENARIOS=20480
 CHUNK_SIZE=100
 SEEDS=10 # Set this if you want multiple stochastic seeds per scenario
 
@@ -44,6 +46,7 @@ echo "Task $SLURM_ARRAY_TASK_ID handling scenarios $START_ID to $END_ID"
 
 for (( SCENARIO_ID=$START_ID; SCENARIO_ID<=$END_ID; SCENARIO_ID++ )); do
     if [ $SCENARIO_ID -gt $MAX_SCENARIOS ]; then
+        echo "Breaking ID ${SCENARIO_ID} too large"
         break
     fi
     
