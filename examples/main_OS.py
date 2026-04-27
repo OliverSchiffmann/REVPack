@@ -116,7 +116,7 @@ async def run_simulation(config, seed=None, progress_callback=None):
                 progress_callback(i, simulation_length)
                 await asyncio.sleep(0)
 
-    report = oemAgent.generate_financial_report() # type: ignore
+    report = oemAgent.generate_financial_report()
     
     # Package the geographic data into the report for the webapp overlay
     report["Geographic Distribution"] = {
