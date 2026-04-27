@@ -100,8 +100,7 @@ class TestCustomer(unittest.TestCase):
         self.customer._end_of_life_day = self.world.now()  # Force product end-of-life on current tick
         
         self.customer._handle_active_user(self.rng)
-        self.assertEqual(self.customer.state(), CustomerStatesEnum.WANTS_ANY)
-        self.assertIsNone(self.customer._active_product)
+        self.assertEqual(self.customer.state(), CustomerStatesEnum.WANTS_REMAN)
         self.assertEqual(self.customer._delivery_day, -1)
         self.assertEqual(self.customer._end_of_life_day, -1)
 

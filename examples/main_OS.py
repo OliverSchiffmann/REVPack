@@ -7,7 +7,7 @@ from reuman.customer import B2B_Customer, B2C_Customer, CustomerStatesEnum
 from reuman.product import ProductEnum
 from reuman.OEM import OEM, OEMStatesEnum
 from numpy import random
-# import matplotlib.pyplot as plt
+import matplotlib.pyplot as plt
 import importlib.util
 import os, json
 import asyncio
@@ -116,7 +116,7 @@ async def run_simulation(config, seed=None, progress_callback=None):
                 progress_callback(i, simulation_length)
                 await asyncio.sleep(0)
 
-    report = oemAgent.generate_financial_report() # type: ignore
+    report = oemAgent.generate_financial_report()
     
     # Package the geographic data into the report for the webapp overlay
     report["Geographic Distribution"] = {
