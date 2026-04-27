@@ -7,7 +7,7 @@ from reuman.customer import B2B_Customer, B2C_Customer, CustomerStatesEnum
 from reuman.product import ProductEnum
 from reuman.OEM import OEM, OEMStatesEnum
 from numpy import random
-import matplotlib.pyplot as plt
+# import matplotlib.pyplot as plt
 import importlib.util
 import os, json
 import asyncio
