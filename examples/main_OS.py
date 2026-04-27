@@ -10,6 +10,125 @@ from numpy import random
 import matplotlib.pyplot as plt
 import importlib.util
 import os, json
+import asyncio
+import csv
+
+async def run_simulation(config, seed=None, progress_callback=None):
+    """Runs the simulation given a config dictionary and returns the results arrays and report."""
+    if seed is not None:
+        rng = random.default_rng(seed=seed)
+    else:
+        rng = random.default_rng(config["main"]["seed"])
+        
+    world = World(enable_reman=config["main"]["enable_reman"])
+
+    B2B_population: int = config["main"]["B2B_population"]
+    B2C_population: int = config["main"]["B2C_population"]
+    simulation_length: int = config["main"]["simulation_length"]
+
+    # Load geographic data
+    cities = []
+    probabilities = []
+    city_coords = {}
+    with open("examples/locationLocationLocation/it.csv", "r", encoding="utf-8") as f:
+        reader = csv.DictReader(f)
+        for row in reader:
+            city_name = row["city"]
+            cities.append(city_name)
+            city_coords[city_name] = {"lat": float(row["lat"]), "lng": float(row["lng"])}
+            prob = row.get('probability')
+            if prob is not None:
+                probabilities.append(float(prob))
+            else:
+                probabilities.append(1.0)
+        probabilities[-1] = 1.0 - sum(probabilities[:-1]) # To avoid precision float errors summing > 1.0
+
+    with open("examples/locationLocationLocation/italy_100x100_matrix.json", "r") as f:
+        distance_matrix = json.load(f)
+        
+    config["oem"]["location"] = "Brescia"
+    config["oem"]["distance_matrix"] = distance_matrix
+
+    results = {
+        "day": [], "potential_users": [], "wants_virgin": [], "uses_virgin": [],
+        "wants_reman": [], "uses_reman": [], "wants_any": [], "waiting_for_delivery": [],
+        "core_stock": [], "virgin_stock": [], "reman_stock": [], "virgin_sold": [], 
+        "reman_sold": [], "cores_collected": [], "cores_rejected": [],
+    }
+
+    oemAgent = OEM(id=-1, world=world, config=config["oem"])
+    world.add_agent(oemAgent)
+
+    idIterator = 1
+    customer_agents = []
+    
+    customer_counts_by_city = {city: 0 for city in cities}
+    if not cities:
+        customer_counts_by_city["Rome"] = 0
+
+    for id_ in range(idIterator, idIterator + B2B_population):
+        loc = rng.choice(cities, p=probabilities) if cities else "Rome"
+        customer_counts_by_city[loc] += 1
+        customer_agents.append(B2B_Customer(id=id_, world=world, oem=oemAgent, config=config["b2b_customer"], location=loc))
+    idIterator += B2B_population
+
+    for id_ in range(idIterator, idIterator + B2C_population):
+        loc = rng.choice(cities, p=probabilities) if cities else "Rome"
+        customer_counts_by_city[loc] += 1
+        customer_agents.append(B2C_Customer(id=id_, world=world, oem=oemAgent, config=config["b2c_customer"], location=loc))
+    idIterator += B2C_population
+
+    world.add_agents_from_list(customer_agents)
+
+    starting_customers = config["main"].get("starting_customers", 0)
+    if starting_customers > 0:
+        indices = rng.choice(len(customer_agents), size=min(starting_customers, len(customer_agents)), replace=False)
+        for idx in indices:
+            customer_agents[idx].initialise_as_active_user(rng, ProductEnum.V)
+
+    for i in range(0, simulation_length):
+        world.tick()
+        results["day"].append(world.now())
+        results["potential_users"].append(world._num_potential_users)
+        results["wants_virgin"].append(world._num_wants[ProductEnum.V])
+        results["uses_virgin"].append(world._num_uses[ProductEnum.V])
+        results["wants_reman"].append(world._num_wants[ProductEnum.R])
+        results["uses_reman"].append(world._num_uses[ProductEnum.R])
+        results["wants_any"].append(world._num_wants_any)
+        results["waiting_for_delivery"].append(world._num_waiting_for_delivery)
+        results["core_stock"].append(oemAgent._core_stock)
+        results["virgin_stock"].append(oemAgent._factory_stock[ProductEnum.V])
+        results["reman_stock"].append(oemAgent._factory_stock[ProductEnum.R])
+        results["virgin_sold"].append(oemAgent._products_sold[ProductEnum.V])
+        results["reman_sold"].append(oemAgent._products_sold[ProductEnum.R])
+        results["cores_collected"].append(oemAgent._total_cores_collected)
+        results["cores_rejected"].append(oemAgent._total_cores_rejected)
+        world.call_next(rng)
+
+        # Yield to the browser every 1% of the simulation so it can update the UI progress bar
+        if progress_callback is not None:
+            update_interval = max(1, simulation_length // 100)
+            if i % update_interval == 0:
+                progress_callback(i, simulation_length)
+                await asyncio.sleep(0)
+
+    report = oemAgent.generate_financial_report()
+    
+    # Package the geographic data into the report for the webapp overlay
+    report["Geographic Distribution"] = {
+        "OEM Location": config["oem"]["location"],
+        "City Data": {}
+    }
+    for city, count in customer_counts_by_city.items():
+        if count > 0 or city == config["oem"]["location"]:
+            report["Geographic Distribution"]["City Data"][city] = {
+                "lat": city_coords.get(city, {"lat": 0.0})["lat"],
+                "lng": city_coords.get(city, {"lng": 0.0})["lng"],
+                "customers": count,
+                "is_oem": city == config["oem"]["location"]
+            }
+
+    return results, report
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Run Economic Feasibility Model")
@@ -62,79 +181,9 @@ if __name__ == "__main__":
     print(f"Description: {config['description']}")
     print("-" * 40)
 
-    if args.seed is not None:
-        rng = random.default_rng(seed=args.seed)
-    else:
-        rng = random.default_rng(config["main"]["seed"])
-    world = World(
-        enable_reman=config["main"]["enable_reman"]
-    )  # Toggle reman on/off with True/False
+    # Run the extracted simulation logic
+    results, report = asyncio.run(run_simulation(config, args.seed))
 
-    B2B_population: int = config["main"]["B2B_population"]
-    B2C_population: int = config["main"]["B2C_population"]
-    simulation_length: int = config["main"]["simulation_length"]  # number of DAYS the simulation runs for
-
-    results = {
-        "day": [],
-        "potential_users": [],
-        "wants_virgin": [],
-        "uses_virgin": [],
-        "wants_reman": [],
-        "uses_reman": [],
-        "wants_any": [],
-        "core_stock": [],
-        "virgin_stock": [],
-        "reman_stock": [],
-        "virgin_sold": [],
-        "reman_sold": [],
-        "cores_collected": [],
-        "cores_rejected": [],
-    }
-
-    # Adds the OEM agent to the world
-    oemAgent = OEM(id=-1, world=world, config=config["oem"])
-    world.add_agent(oemAgent)
-
-    idIterator = 1
-    
-    # Adds the customers
-    customer_agents = []
-
-    [customer_agents.append(B2B_Customer(id=id, world=world, oem=oemAgent, config=config["b2b_customer"])) for id in range(idIterator, idIterator + B2B_population)]    
-    idIterator += B2B_population
-
-    [customer_agents.append(B2C_Customer(id=id, world=world, oem=oemAgent, config=config["b2c_customer"])) for id in range(idIterator, idIterator + B2C_population)]
-    idIterator += B2C_population
-
-    world.add_agents_from_list(customer_agents)
-
-    for i in range(0, simulation_length):  # model time unit is days
-        world.tick()
-        # print(f"---------")
-        # print(f"Day {world.now()}:\n")
-
-        # print(
-        #     f"Potential users: {world._num_potential_users},\n Wanting Virgin: {world._num_wants[ProductEnum.V]}, Using Virgin: {world._num_uses[ProductEnum.V]}\n Wanting Reman: {world._num_wants[ProductEnum.R]}, Using Reman: {world._num_uses[ProductEnum.R]}\n, Want Any: {world._num_wants_any}"
-        # )
-
-        results["day"].append(world.now())
-        results["potential_users"].append(world._num_potential_users)
-        results["wants_virgin"].append(world._num_wants[ProductEnum.V])
-        results["uses_virgin"].append(world._num_uses[ProductEnum.V])
-        results["wants_reman"].append(world._num_wants[ProductEnum.R])
-        results["uses_reman"].append(world._num_uses[ProductEnum.R])
-        results["wants_any"].append(world._num_wants_any)
-        results["core_stock"].append(oemAgent._core_stock)
-        results["virgin_stock"].append(oemAgent._factory_stock[ProductEnum.V])
-        results["reman_stock"].append(oemAgent._factory_stock[ProductEnum.R])
-        results["virgin_sold"].append(oemAgent._products_sold[ProductEnum.V])
-        results["reman_sold"].append(oemAgent._products_sold[ProductEnum.R])
-        results["cores_collected"].append(oemAgent._total_cores_collected)
-        results["cores_rejected"].append(oemAgent._total_cores_rejected)
-
-        world.call_next(rng)
-
-    report = oemAgent.generate_financial_report()
     cost = report["Total Cost"]
     revenue = report["Total Revenue"]
     profit = revenue - cost
@@ -168,6 +217,7 @@ if __name__ == "__main__":
             "#bce499",  # Wants Reman (Light Green)
             "#33a02c",  # Uses Reman (Dark Green)
             "#D1AB23",  # Wants any
+            "#F200FF",  # Waiting for delivery
         ]
 
         ax1.stackplot(
@@ -178,6 +228,7 @@ if __name__ == "__main__":
             results["wants_reman"],
             results["uses_reman"],
             results["wants_any"],
+            results["waiting_for_delivery"],
             labels=[
                 "Potential Users",
                 "Wants Virgin",
@@ -185,6 +236,7 @@ if __name__ == "__main__":
                 "Wants Reman",
                 "Uses Reman",
                 "Wants Any",
+                "Waiting for Delivery",
             ],
             colors=colours,
         )

@@ -1,0 +1,25 @@
+city,lat,lng,country,iso2,admin_name,capital,population_proper,probability
+Rome,41.8933,12.4828,Italy,IT,Lazio,primary,2748109,0.162247449
+Milan,45.4669,9.19,Italy,IT,Lombardy,admin,1354196,0.079951285
+Naples,40.8333,14.25,Italy,IT,Campania,admin,913462,0.053930495
+Turin,45.0792,7.6761,Italy,IT,Piedmont,admin,841600,0.049687786
+Palermo,38.1111,13.3517,Italy,IT,Sicilia,admin,630167,0.037204852
+Genoa,44.4111,8.9328,Italy,IT,Liguria,admin,558745,0.032988121
+Bologna,44.4939,11.3428,Italy,IT,Emilia-Romagna,admin,387971,0.02290568
+Florence,43.7714,11.2542,Italy,IT,Tuscany,admin,360930,0.021309188
+Bari,41.1253,16.8667,Italy,IT,Puglia,admin,316015,0.018657421
+Catania,37.5,15.0903,Italy,IT,Sicilia,minor,298762,0.01763881
+Verona,45.4386,10.9928,Italy,IT,Veneto,minor,255588,0.015089831
+Venice,45.4375,12.3358,Italy,IT,Veneto,admin,250369,0.014781703
+Messina,38.1936,15.5542,Italy,IT,Sicilia,minor,218786,0.012917053
+Padova,45.4167,11.8667,Italy,IT,Veneto,minor,206496,0.012191456
+Cosenza,39.3,16.25,Italy,IT,Calabria,minor,63760,0.003764369
+Trieste,45.6503,13.7703,Italy,IT,Friuli Venezia Giulia,admin,198417,0.011714474
+Parma,44.8015,10.328,Italy,IT,Emilia-Romagna,minor,196764,0.011616882
+Brescia,45.5417,10.2167,Italy,IT,Lombardy,minor,196446,0.011598107
+Prato,43.88,11.0983,Italy,IT,Tuscany,minor,195736,0.011556189
+Taranto,40.4711,17.2431,Italy,IT,Puglia,minor,188098,0.011105244
+Modena,44.6469,10.9256,Italy,IT,Emilia-Romagna,minor,184153,0.010872332
+Reggio di Calabria,38.1114,15.6619,Italy,IT,Calabria,minor,170951,0.010092891
+Reggio Emilia,44.7,10.6333,Italy,IT,Emilia-Romagna,minor,169545,0.010009881
+Perugia,43.1122,12.3889,Italy,IT,Umbria,admin,161748,0.009549549

@@ -12,3 +12,4 @@ examples/parameterSweepStudy/saltelli_*.csv
 examples/parameterSweepStudy/saltelli_parameters*.py
 examples/parameterSweepStudy/ofat__*.csv
 examples/parameterSweepStudy/ofat_parameters*.py
+OSRM*
