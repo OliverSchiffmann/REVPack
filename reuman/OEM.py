@@ -84,7 +84,7 @@ class OEM(BaseAgent):
         self._location = config.get("location", "Brescia")
         self._distance_matrix = config.get("distance_matrix", {})
         self._total_shipping_cost = 0.0
-        self._total_core_collection_cost = 0.0
+        # self._total_core_collection_cost = 0.0
         self._delivery_delay = config["delivery_delay"]
         self._manufacture_delay = config["manufacture_delay"]
         self._remanufacture_delay = config["remanufacture_delay"]
@@ -192,10 +192,11 @@ class OEM(BaseAgent):
         if currentStock >= 1:
             self._factory_stock[product] -= 1
             self._products_sold[product] += 1
-            if customer_location:
-                shipping_cost = self.get_shipping_cost(customer_location, 20.0)
-                self._total_shipping_cost += shipping_cost
-                self._balance -= shipping_cost
+            # No longer charging the OEM for deliveries
+            # if customer_location:
+            #     shipping_cost = self.get_shipping_cost(customer_location, 20.0)
+            #     self._total_shipping_cost += shipping_cost
+            #     self._balance -= shipping_cost
                 
             self._balance += self._retail_price_V if product == ProductEnum.V else self._retail_price_R
             return True
@@ -341,10 +342,7 @@ class OEM(BaseAgent):
         cost_bounty = self._bounties_returned * self._bounty_value
 
         # Reverse logistics costs
-        if self._total_core_collection_cost > 0:
-            cost_collection = self._total_core_collection_cost
-        else:
-            cost_collection = self._total_cores_collected * self._core_collection_cost
+        cost_collection = self._total_core_collection_cost
 
         # Disposal costs
         cost_disposal = (self._total_cores_rejected + self._total_cores_over_capacity) * self._core_disposal_cost
@@ -353,12 +351,12 @@ class OEM(BaseAgent):
         cost_storage = self._total_core_storage_cost
 
         # Outbound shipping cost
-        cost_outbound_shipping = self._total_shipping_cost
+        # cost_outbound_shipping = self._total_shipping_cost
 
         # Inspection costs
         cost_inspection = self._total_inspection_costs
 
-        cost_to_meet_demand = cost_V + cost_R + cost_collection + cost_disposal + cost_storage + cost_outbound_shipping + cost_bounty + cost_inspection
+        cost_to_meet_demand = cost_V + cost_R + cost_collection + cost_disposal + cost_storage + cost_bounty + cost_inspection
 
         revenue_V = self._products_sold[ProductEnum.V] * self._retail_price_V
 
@@ -372,7 +370,7 @@ class OEM(BaseAgent):
             "Breakdown": {
                 "Production of virgin products": cost_V,
                 "Production of reman products": cost_R,
-                "Outbound shipping": cost_outbound_shipping,
+                # "Outbound shipping": cost_outbound_shipping,
                 "Collecting cores": cost_collection,
                 "Total bounties paid": cost_bounty,
                 "Inspection of cores": cost_inspection,
