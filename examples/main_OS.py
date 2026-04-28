@@ -1,4 +1,5 @@
 import argparse
+
 # from examples.parameterSweepStudy.lhs_parameter_sweep import SCENARIOS
 # from scenarios import SCENARIOS
 from reuman.world import World
@@ -13,13 +14,14 @@ import os, json
 import asyncio
 import csv
 
+
 async def run_simulation(config, seed=None, progress_callback=None):
     """Runs the simulation given a config dictionary and returns the results arrays and report."""
     if seed is not None:
         rng = random.default_rng(seed=seed)
     else:
         rng = random.default_rng(config["main"]["seed"])
-        
+
     world = World(enable_reman=config["main"]["enable_reman"])
 
     B2B_population: int = config["main"]["B2B_population"]
@@ -35,34 +37,52 @@ async def run_simulation(config, seed=None, progress_callback=None):
         for row in reader:
             city_name = row["city"]
             cities.append(city_name)
-            city_coords[city_name] = {"lat": float(row["lat"]), "lng": float(row["lng"])}
-            prob = row.get('probability')
+            city_coords[city_name] = {
+                "lat": float(row["lat"]),
+                "lng": float(row["lng"]),
+            }
+            prob = row.get("probability")
             if prob is not None:
                 probabilities.append(float(prob))
             else:
                 probabilities.append(1.0)
-        probabilities[-1] = 1.0 - sum(probabilities[:-1]) # To avoid precision float errors summing > 1.0
+        probabilities[-1] = 1.0 - sum(
+            probabilities[:-1]
+        )  # To avoid precision float errors summing > 1.0
 
     with open("examples/locations/italy_100x100_matrix.json", "r") as f:
         distance_matrix = json.load(f)
-        
+
     config["oem"]["location"] = "Brescia"
     config["oem"]["distance_matrix"] = distance_matrix
 
     results = {
-        "day": [], "potential_users": [], "wants_virgin": [], "uses_virgin": [],
-        "wants_reman": [], "uses_reman": [], "wants_any": [], "waiting_for_delivery": [],
-        "core_stock": [], "virgin_stock": [], "reman_stock": [], "virgin_sold": [], 
-        "reman_sold": [], "cores_collected": [], "cores_rejected": [], "inspection_cost": [],
-        "bounty_values_paid": [], "oem_balance": [],
+        "day": [],
+        "potential_users": [],
+        "wants_virgin": [],
+        "uses_virgin": [],
+        "wants_reman": [],
+        "uses_reman": [],
+        "wants_any": [],
+        "waiting_for_delivery": [],
+        "core_stock": [],
+        "virgin_stock": [],
+        "reman_stock": [],
+        "virgin_sold": [],
+        "reman_sold": [],
+        "cores_collected": [],
+        "cores_rejected": [],
+        "inspection_cost": [],
+        "bounty_values_paid": [],
+        "oem_balance": [],
     }
 
-    oemAgent = OEM(id=-1, world=world, config=config["oem"])
+    oemAgent = OEM(id=-1, world=world, config=config)
     world.add_agent(oemAgent)
 
     idIterator = 1
     customer_agents = []
-    
+
     customer_counts_by_city = {city: 0 for city in cities}
     if not cities:
         customer_counts_by_city["Rome"] = 0
@@ -70,20 +90,40 @@ async def run_simulation(config, seed=None, progress_callback=None):
     for id_ in range(idIterator, idIterator + B2B_population):
         loc = rng.choice(cities, p=probabilities) if cities else "Rome"
         customer_counts_by_city[loc] += 1
-        customer_agents.append(B2B_Customer(id=id_, world=world, oem=oemAgent, config=config["b2b_customer"], location=loc))
+        customer_agents.append(
+            B2B_Customer(
+                id=id_,
+                world=world,
+                oem=oemAgent,
+                config=config,
+                location=loc,
+            )
+        )
     idIterator += B2B_population
 
     for id_ in range(idIterator, idIterator + B2C_population):
         loc = rng.choice(cities, p=probabilities) if cities else "Rome"
         customer_counts_by_city[loc] += 1
-        customer_agents.append(B2C_Customer(id=id_, world=world, oem=oemAgent, config=config["b2c_customer"], location=loc))
+        customer_agents.append(
+            B2C_Customer(
+                id=id_,
+                world=world,
+                oem=oemAgent,
+                config=config,
+                location=loc,
+            )
+        )
     idIterator += B2C_population
 
     world.add_agents_from_list(customer_agents)
 
     starting_customers = config["main"].get("starting_customers", 0)
     if starting_customers > 0:
-        indices = rng.choice(len(customer_agents), size=min(starting_customers, len(customer_agents)), replace=False)
+        indices = rng.choice(
+            len(customer_agents),
+            size=min(starting_customers, len(customer_agents)),
+            replace=False,
+        )
         for idx in indices:
             customer_agents[idx].initialise_as_active_user(rng, ProductEnum.V)
 
@@ -105,7 +145,9 @@ async def run_simulation(config, seed=None, progress_callback=None):
         results["cores_collected"].append(oemAgent._total_cores_collected)
         results["cores_rejected"].append(oemAgent._total_cores_rejected)
         results["inspection_cost"].append(oemAgent._total_inspection_costs)
-        results["bounty_values_paid"].append(oemAgent._bounty_value * oemAgent._bounties_returned)
+        results["bounty_values_paid"].append(
+            oemAgent._bounty_value * oemAgent._bounties_returned
+        )
         results["oem_balance"].append(oemAgent._balance)
         world.call_next(rng)
 
@@ -117,11 +159,11 @@ async def run_simulation(config, seed=None, progress_callback=None):
                 await asyncio.sleep(0)
 
     report = oemAgent.generate_financial_report()
-    
+
     # Package the geographic data into the report for the webapp overlay
     report["Geographic Distribution"] = {
         "OEM Location": config["oem"]["location"],
-        "City Data": {}
+        "City Data": {},
     }
     for city, count in customer_counts_by_city.items():
         if count > 0 or city == config["oem"]["location"]:
@@ -129,16 +171,20 @@ async def run_simulation(config, seed=None, progress_callback=None):
                 "lat": city_coords.get(city, {"lat": 0.0})["lat"],
                 "lng": city_coords.get(city, {"lng": 0.0})["lng"],
                 "customers": count,
-                "is_oem": city == config["oem"]["location"]
+                "is_oem": city == config["oem"]["location"],
             }
 
     return results, report
+
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Run Economic Feasibility Model")
     # Tells you where to pull the scenario dictionary from
     parser.add_argument(
-        "--scenario_file", type=str, default="examples/scenarios.py", help="Name of the scenario file to pull 'SCENARIOS' dict from",
+        "--scenario_file",
+        type=str,
+        default="examples/scenarios.py",
+        help="Name of the scenario file to pull 'SCENARIOS' dict from",
     )
     # Chooses which scenario to get the config values from, all the scenarios are based off of 'Default' anyway
     parser.add_argument(
@@ -150,9 +196,10 @@ if __name__ == "__main__":
     )
     # Defines the seed that random will use to run the sim
     parser.add_argument(
-        "--seed", type=int, default=None, help="Random seed for reproducibility"   )
+        "--seed", type=int, default=None, help="Random seed for reproducibility"
+    )
     args = parser.parse_args()
-    
+
     # Import the SCENARIOS dictionary from the specified file
 
     # Check if the scenario file exists at the specified path
@@ -168,7 +215,9 @@ if __name__ == "__main__":
         if hasattr(scenario_module, "SCENARIOS"):
             SCENARIOS = scenario_module.SCENARIOS
         else:
-            raise AttributeError(f"The file '{args.scenario_file}' does not contain a 'SCENARIOS' dictionary.")
+            raise AttributeError(
+                f"The file '{args.scenario_file}' does not contain a 'SCENARIOS' dictionary."
+            )
     else:
         raise ImportError(f"Could not load scenario file '{args.scenario_file}'.")
 
@@ -178,7 +227,7 @@ if __name__ == "__main__":
             f"Scenario '{args.scenario}' not found. Options are: {list(SCENARIOS.keys())}"
         )
 
-    #Defines the config from the chosen scenario
+    # Defines the config from the chosen scenario
     config = SCENARIOS[args.scenario]
     print("-" * 40)
     print(f"Running Scenario: {args.scenario}")
@@ -210,9 +259,10 @@ if __name__ == "__main__":
     print(f"NET PROFIT (€):      {profit:+,.2f}")
     print("-" * 40)
 
-
     if not args.no_plot:
-        fig, (ax1, ax2, ax3) = plt.subplots(nrows=3, ncols=1, sharex=True, figsize=(10, 8))
+        fig, (ax1, ax2, ax3) = plt.subplots(
+            nrows=3, ncols=1, sharex=True, figsize=(10, 8)
+        )
 
         colours = [
             "#2fa8e9",  # Potential Users (Light Blue)

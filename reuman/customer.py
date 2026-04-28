@@ -3,10 +3,8 @@ Module for the Customer agents.
 """
 
 from __future__ import annotations
-from enum import Enum
-from typing import TYPE_CHECKING, TypedDict
+from typing import TYPE_CHECKING
 from ._agent import AgentEnum, BaseAgent
-from .message import Message, MessageType
 from .states import CustomerStatesEnum
 from .product import ProductEnum, ProductDetails, product_params
 
@@ -21,7 +19,7 @@ class Customer(BaseAgent):
 
     Customers transition through various states (potential user, wanting a product,
     using a product) based on advertising, OEM stock availability, delivery delays,
-    customer patience, and product lifespans. A visualisation is shown in [[provide the state chart?]].
+    customer patience, and product lifespans.
     """
 
     _state: CustomerStatesEnum
@@ -34,9 +32,16 @@ class Customer(BaseAgent):
     _end_of_patience_day: int
     _core_return_rate: float
     _config: dict
+    _customer_config: dict
 
     def __init__(
-        self, id: int, world: World, oem: OEM, config: dict, location: str = "Brescia"
+        self,
+        id: int,
+        world: World,
+        oem: OEM,
+        config: dict,
+        customer_type: str = "b2b_customer",
+        location: str = "Brescia",
     ):
         """
         Initialise the Customer agent.
@@ -45,19 +50,23 @@ class Customer(BaseAgent):
             id (int): Unique identifier for the agent.
             world (World): The simulation world the agent belongs to.
             oem (OEM): The OEM agent to interact with.
-            config (dict): Configuration dictionary with the customer parameters.
+            config (dict): Full configuration dictionary for the simulation.
+            customer_type (str): Key to access the correct customer sub-config ("b2b_customer" or "b2c_customer").
             location (str): Geographical location of the customer.
         """
         self._state = CustomerStatesEnum.POTENTIAL_USER
-        self._config = config
+        self._config = config  # full config - for shared params e.g. products
+        self._customer_config = config[
+            customer_type
+        ]  # customer-specific params e.g. patience, lifetime
         self._location = location
         self._delivery_day = -1
         self._end_of_life_day = -1
         self._active_product = None
         super().__init__(id=id, type=AgentEnum.CUSTOMER, world=world)
         self._oem = oem
-        self._patience = self._config["patience"]
-        self._core_return_rate = self._config["core_return_rate"]
+        self._patience = self._customer_config["patience"]
+        self._core_return_rate = self._customer_config["core_return_rate"]
         self._end_of_patience_day = -1
 
     def next(self, rng):
@@ -90,13 +99,16 @@ class Customer(BaseAgent):
         """
         Handles logic for customers not yet in the market.
         """
-        # this section is needed to avoid bias towards one product by always checking that first
+        # This section is needed to avoid bias towards one product by always checking that first
         productsToConsider = self._world.get_active_products()
         rng.shuffle(productsToConsider)
         for product in productsToConsider:
-            if (
-                rng.random() < product_params[product]["advertising_effectiveness"]
-            ):  # if a potential user is successfully influenced by ads
+            ad_effectiveness = (
+                self._config.get("products", {})
+                .get(product.name, {})
+                .get("advertising_effectiveness", 0.0)
+            )
+            if rng.random() < ad_effectiveness:
                 self._state = product_params[product]["wants_state"]
                 self._active_product = product
                 self.try_and_buy(rng, product)
@@ -133,17 +145,16 @@ class Customer(BaseAgent):
 
     def _handle_active_user(self, rng):
         """
-        Handles logic for customers currently using a product until it reaches end-of-life. Going to add some logic so that customers lose interest at some point.
+        Handles logic for customers currently using a product until it reaches end-of-life.
         """
         if self._world.now() >= self._end_of_life_day:
 
-            # Instead have a chance for them to lose interest and go back to being a non-user at some rate, removed by setting to 0.0 not sure if its worth keeping
-            if rng.random() < self._config.get("lose_interest_rate", 0.0):
+            # Chance to lose interest and return to non-user (disabled by default via lose_interest_rate: 0.0)
+            if rng.random() < self._customer_config.get("lose_interest_rate", 0.0):
                 self._state = CustomerStatesEnum.POTENTIAL_USER
                 self._active_product = None
             elif self._active_product is not None:
-                self._state = product_params[self._active_product]["wants_state"]
-                # Retain self._active_product so they attempt to buy the same product again
+                self._state = CustomerStatesEnum.WANTS_ANY
 
             self._delivery_day = -1
             self._end_of_life_day = -1
@@ -152,8 +163,6 @@ class Customer(BaseAgent):
                     self._oem.schedule_core_return(self._location)
                 else:
                     self._oem._total_cores_not_collected += 1
-            else:
-                pass
 
     def try_and_buy(self, rng, product: ProductEnum):
         """
@@ -177,13 +186,13 @@ class Customer(BaseAgent):
         else:
             if (
                 self._end_of_patience_day == -1 and self._patience != -1
-            ):  # was a bug where patience being -1 was the same as 0, -1 should be infinite patience
+            ):  # patience of -1 means infinite patience
                 self._end_of_patience_day = self._world.now() + self._patience
 
     def initialise_as_active_user(self, rng, product: ProductEnum):
         """
         Initialises the customer as an active user of the specified product with a random remaining lifespan.
-        For creating some existing users.
+        For creating some existing users at the start of the simulation.
         """
         self.become_user(rng, product)
         # Randomise the remaining lifespan to simulate users who bought the product at some point in the past
@@ -193,7 +202,8 @@ class Customer(BaseAgent):
 
     def become_user(self, rng, product: ProductEnum):
         """
-        Changes the customer to a user of a specified product and sets the product lifespan depending on the config, if none give it uses a triangular distribution.
+        Changes the customer to a user of a specified product and sets the product lifespan
+        from customer config, using a triangular distribution by default.
 
         Args:
             rng (numpy.random.Generator): Random number generator.
@@ -204,8 +214,8 @@ class Customer(BaseAgent):
         self._delivery_day = -1
         self._end_of_patience_day = -1
 
-        # Determine the lifetime distribution method from config, defaults to triangular
-        lifetime_method = self._config.get("lifetime_method", "triangular")
+        # Determine the lifetime distribution method from customer config, defaults to triangular
+        lifetime_method = self._customer_config.get("lifetime_method", "triangular")
 
         if lifetime_method == "uniform":
             lifespan = self.get_uniform_lifetime(rng)
@@ -227,8 +237,8 @@ class Customer(BaseAgent):
         Returns:
             int: The generated lifetime.
         """
-        lifespan_mean = self._config["mean_lifetime"]
-        lifespan_variation = self._config.get("lifetime_range", 3)
+        lifespan_mean = self._customer_config["mean_lifetime"]
+        lifespan_variation = self._customer_config.get("lifetime_range", 3)
         lifespan_range = (
             lifespan_mean - lifespan_variation,
             lifespan_mean + lifespan_variation,
@@ -245,8 +255,8 @@ class Customer(BaseAgent):
         Returns:
             int: The generated lifetime.
         """
-        lifespan_mean = self._config["mean_lifetime"]
-        lifespan_variation = self._config.get("lifetime_range", 3)
+        lifespan_mean = self._customer_config["mean_lifetime"]
+        lifespan_variation = self._customer_config.get("lifetime_range", 3)
         raw_lifespan = rng.triangular(
             lifespan_mean - lifespan_variation,
             lifespan_mean,
@@ -264,36 +274,49 @@ class Customer(BaseAgent):
         Returns:
             int: The generated lifetime.
         """
-        lifespan_mean = self._config["mean_lifetime"]
+        lifespan_mean = self._customer_config["mean_lifetime"]
 
-        # Set up the weibull parameters for the two halves (early failure and regular long life failure)
+        # Set up the Weibull parameters for the two halves (early failure and wear-out)
         defect_rate = 0.035  # 3.5% chance of early failure
         early_shape = 0.8  # Distribution shape (steep)
         early_scale = 0.5  # Dies very quickly
-        normal_shape = 4.0  # Regular  shape
+        normal_shape = 4.0  # Regular wear-out shape
 
-        # For a Weibull with a shape of 4.0, the Mean ≈ Scale * 0.906. Not sure the extent to which this is generalisable.
+        # For a Weibull with shape=4.0, Mean ≈ Scale * 0.906
         normal_scale = lifespan_mean / 0.906
 
-        # Determine if its early failure or not.
         if rng.random() < defect_rate:
-            # Draw from the early failure curve.
             raw_lifespan = rng.weibull(early_shape) * early_scale
         else:
-            # If normal, draw from the wear-out curve.
             raw_lifespan = rng.weibull(normal_shape) * normal_scale
 
         return max(1, int(round(raw_lifespan)))  # Rounded to the nearest integer
 
 
-# Inherits everything from the normal customer class and does nothing different. You need 'pass' because you can't have an empty class, even if it inherits other stuff.
+# Inherits everything from the base Customer class.
 class B2B_Customer(Customer):
     """Business-to-Business (B2B) Customer agent. No difference from B2C for now."""
 
-    pass
+    def __init__(self, id, world, oem, config, location="Brescia"):
+        super().__init__(
+            id=id,
+            world=world,
+            oem=oem,
+            config=config,
+            customer_type="b2b_customer",
+            location=location,
+        )
 
 
 class B2C_Customer(Customer):
     """Business-to-Consumer (B2C) Customer agent."""
 
-    pass
+    def __init__(self, id, world, oem, config, location="Brescia"):
+        super().__init__(
+            id=id,
+            world=world,
+            oem=oem,
+            config=config,
+            customer_type="b2c_customer",
+            location=location,
+        )

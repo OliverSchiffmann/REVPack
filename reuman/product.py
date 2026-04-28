@@ -22,8 +22,6 @@ class ProductDetails(TypedDict):
         buy_message (MessageType): Message type sent when attempting to buy this product.
     """
 
-    advertising_effectiveness: float
-    wom_threshold: float
     wants_state: CustomerStatesEnum
     uses_state: CustomerStatesEnum
     buy_message: MessageType
@@ -31,15 +29,11 @@ class ProductDetails(TypedDict):
 
 product_params: dict[ProductEnum, ProductDetails] = {
     ProductEnum.V: {
-        "advertising_effectiveness": 0.0006,
-        "wom_threshold": 0.015,
         "wants_state": CustomerStatesEnum.WANTS_VIRGIN,
         "uses_state": CustomerStatesEnum.USES_VIRGIN,
         "buy_message": MessageType.BUY_V,
     },
     ProductEnum.R: {
-        "advertising_effectiveness": 0.0003,
-        "wom_threshold": 0.015,
         "wants_state": CustomerStatesEnum.WANTS_REMAN,
         "uses_state": CustomerStatesEnum.USES_REMAN,
         "buy_message": MessageType.BUY_R,
