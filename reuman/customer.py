@@ -7,71 +7,23 @@ from enum import Enum
 from typing import TYPE_CHECKING, TypedDict
 from ._agent import AgentEnum, BaseAgent
 from .message import Message, MessageType
-from .product import ProductEnum
+from .states import CustomerStatesEnum
+from .product import ProductEnum, ProductDetails, product_params
 
 if TYPE_CHECKING:
     from .world import World
     from .OEM import OEM
 
 
-class CustomerStatesEnum(str, Enum):
-    """Enum of possible states for a Customer agent."""
-    POTENTIAL_USER = "potential_user"
-    WANTS_VIRGIN = "wants_virgin"
-    USES_VIRGIN = "uses_virgin"
-    WANTS_REMAN = "wants_reman"
-    USES_REMAN = "uses_reman"
-    WANTS_ANY = "wants_any"
-    WAITING_FOR_DELIVERY = "waiting_for_delivery"
-
-
-class ProductDetails(TypedDict):
-    """
-    Typed dictionary defining simulation parameters for a given product type.
-
-    Attributes:
-        lifespan (tuple[int, int]): The range of days a product might last when in use.
-        advertising_effectiveness (float): Probability of a potential user being influenced to buy.
-        wom_threshold (float): Threshold for word-of-mouth influence.
-        wants_state (CustomerStatesEnum): State to represent the desire for this product.
-        uses_state (CustomerStatesEnum): State to represent active usage of this product.
-        buy_message (MessageType): Message type sent when attempting to buy this product.
-    """
-    lifespan: tuple[int, int]
-    advertising_effectiveness: float
-    wom_threshold: float
-    wants_state: CustomerStatesEnum
-    uses_state: CustomerStatesEnum
-    buy_message: MessageType
-
-
-product_params: dict[ProductEnum, ProductDetails] = {
-    ProductEnum.V: {
-        "lifespan": (17, 24),  # number of days that a product might last for when in use
-        "advertising_effectiveness": 0.0006,
-        "wom_threshold": 0.015,
-        "wants_state": CustomerStatesEnum.WANTS_VIRGIN,
-        "uses_state": CustomerStatesEnum.USES_VIRGIN,
-        "buy_message": MessageType.BUY_V,
-    },
-    ProductEnum.R: {
-        "lifespan": (17, 24),
-        "advertising_effectiveness": 0.0003,
-        "wom_threshold": 0.015,
-        "wants_state": CustomerStatesEnum.WANTS_REMAN,
-        "uses_state": CustomerStatesEnum.USES_REMAN,
-        "buy_message": MessageType.BUY_R,
-    },
-}
-
 class Customer(BaseAgent):
     """
     Base Customer agent representing either an individual or a business in the market.
 
-    Customers transition through various states (potential user, wanting a product, 
-    using a product) based on advertising, OEM stock availability, delivery delays, 
+    Customers transition through various states (potential user, wanting a product,
+    using a product) based on advertising, OEM stock availability, delivery delays,
     customer patience, and product lifespans. A visualisation is shown in [[provide the state chart?]].
     """
+
     _state: CustomerStatesEnum
     _delivery_day: int
     _end_of_life_day: int
@@ -83,7 +35,9 @@ class Customer(BaseAgent):
     _core_return_rate: float
     _config: dict
 
-    def __init__(self, id: int, world: World, oem: OEM, config: dict, location: str = "Brescia"):
+    def __init__(
+        self, id: int, world: World, oem: OEM, config: dict, location: str = "Brescia"
+    ):
         """
         Initialise the Customer agent.
 
@@ -109,7 +63,7 @@ class Customer(BaseAgent):
     def next(self, rng):
         """
         Execute the customer's actions for the current simulation tick.
-        
+
         Behaviour changes based on the customer's current `CustomerStatesEnum`.
 
         Args:
@@ -177,13 +131,12 @@ class Customer(BaseAgent):
             if self._state != CustomerStatesEnum.WANTS_ANY:
                 break
 
-
     def _handle_active_user(self, rng):
         """
-        Handles logic for customers currently using a product until it reaches end-of-life. Going to add some logic so that customers lose interest at some point. 
+        Handles logic for customers currently using a product until it reaches end-of-life. Going to add some logic so that customers lose interest at some point.
         """
         if self._world.now() >= self._end_of_life_day:
-                      
+
             # Instead have a chance for them to lose interest and go back to being a non-user at some rate, removed by setting to 0.0 not sure if its worth keeping
             if rng.random() < self._config.get("lose_interest_rate", 0.0):
                 self._state = CustomerStatesEnum.POTENTIAL_USER
@@ -191,8 +144,8 @@ class Customer(BaseAgent):
             elif self._active_product is not None:
                 self._state = product_params[self._active_product]["wants_state"]
                 # Retain self._active_product so they attempt to buy the same product again
-            
-            self._delivery_day = -1           
+
+            self._delivery_day = -1
             self._end_of_life_day = -1
             if ProductEnum.R in self._world.get_active_products():
                 if rng.random() < self._core_return_rate:
@@ -222,7 +175,9 @@ class Customer(BaseAgent):
                 self._delivery_day = self._world.now() + delay
             self._end_of_patience_day = -1
         else:
-            if self._end_of_patience_day == -1 and self._patience != -1: # was a bug where patience being -1 was the same as 0, -1 should be infinite patience
+            if (
+                self._end_of_patience_day == -1 and self._patience != -1
+            ):  # was a bug where patience being -1 was the same as 0, -1 should be infinite patience
                 self._end_of_patience_day = self._world.now() + self._patience
 
     def initialise_as_active_user(self, rng, product: ProductEnum):
@@ -248,10 +203,10 @@ class Customer(BaseAgent):
         self._active_product = product
         self._delivery_day = -1
         self._end_of_patience_day = -1
-        
+
         # Determine the lifetime distribution method from config, defaults to triangular
         lifetime_method = self._config.get("lifetime_method", "triangular")
-        
+
         if lifetime_method == "uniform":
             lifespan = self.get_uniform_lifetime(rng)
         elif lifetime_method == "weibull":
@@ -261,7 +216,7 @@ class Customer(BaseAgent):
 
         self._product_lifespan = lifespan
         self._end_of_life_day = self._world.now() + lifespan
-        
+
     def get_uniform_lifetime(self, rng):
         """
         Generates a uniform lifetime for the product based on the mean lifetime.
@@ -274,13 +229,16 @@ class Customer(BaseAgent):
         """
         lifespan_mean = self._config["mean_lifetime"]
         lifespan_variation = self._config.get("lifetime_range", 3)
-        lifespan_range = (lifespan_mean - lifespan_variation, lifespan_mean + lifespan_variation)
+        lifespan_range = (
+            lifespan_mean - lifespan_variation,
+            lifespan_mean + lifespan_variation,
+        )
         return rng.integers(*lifespan_range)
-    
+
     def get_triangular_lifetime(self, rng):
         """
         Generates a triangular lifetime for the product based on the mean lifetime.
-        
+
         Args:
             rng (numpy.random.Generator): Random number generator.
 
@@ -289,13 +247,17 @@ class Customer(BaseAgent):
         """
         lifespan_mean = self._config["mean_lifetime"]
         lifespan_variation = self._config.get("lifetime_range", 3)
-        raw_lifespan = rng.triangular(lifespan_mean - lifespan_variation, lifespan_mean, lifespan_mean + lifespan_variation)
-        return max(1, int(round(raw_lifespan))) # Rounded to the nearest integer 
-    
+        raw_lifespan = rng.triangular(
+            lifespan_mean - lifespan_variation,
+            lifespan_mean,
+            lifespan_mean + lifespan_variation,
+        )
+        return max(1, int(round(raw_lifespan)))  # Rounded to the nearest integer
+
     def get_weibull_lifetime(self, rng):
         """
         Generates a Weibull lifetime for the product based on the mean lifetime.
-        
+
         Args:
             rng (numpy.random.Generator): Random number generator.
 
@@ -303,16 +265,16 @@ class Customer(BaseAgent):
             int: The generated lifetime.
         """
         lifespan_mean = self._config["mean_lifetime"]
-        
+
         # Set up the weibull parameters for the two halves (early failure and regular long life failure)
-        defect_rate = 0.035   # 3.5% chance of early failure
-        early_shape = 0.8     # Distribution shape (steep)
-        early_scale = 0.5     # Dies very quickly
-        normal_shape = 4.0    # Regular  shape
-        
+        defect_rate = 0.035  # 3.5% chance of early failure
+        early_shape = 0.8  # Distribution shape (steep)
+        early_scale = 0.5  # Dies very quickly
+        normal_shape = 4.0  # Regular  shape
+
         # For a Weibull with a shape of 4.0, the Mean ≈ Scale * 0.906. Not sure the extent to which this is generalisable.
-        normal_scale = lifespan_mean / 0.906 
-        
+        normal_scale = lifespan_mean / 0.906
+
         # Determine if its early failure or not.
         if rng.random() < defect_rate:
             # Draw from the early failure curve.
@@ -320,15 +282,18 @@ class Customer(BaseAgent):
         else:
             # If normal, draw from the wear-out curve.
             raw_lifespan = rng.weibull(normal_shape) * normal_scale
-            
-        return max(1, int(round(raw_lifespan))) # Rounded to the nearest integer
-        
+
+        return max(1, int(round(raw_lifespan)))  # Rounded to the nearest integer
+
 
 # Inherits everything from the normal customer class and does nothing different. You need 'pass' because you can't have an empty class, even if it inherits other stuff.
 class B2B_Customer(Customer):
     """Business-to-Business (B2B) Customer agent. No difference from B2C for now."""
+
     pass
+
 
 class B2C_Customer(Customer):
     """Business-to-Consumer (B2C) Customer agent."""
+
     pass

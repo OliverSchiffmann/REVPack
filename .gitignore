@@ -1,5 +1,7 @@
 docs/
-__pycache__
+.REVVenv/
+__pycache__/
+*.pyc
 .venv
 .dev_venv
 .vscode
