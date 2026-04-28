@@ -43,6 +43,7 @@ class OEM(BaseAgent):
     _core_disposal_cost: float
     _core_storage_cost: float
     _total_core_storage_cost: float
+    _core_storage_limit: int
     _bounties_returned: int
     _bounty_value: float
     _retail_price_V: float
@@ -106,6 +107,7 @@ class OEM(BaseAgent):
         self._core_disposal_cost = oem_config["core_disposal_cost"]
         self._core_storage_cost = oem_config.get("core_storage_cost", 0.0)
         self._total_core_storage_cost = 0.0
+        self._core_storage_limit = config.get("core_storage_limit", 100)
         self._bounties_returned = 0
         self._bounty_value = oem_config.get("bounty_value", 10.0)
         self._retail_price_V = oem_config["retail_price_V"]
@@ -190,16 +192,13 @@ class OEM(BaseAgent):
         if currentStock >= 1:
             self._factory_stock[product] -= 1
             self._products_sold[product] += 1
-            if customer_location:
-                shipping_cost = self.get_shipping_cost(customer_location, 20.0)
-                self._total_shipping_cost += shipping_cost
-                self._balance -= shipping_cost
-
-            self._balance += (
-                self._retail_price_V
-                if product == ProductEnum.V
-                else self._retail_price_R
-            )
+            # No longer charging the OEM for deliveries
+            # if customer_location:
+            #     shipping_cost = self.get_shipping_cost(customer_location, 20.0)
+            #     self._total_shipping_cost += shipping_cost
+            #     self._balance -= shipping_cost
+                
+            self._balance += self._retail_price_V if product == ProductEnum.V else self._retail_price_R
             return True
 
         return False
@@ -263,7 +262,7 @@ class OEM(BaseAgent):
 
         if rng.random() < self._core_acceptance_rate:
             # Set a limit on how many cores to have in storage
-            if self._core_stock < 100:
+            if self._core_stock < self._core_storage_limit:
                 self._core_stock += 1
             else:
                 # Saves the number of cores disposed of when the storage was full
@@ -359,10 +358,7 @@ class OEM(BaseAgent):
         cost_bounty = self._bounties_returned * self._bounty_value
 
         # Reverse logistics costs
-        if self._total_core_collection_cost > 0:
-            cost_collection = self._total_core_collection_cost
-        else:
-            cost_collection = self._total_cores_collected * self._core_collection_cost
+        cost_collection = self._total_core_collection_cost
 
         # Disposal costs
         cost_disposal = (
@@ -373,7 +369,7 @@ class OEM(BaseAgent):
         cost_storage = self._total_core_storage_cost
 
         # Outbound shipping cost
-        cost_outbound_shipping = self._total_shipping_cost
+        # cost_outbound_shipping = self._total_shipping_cost
 
         # Inspection costs
         cost_inspection = self._total_inspection_costs
@@ -384,7 +380,6 @@ class OEM(BaseAgent):
             + cost_collection
             + cost_disposal
             + cost_storage
-            + cost_outbound_shipping
             + cost_bounty
             + cost_inspection
         )
@@ -401,7 +396,7 @@ class OEM(BaseAgent):
             "Breakdown": {
                 "Production of virgin products": cost_V,
                 "Production of reman products": cost_R,
-                "Outbound shipping": cost_outbound_shipping,
+                # "Outbound shipping": cost_outbound_shipping,
                 "Collecting cores": cost_collection,
                 "Total bounties paid": cost_bounty,
                 "Inspection of cores": cost_inspection,
