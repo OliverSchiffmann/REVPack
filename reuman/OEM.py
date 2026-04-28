@@ -46,6 +46,7 @@ class OEM(BaseAgent):
     _core_disposal_cost: float
     _core_storage_cost: float
     _total_core_storage_cost: float
+    _core_storage_limit: int
     _bounties_returned: int
     _bounty_value: float
     _retail_price_V: float
@@ -107,6 +108,7 @@ class OEM(BaseAgent):
         self._core_disposal_cost = config["core_disposal_cost"]
         self._core_storage_cost = config.get("core_storage_cost", 0.0)
         self._total_core_storage_cost = 0.0
+        self._core_storage_limit = config.get("core_storage_limit", 100)
         self._bounties_returned = 0
         self._bounty_value = config.get("bounty_value", 10.0)
         self._retail_price_V = config["retail_price_V"]
@@ -254,7 +256,7 @@ class OEM(BaseAgent):
         
         if rng.random() < self._core_acceptance_rate:
             # Set a limit on how many cores to have in storage
-            if self._core_stock < 100:
+            if self._core_stock < self._core_storage_limit:
                 self._core_stock += 1
             else:
                 # Saves the number of cores disposed of when the storage was full
