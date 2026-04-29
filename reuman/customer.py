@@ -70,9 +70,9 @@ class Customer(BaseAgent):
         self._patience = self._customer_config["patience"]
         self._core_return_rate = self._customer_config["core_return_rate"]
         self._end_of_patience_day = -1
-        self._lifetime_method = config.get("lifetime_method", "triangular")
-        self._mean_lifetime = config.get("mean_lifetime", 200)
-        self._lifetime_range = config.get("lifetime_range", 3)
+        self._lifetime_method = self._customer_config.get("lifetime_method", "triangular")
+        self._mean_lifetime = self._customer_config.get("mean_lifetime", 200)
+        self._lifetime_range = self._customer_config.get("lifetime_range", 3)
 
     def next(self, rng):
         """
@@ -216,15 +216,14 @@ class Customer(BaseAgent):
         self._delivery_day = -1
         self._end_of_patience_day = -1
 
-        # Determine the lifetime distribution method from customer config, defaults to triangular
-        lifetime_method = self._customer_config.get("lifetime_method", "triangular")
-
-        if lifetime_method == "uniform":
+        if self._lifetime_method == "uniform":
             lifespan = self.get_uniform_lifetime(rng)
-        elif lifetime_method == "weibull":
+        elif self._lifetime_method == "weibull":
             lifespan = self.get_weibull_lifetime(rng)
-        else:
+        elif self._lifetime_method == "triangular":
             lifespan = self.get_triangular_lifetime(rng)
+        else:
+            raise ValueError(f"Unknown lifetime method: {self._lifetime_method}")
 
         self._product_lifespan = lifespan
         self._end_of_life_day = self._world.now() + lifespan
@@ -239,8 +238,8 @@ class Customer(BaseAgent):
         Returns:
             int: The generated lifetime.
         """
-        lifespan_mean = self._customer_config["mean_lifetime"]
-        lifespan_variation = self._customer_config.get("lifetime_range", 3)
+        lifespan_mean = self._mean_lifetime
+        lifespan_variation = self._lifetime_range
         lifespan_range = (
             lifespan_mean - lifespan_variation,
             lifespan_mean + lifespan_variation,
@@ -257,8 +256,8 @@ class Customer(BaseAgent):
         Returns:
             int: The generated lifetime.
         """
-        lifespan_mean = self._customer_config["mean_lifetime"]
-        lifespan_variation = self._customer_config.get("lifetime_range", 3)
+        lifespan_mean = self._mean_lifetime
+        lifespan_variation = self._lifetime_range
         raw_lifespan = rng.triangular(
             lifespan_mean - lifespan_variation,
             lifespan_mean,
@@ -276,7 +275,7 @@ class Customer(BaseAgent):
         Returns:
             int: The generated lifetime.
         """
-        lifespan_mean = self._customer_config["mean_lifetime"]
+        lifespan_mean = self._mean_lifetime
 
         # Set up the Weibull parameters for the two halves (early failure and wear-out)
         defect_rate = 0.035  # 3.5% chance of early failure

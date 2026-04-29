@@ -124,14 +124,14 @@ class TestCustomer(unittest.TestCase):
     # Weibull doesn't behave like the others so is basically impossible to test simply.
 
     def test_handle_active_user_end_of_life(self):
-        """Test that reaching end-of-life drops the active product tracking and shifts state to WANTS_ANY."""
+        """Test that reaching end-of-life shifts state to WANTS_REMAN for the retained active product."""
         self.customer.become_user(self.rng, ProductEnum.R)
         self.customer._end_of_life_day = (
             self.world.now()
         )  # Force product end-of-life on current tick
 
         self.customer._handle_active_user(self.rng)
-        self.assertEqual(self.customer.state(), CustomerStatesEnum.WANTS_ANY)
+        self.assertEqual(self.customer.state(), CustomerStatesEnum.WANTS_REMAN)
         self.assertEqual(self.customer._delivery_day, -1)
         self.assertEqual(self.customer._end_of_life_day, -1)
 
