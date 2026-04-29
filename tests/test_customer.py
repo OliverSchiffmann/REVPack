@@ -197,5 +197,17 @@ class TestCustomer(unittest.TestCase):
         # Should schedule 1 core return to the OEM
         self.assertEqual(len(self.oem._incoming_cores), initial_incoming + 1)
 
+    def test_handle_active_user_core_not_returned(self):
+        """Test that reaching end-of-life and not returning a core records it with the OEM."""
+        self.customer.become_user(self.rng, ProductEnum.R)
+        self.customer._end_of_life_day = self.world.now()
+        self.customer._core_return_rate = 0.0  # Guarantee NO return
+        
+        initial_not_collected = self.oem._total_cores_not_collected
+        self.customer._handle_active_user(self.rng)
+        
+        # Should record 1 uncollected core with the OEM
+        self.assertEqual(self.oem._total_cores_not_collected, initial_not_collected + 1)
+
 if __name__ == "__main__":
     unittest.main()

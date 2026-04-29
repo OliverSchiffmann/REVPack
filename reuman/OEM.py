@@ -173,6 +173,27 @@ class OEM(BaseAgent):
         self._total_core_storage_cost += self._core_stock * self._core_storage_cost
         self._balance -= self._core_stock * self._core_storage_cost
 
+    def get_tracking_metrics(self) -> dict:
+        """
+        Returns a dictionary of current OEM metrics for data collection.
+        """
+        return {
+            "core_stock": self._core_stock,
+            "virgin_stock": self._factory_stock[ProductEnum.V],
+            "reman_stock": self._factory_stock[ProductEnum.R],
+            "virgin_sold": self._products_sold[ProductEnum.V],
+            "reman_sold": self._products_sold[ProductEnum.R],
+            "cores_collected": self._total_cores_collected,
+            "cores_rejected": self._total_cores_rejected,
+            "inspection_cost": self._total_inspection_costs,
+            "bounty_values_paid": self._bounty_value * self._bounties_returned,
+            "oem_balance": self._balance,
+        }
+
+    def record_core_not_collected(self) -> None:
+        """Records a core that was not collected from a customer."""
+        self._total_cores_not_collected += 1
+
     # Checks the stock of a given product in storage
     def request_product(
         self, product: ProductEnum, customer_location: str | None = None
@@ -279,7 +300,7 @@ class OEM(BaseAgent):
         Count all the agents waiting for products and use that to update the manufacturing targets.
         """
 
-        for agent in self._world._agents.values():
+        for agent in self._world.get_agents():
             if agent.type() == AgentEnum.CUSTOMER:
                 if agent.state() == CustomerStatesEnum.WANTS_VIRGIN:
                     self._num_to_man[ProductEnum.V] += 1
