@@ -1,6 +1,6 @@
 import unittest
 import numpy as np
-from reuman.customer import Customer, CustomerStatesEnum
+from reuman.customer import Customer, CustomerStatesEnum, B2B_Customer, B2C_Customer
 from reuman.world import World
 from reuman.OEM import OEM
 from reuman.product import ProductEnum
@@ -133,6 +133,69 @@ class TestCustomer(unittest.TestCase):
         self.assertEqual(self.customer._delivery_day, -1)
         self.assertEqual(self.customer._end_of_life_day, -1)
 
+    def test_handle_potential_user(self):
+        """Test that a potential user transitions correctly based on advertising effectiveness."""
+        # Force 100% ad effectiveness for Virgin product
+        self.config["products"]["V"]["advertising_effectiveness"] = 1.0
+        self.config["products"]["R"]["advertising_effectiveness"] = 0.0
+        self.oem._delivery_delay = 0  # Instant delivery to jump straight to USES_VIRGIN
+        
+        self.customer._handle_potential_user(self.rng)
+        
+        self.assertEqual(self.customer.state(), CustomerStatesEnum.USES_VIRGIN)
+        self.assertEqual(self.customer._active_product, ProductEnum.V)
+
+    def test_handle_waiting_customer_delivery_arrives(self):
+        """Test that a waiting customer receives their delivery on the delivery day."""
+        self.customer._state = CustomerStatesEnum.WAITING_FOR_DELIVERY
+        self.customer._active_product = ProductEnum.V
+        self.customer._delivery_day = self.world.now()  # Delivery arrives today
+        
+        self.customer._handle_waiting_customer(self.rng)
+        
+        self.assertEqual(self.customer.state(), CustomerStatesEnum.USES_VIRGIN)
+        self.assertEqual(self.customer._delivery_day, -1)
+
+    def test_handle_waiting_customer_patience_expires(self):
+        """Test that a waiting customer changes state to WANTS_ANY when patience runs out."""
+        self.customer._state = CustomerStatesEnum.WANTS_VIRGIN
+        self.customer._active_product = ProductEnum.V
+        self.customer._delivery_day = -1
+        self.customer._end_of_patience_day = self.world.now()  # Patience expires today
+        
+        self.customer._handle_waiting_customer(self.rng)
+        
+        self.assertEqual(self.customer.state(), CustomerStatesEnum.WANTS_ANY)
+
+    def test_initialise_as_active_user(self):
+        """Test that a customer can be initialised with a random remaining lifespan."""
+        self.customer.initialise_as_active_user(self.rng, ProductEnum.R)
+        
+        self.assertEqual(self.customer.state(), CustomerStatesEnum.USES_REMAN)
+        self.assertEqual(self.customer._active_product, ProductEnum.R)
+        self.assertTrue(self.customer._end_of_life_day > self.world.now())
+
+    def test_b2b_b2c_subclasses(self):
+        """Test that B2B and B2C customers correctly load their specific configurations."""
+        b2b = B2B_Customer(id=3, world=self.world, oem=self.oem, config=self.config)
+        self.assertEqual(b2b._customer_config["mean_lifetime"], 200)
+        self.assertEqual(b2b._patience, 10)
+        
+        b2c = B2C_Customer(id=4, world=self.world, oem=self.oem, config=self.config)
+        self.assertEqual(b2c._customer_config["mean_lifetime"], 50)
+        self.assertEqual(b2c._patience, -1)
+
+    def test_handle_active_user_core_return(self):
+        """Test that reaching end-of-life for a product triggers a core return scheduling."""
+        self.customer.become_user(self.rng, ProductEnum.R)
+        self.customer._end_of_life_day = self.world.now()
+        self.customer._core_return_rate = 1.0  # Guarantee return
+        
+        initial_incoming = len(self.oem._incoming_cores)
+        self.customer._handle_active_user(self.rng)
+        
+        # Should schedule 1 core return to the OEM
+        self.assertEqual(len(self.oem._incoming_cores), initial_incoming + 1)
 
 if __name__ == "__main__":
     unittest.main()
