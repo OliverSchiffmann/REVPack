@@ -11,7 +11,6 @@ from numpy import random
 import matplotlib.pyplot as plt
 import importlib.util
 import os, json
-import asyncio
 import csv
 
 
@@ -55,27 +54,6 @@ async def run_simulation(config, seed=None, progress_callback=None):
 
     config["oem"]["location"] = "Brescia"
     config["oem"]["distance_matrix"] = distance_matrix
-
-    results = {
-        "day": [],
-        "potential_users": [],
-        "wants_virgin": [],
-        "uses_virgin": [],
-        "wants_reman": [],
-        "uses_reman": [],
-        "wants_any": [],
-        "waiting_for_delivery": [],
-        "core_stock": [],
-        "virgin_stock": [],
-        "reman_stock": [],
-        "virgin_sold": [],
-        "reman_sold": [],
-        "cores_collected": [],
-        "cores_rejected": [],
-        "inspection_cost": [],
-        "bounty_values_paid": [],
-        "oem_balance": [],
-    }
 
     oemAgent = OEM(id=-1, world=world, config=config)
     world.add_agent(oemAgent)
@@ -127,38 +105,8 @@ async def run_simulation(config, seed=None, progress_callback=None):
         for idx in indices:
             customer_agents[idx].initialise_as_active_user(rng, ProductEnum.V)
 
-    for i in range(0, simulation_length):
-        world.tick()
-        results["day"].append(world.now())
-        results["potential_users"].append(world._num_potential_users)
-        results["wants_virgin"].append(world._num_wants[ProductEnum.V])
-        results["uses_virgin"].append(world._num_uses[ProductEnum.V])
-        results["wants_reman"].append(world._num_wants[ProductEnum.R])
-        results["uses_reman"].append(world._num_uses[ProductEnum.R])
-        results["wants_any"].append(world._num_wants_any)
-        results["waiting_for_delivery"].append(world._num_waiting_for_delivery)
-        results["core_stock"].append(oemAgent._core_stock)
-        results["virgin_stock"].append(oemAgent._factory_stock[ProductEnum.V])
-        results["reman_stock"].append(oemAgent._factory_stock[ProductEnum.R])
-        results["virgin_sold"].append(oemAgent._products_sold[ProductEnum.V])
-        results["reman_sold"].append(oemAgent._products_sold[ProductEnum.R])
-        results["cores_collected"].append(oemAgent._total_cores_collected)
-        results["cores_rejected"].append(oemAgent._total_cores_rejected)
-        results["inspection_cost"].append(oemAgent._total_inspection_costs)
-        results["bounty_values_paid"].append(
-            oemAgent._bounty_value * oemAgent._bounties_returned
-        )
-        results["oem_balance"].append(oemAgent._balance)
-        world.call_next(rng)
-
-        # Yield to the browser every 1% of the simulation so it can update the UI progress bar
-        if progress_callback is not None:
-            update_interval = max(1, simulation_length // 100)
-            if i % update_interval == 0:
-                progress_callback(i, simulation_length)
-                await asyncio.sleep(0)
-
-    report = oemAgent.generate_financial_report()
+    # Delegate execution to the World agent
+    results, report = await world.run(rng, simulation_length, progress_callback)
 
     # Package the geographic data into the report for the webapp overlay
     report["Geographic Distribution"] = {

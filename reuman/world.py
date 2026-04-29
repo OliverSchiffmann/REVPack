@@ -8,13 +8,14 @@ from typing import TYPE_CHECKING
 from ._agent import AgentEnum, BaseAgent
 import random
 from .message import Message
+import asyncio
 from . import customer
 from .product import ProductEnum
 
 
 if TYPE_CHECKING:
     from .customer import Customer, CustomerStatesEnum
-    from .OEM import OEM, OEMStatesEnum
+    from .OEM import OEM
 
 
 class World:
@@ -75,6 +76,15 @@ class World:
             int: The current time step.
         """
         return self._now
+
+    def get_agents(self) -> list[BaseAgent]:
+        """
+        Returns a list of all agents currently in the simulation.
+        
+        Returns:
+            list[BaseAgent]: A list of all agents.
+        """
+        return list(self._agents.values())
 
     def get_active_products(self) -> list[ProductEnum]:
         """
@@ -179,3 +189,49 @@ class World:
             if recipient:
                 recipient.handle_message(message, rng)
         self._message_queue.clear()
+
+    async def run(self, rng, simulation_length: int, progress_callback=None) -> tuple[dict, dict]:
+        """
+        Executes the simulation loop for a specified number of ticks, 
+        collects time-series results, and generates a final report.
+        """
+        # Find the OEM agent for data collection
+        oem_id = self._agents_by_type[AgentEnum.OEM][0]
+        oemAgent: OEM = self._agents[oem_id]  # type: ignore
+
+        results = {
+            "day": [], "potential_users": [], "wants_virgin": [], "uses_virgin": [],
+            "wants_reman": [], "uses_reman": [], "wants_any": [], "waiting_for_delivery": [],
+            "core_stock": [], "virgin_stock": [], "reman_stock": [], "virgin_sold": [],
+            "reman_sold": [], "cores_collected": [], "cores_rejected": [], 
+            "inspection_cost": [], "bounty_values_paid": [], "oem_balance": [],
+        }
+
+        for i in range(simulation_length):
+            self.tick()
+            
+            # Record states
+            results["day"].append(self.now())
+            results["potential_users"].append(self._num_potential_users)
+            results["wants_virgin"].append(self._num_wants[ProductEnum.V])
+            results["uses_virgin"].append(self._num_uses[ProductEnum.V])
+            results["wants_reman"].append(self._num_wants[ProductEnum.R])
+            results["uses_reman"].append(self._num_uses[ProductEnum.R])
+            results["wants_any"].append(self._num_wants_any)
+            results["waiting_for_delivery"].append(self._num_waiting_for_delivery)
+            
+            # Fetch OEM specific data cleanly
+            oem_metrics = oemAgent.get_tracking_metrics()
+            for key, value in oem_metrics.items():
+                results[key].append(value)
+
+            self.call_next(rng)
+
+            if progress_callback is not None:
+                update_interval = max(1, simulation_length // 100)
+                if i % update_interval == 0:
+                    progress_callback(i, simulation_length)
+                    await asyncio.sleep(0)
+
+        report = oemAgent.generate_financial_report()
+        return results, report

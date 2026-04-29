@@ -162,7 +162,7 @@ class Customer(BaseAgent):
                 if rng.random() < self._core_return_rate:
                     self._oem.schedule_core_return(self._location)
                 else:
-                    self._oem._total_cores_not_collected += 1
+                    self._oem.record_core_not_collected()
 
     def try_and_buy(self, rng, product: ProductEnum):
         """
