@@ -31,7 +31,9 @@ class Customer(BaseAgent):
     _product_lifespan: int
     _end_of_patience_day: int
     _core_return_rate: float
-    _config: dict
+    _lifetime_method: str
+    _mean_lifetime: int
+    _lifetime_range: int
     _customer_config: dict
 
     def __init__(
@@ -68,6 +70,9 @@ class Customer(BaseAgent):
         self._patience = self._customer_config["patience"]
         self._core_return_rate = self._customer_config["core_return_rate"]
         self._end_of_patience_day = -1
+        self._lifetime_method = self._customer_config.get("lifetime_method", "triangular")
+        self._mean_lifetime = self._customer_config.get("mean_lifetime", 200)
+        self._lifetime_range = self._customer_config.get("lifetime_range", 3)
 
     def next(self, rng):
         """
@@ -148,15 +153,12 @@ class Customer(BaseAgent):
         Handles logic for customers currently using a product until it reaches end-of-life.
         """
         if self._world.now() >= self._end_of_life_day:
-
-            # Chance to lose interest and return to non-user (disabled by default via lose_interest_rate: 0.0)
-            if rng.random() < self._customer_config.get("lose_interest_rate", 0.0):
-                self._state = CustomerStatesEnum.POTENTIAL_USER
-                self._active_product = None
-            elif self._active_product is not None:
-                self._state = CustomerStatesEnum.WANTS_ANY
-
-            self._delivery_day = -1
+                      
+            if self._active_product is not None:
+                self._state = product_params[self._active_product]["wants_state"]
+                # Retain self._active_product so they attempt to buy the same product again
+            
+            self._delivery_day = -1           
             self._end_of_life_day = -1
             if ProductEnum.R in self._world.get_active_products():
                 if rng.random() < self._core_return_rate:
@@ -214,15 +216,14 @@ class Customer(BaseAgent):
         self._delivery_day = -1
         self._end_of_patience_day = -1
 
-        # Determine the lifetime distribution method from customer config, defaults to triangular
-        lifetime_method = self._customer_config.get("lifetime_method", "triangular")
-
-        if lifetime_method == "uniform":
+        if self._lifetime_method == "uniform":
             lifespan = self.get_uniform_lifetime(rng)
-        elif lifetime_method == "weibull":
+        elif self._lifetime_method == "weibull":
             lifespan = self.get_weibull_lifetime(rng)
-        else:
+        elif self._lifetime_method == "triangular":
             lifespan = self.get_triangular_lifetime(rng)
+        else:
+            raise ValueError(f"Unknown lifetime method: {self._lifetime_method}")
 
         self._product_lifespan = lifespan
         self._end_of_life_day = self._world.now() + lifespan
@@ -237,8 +238,8 @@ class Customer(BaseAgent):
         Returns:
             int: The generated lifetime.
         """
-        lifespan_mean = self._customer_config["mean_lifetime"]
-        lifespan_variation = self._customer_config.get("lifetime_range", 3)
+        lifespan_mean = self._mean_lifetime
+        lifespan_variation = self._lifetime_range
         lifespan_range = (
             lifespan_mean - lifespan_variation,
             lifespan_mean + lifespan_variation,
@@ -255,8 +256,8 @@ class Customer(BaseAgent):
         Returns:
             int: The generated lifetime.
         """
-        lifespan_mean = self._customer_config["mean_lifetime"]
-        lifespan_variation = self._customer_config.get("lifetime_range", 3)
+        lifespan_mean = self._mean_lifetime
+        lifespan_variation = self._lifetime_range
         raw_lifespan = rng.triangular(
             lifespan_mean - lifespan_variation,
             lifespan_mean,
@@ -274,7 +275,7 @@ class Customer(BaseAgent):
         Returns:
             int: The generated lifetime.
         """
-        lifespan_mean = self._customer_config["mean_lifetime"]
+        lifespan_mean = self._mean_lifetime
 
         # Set up the Weibull parameters for the two halves (early failure and wear-out)
         defect_rate = 0.035  # 3.5% chance of early failure

@@ -7,7 +7,18 @@
 
     <!-- Tailwind CSS for styling -->
     <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+      tailwind.config = {
+        darkMode: "class",
+      };
+    </script>
 
+    <style>
+      /* Invert Leaflet map tiles for an automatic dark mode map */
+      .dark .leaflet-layer {
+        filter: invert(100%) hue-rotate(180deg) brightness(95%) contrast(90%);
+      }
+    </style>
     <!-- Chart.js for visualization -->
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 
@@ -56,34 +67,56 @@
       });
       document.head.appendChild(pyConfig);
     </script>
+
+    <!-- Setup Dark Mode Immediately -->
+    <script>
+      if (
+        localStorage.theme === "dark" ||
+        (!("theme" in localStorage) &&
+          window.matchMedia("(prefers-color-scheme: dark)").matches)
+      ) {
+        document.documentElement.classList.add("dark");
+      } else {
+        document.documentElement.classList.remove("dark");
+      }
+    </script>
   </head>
-  <body class="bg-gray-100 p-8 font-sans">
+  <body
+    class="bg-gray-100 dark:bg-gray-900 p-8 font-sans transition-colors duration-200"
+  >
     <div class="max-w-7xl mx-auto space-y-6">
       <!-- Header -->
       <div
-        class="bg-white p-6 rounded-lg shadow-md flex justify-between items-center"
+        class="bg-white dark:bg-gray-800 dark:border-gray-700 border p-6 rounded-lg shadow-md flex flex-col md:flex-row gap-4 justify-between md:items-center transition-colors"
       >
         <div>
-          <h1 class="text-3xl font-bold text-gray-800">
+          <h1 class="text-3xl font-bold text-gray-800 dark:text-gray-100">
             REVPack Scenario Builder
           </h1>
-          <p class="text-gray-500 mt-1">
-            Configure parameters, run the simulation, and export to Python.
+          <p class="text-gray-500 dark:text-gray-400 mt-1">
+            Configure parameters, run multiple simulations, and compare outputs.
           </p>
         </div>
         <div class="space-x-4 flex">
           <button
             id="export-btn"
             onclick="exportScenario()"
-            class="bg-gray-200 hover:bg-gray-300 text-gray-800 font-bold py-2 px-4 rounded transition"
+            class="bg-gray-200 hover:bg-gray-300 dark:bg-gray-700 dark:hover:bg-gray-600 text-gray-800 dark:text-gray-200 font-bold py-2 px-4 rounded transition"
           >
             📥 Export Scenario (.py)
+          </button>
+          <button
+            onclick="toggleDarkMode()"
+            class="bg-gray-200 hover:bg-gray-300 dark:bg-gray-700 dark:hover:bg-gray-600 text-gray-800 dark:text-gray-200 font-bold py-2 px-3 rounded transition"
+            title="Toggle Dark Mode"
+          >
+            🌓
           </button>
           <button
             id="run-btn"
             class="bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-6 rounded shadow transition"
           >
-            ▶ Run Simulation
+            ▶ Run Simulation(s)
           </button>
         </div>
       </div>
@@ -92,493 +125,163 @@
       <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
         <!-- Settings Panel -->
         <div
-          class="bg-white p-6 rounded-lg shadow-md lg:col-span-1 h-[800px] overflow-y-auto"
+          class="bg-white dark:bg-gray-800 dark:border-gray-700 border p-6 rounded-lg shadow-md lg:col-span-1 flex flex-col h-[800px] transition-colors"
         >
-          <h2 class="text-xl font-bold mb-4 border-b pb-2">Parameters</h2>
-
-          <form id="scenario-form" class="space-y-6 text-sm">
-            <!-- MAIN CONFIG -->
-            <div>
-              <h3 class="font-bold text-gray-700 mb-2">Main Settings</h3>
-              <div class="grid grid-cols-2 gap-4">
-                <div>
-                  <label class="block text-gray-600"
-                    >Simulation Length (Days)</label
-                  >
-                  <input
-                    type="number"
-                    id="sim_length"
-                    value="1000"
-                    class="w-full border p-1 rounded mt-1"
-                  />
-                </div>
-                <div>
-                  <label class="block text-gray-600">Total Population</label>
-                  <input
-                    type="number"
-                    id="total_pop"
-                    value="1000"
-                    min="0"
-                    class="w-full border p-1 rounded mt-1"
-                  />
-                </div>
-                <div>
-                  <div class="flex justify-between items-center">
-                    <label class="block text-gray-600"
-                      >Starting Customers:</label
-                    >
-                    <input
-                      type="number"
-                      id="start_cust_val"
-                      value="1000"
-                      min="0"
-                      max="1000"
-                      class="w-16 border p-1 rounded text-right text-sm"
-                    />
-                  </div>
-                  <input
-                    type="range"
-                    id="start_cust"
-                    value="1000"
-                    min="0"
-                    max="1000"
-                    class="w-full mt-2"
-                  />
-                </div>
-                <div>
-                  <div class="flex justify-between items-center">
-                    <label class="block text-gray-600">B2B Population:</label>
-                    <input
-                      type="number"
-                      id="b2b_pop_val"
-                      value="1000"
-                      min="0"
-                      max="1000"
-                      class="w-16 border p-1 rounded text-right text-sm"
-                    />
-                  </div>
-                  <input
-                    type="range"
-                    id="b2b_pop"
-                    value="1000"
-                    min="0"
-                    max="1000"
-                    class="w-full mt-2"
-                  />
-                </div>
-                <script>
-                  const totalPopInput = document.getElementById("total_pop");
-                  const startCustSlider = document.getElementById("start_cust");
-                  const startCustVal =
-                    document.getElementById("start_cust_val");
-                  const b2bPopSlider = document.getElementById("b2b_pop");
-                  const b2bPopVal = document.getElementById("b2b_pop_val");
-
-                  function updateTotalPop() {
-                    const total = parseInt(totalPopInput.value) || 0;
-
-                    startCustSlider.max = total;
-                    startCustVal.max = total;
-                    if (parseInt(startCustSlider.value) > total) {
-                      startCustSlider.value = total;
-                    }
-                    startCustVal.value = startCustSlider.value;
-
-                    b2bPopSlider.max = total;
-                    b2bPopVal.max = total;
-                    if (parseInt(b2bPopSlider.value) > total) {
-                      b2bPopSlider.value = total;
-                    }
-                    b2bPopVal.value = b2bPopSlider.value;
-                  }
-
-                  totalPopInput.addEventListener("input", updateTotalPop);
-
-                  startCustSlider.addEventListener("input", function () {
-                    startCustVal.value = this.value;
-                  });
-
-                  b2bPopSlider.addEventListener("input", function () {
-                    b2bPopVal.value = this.value;
-                  });
-
-                  startCustVal.addEventListener("input", function () {
-                    let val = parseInt(this.value) || 0;
-                    const max = parseInt(this.max) || 0;
-                    if (val > max) {
-                      val = max;
-                      this.value = max;
-                    }
-                    startCustSlider.value = val;
-                  });
-
-                  b2bPopVal.addEventListener("input", function () {
-                    let val = parseInt(this.value) || 0;
-                    const max = parseInt(this.max) || 0;
-                    if (val > max) {
-                      val = max;
-                      this.value = max;
-                    }
-                    b2bPopSlider.value = val;
-                  });
-                </script>
+          <!-- Scenario Selector -->
+          <div class="mb-4 pb-4 border-b dark:border-gray-700">
+            <div class="flex justify-between items-center mb-2">
+              <h2 class="text-xl font-bold text-gray-800 dark:text-gray-100">
+                Scenarios
+              </h2>
+              <div>
+                <button
+                  onclick="addScenario()"
+                  class="bg-green-500 hover:bg-green-600 text-white px-3 py-1 rounded text-sm font-bold shadow"
+                >
+                  +
+                </button>
+                <button
+                  onclick="removeScenario()"
+                  class="bg-red-500 hover:bg-red-600 text-white px-3 py-1 rounded text-sm font-bold shadow ml-1"
+                >
+                  -
+                </button>
               </div>
             </div>
+            <select
+              id="scenario-selector"
+              class="w-full border dark:border-gray-600 p-2 rounded mb-2 bg-gray-50 dark:bg-gray-700 dark:text-white font-medium"
+              onchange="selectScenario(this.value)"
+            ></select>
+            <input
+              type="text"
+              id="scenario-name"
+              class="w-full border dark:border-gray-600 p-2 rounded bg-gray-50 dark:bg-gray-700 dark:text-white"
+              placeholder="Scenario Name"
+              onchange="updateScenarioName(this.value)"
+            />
+          </div>
 
-            <!-- OEM CONFIG -->
-            <div>
-              <h3 class="font-bold text-gray-700 mb-2 mt-4">OEM Settings</h3>
-              <div class="grid grid-cols-2 gap-4">
-                <div>
-                  <label class="block text-gray-600"
-                    >Virgin Prod Cost (€)</label
-                  >
-                  <input
-                    type="number"
-                    id="cost_v"
-                    value="500"
-                    class="w-full border p-1 rounded mt-1"
-                  />
-                </div>
-                <div>
-                  <label class="block text-gray-600">Reman Prod Cost (€)</label>
-                  <input
-                    type="number"
-                    id="cost_r"
-                    value="300"
-                    class="w-full border p-1 rounded mt-1"
-                  />
-                </div>
-                <div>
-                  <label class="block text-gray-600">Virgin Retail (€)</label>
-                  <input
-                    type="number"
-                    id="retail_v"
-                    value="1000"
-                    class="w-full border p-1 rounded mt-1"
-                  />
-                </div>
-                <div>
-                  <label class="block text-gray-600">Reman Retail (€)</label>
-                  <input
-                    type="number"
-                    id="retail_r"
-                    value="1000"
-                    class="w-full border p-1 rounded mt-1"
-                  />
-                </div>
-                <div>
-                  <label class="block text-gray-600">Manufacture Delay</label>
-                  <input
-                    type="number"
-                    id="man_delay"
-                    value="5"
-                    class="w-full border p-1 rounded mt-1"
-                  />
-                </div>
-                <div>
-                  <label class="block text-gray-600">Remanufacture Delay</label>
-                  <input
-                    type="number"
-                    id="reman_delay"
-                    value="4"
-                    class="w-full border p-1 rounded mt-1"
-                  />
-                </div>
-                <div>
-                  <label class="block text-gray-600"
-                    >Core Acceptance Rate</label
-                  >
-                  <input
-                    type="number"
-                    step="0.1"
-                    id="core_accept"
-                    value="1.0"
-                    class="w-full border p-1 rounded mt-1"
-                  />
-                </div>
-                <div>
-                  <label class="block text-gray-600">Bounty Value (€)</label>
-                  <input
-                    type="number"
-                    id="bounty_value"
-                    value="10"
-                    class="w-full border p-1 rounded mt-1"
-                  />
-                </div>
-              </div>
-            </div>
-
-            <!-- CUSTOMER CONFIG -->
-            <div>
-              <h3 class="font-bold text-gray-700 mb-2 mt-4">
-                B2B Customer Settings
-              </h3>
-              <div class="grid grid-cols-2 gap-4">
-                <div>
-                  <label class="block text-gray-600">Patience</label>
-                  <input
-                    type="number"
-                    id="b2b_patience"
-                    value="14"
-                    class="w-full border p-1 rounded mt-1"
-                  />
-                </div>
-                <div>
-                  <label class="block text-gray-600">Mean Lifetime</label>
-                  <input
-                    type="number"
-                    id="b2b_mean_life"
-                    value="200"
-                    class="w-full border p-1 rounded mt-1"
-                  />
-                </div>
-              </div>
-            </div>
-          </form>
+          <div
+            id="dynamic-form"
+            class="space-y-4 flex-grow overflow-y-auto pr-2"
+          >
+            <!-- Accordions generated here -->
+          </div>
         </div>
 
         <!-- Results Panel -->
         <div
-          class="bg-white p-6 rounded-lg shadow-md lg:col-span-2 flex flex-col space-y-6"
+          class="bg-white dark:bg-gray-800 dark:border-gray-700 border p-6 rounded-lg shadow-md lg:col-span-2 flex flex-col h-[800px] overflow-y-auto transition-colors"
         >
-          <!-- Progress Bars (Hidden by default) -->
-          <div id="progress-container" class="hidden space-y-4 mb-4">
-            <!-- Base Simulation -->
-            <div>
-              <div class="flex justify-between text-sm text-gray-600 mb-1">
-                <span class="font-bold">No Remanufacturing</span>
-                <span id="progress-text-base">0 / 0 Days</span>
-              </div>
-              <div class="w-full bg-gray-200 rounded-full h-2.5">
-                <div
-                  id="progress-bar-base"
-                  class="bg-gray-500 h-2.5 rounded-full transition-all duration-100"
-                  style="width: 0%"
-                ></div>
-              </div>
-            </div>
-            <!-- Reman Simulation -->
-            <div>
-              <div class="flex justify-between text-sm text-gray-600 mb-1">
-                <span class="font-bold">With Remanufacturing</span>
-                <span id="progress-text-reman">0 / 0 Days</span>
-              </div>
-              <div class="w-full bg-gray-200 rounded-full h-2.5">
-                <div
-                  id="progress-bar-reman"
-                  class="bg-blue-600 h-2.5 rounded-full transition-all duration-100"
-                  style="width: 0%"
-                ></div>
-              </div>
+          <!-- Progress Bars -->
+          <div
+            id="progress-container"
+            class="hidden space-y-2 mb-6 bg-gray-50 dark:bg-gray-700 dark:border-gray-600 p-4 rounded border"
+          ></div>
+
+          <!-- Financial Readout Grid -->
+          <div
+            id="financial-cards"
+            class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 mb-6"
+          >
+            <div class="text-gray-400 dark:text-gray-500 italic text-sm">
+              Run simulations to see results...
             </div>
           </div>
 
-          <!-- Financial Readout -->
-          <div class="grid grid-cols-1 xl:grid-cols-2 gap-4">
-            <!-- No Reman -->
-            <div class="bg-gray-50 p-4 rounded-lg border border-gray-200">
-              <h3 class="font-bold text-gray-700 text-lg mb-3 border-b pb-1">
-                No Remanufacturing
-              </h3>
-              <div class="grid grid-cols-3 gap-2">
-                <div>
-                  <p class="text-xs text-red-600 font-bold uppercase">
-                    Total Cost
-                  </p>
-                  <p id="out-cost-base" class="text-lg font-bold text-red-700">
-                    €0
-                  </p>
-                </div>
-                <div>
-                  <p class="text-xs text-green-600 font-bold uppercase">
-                    Total Revenue
-                  </p>
-                  <p
-                    id="out-revenue-base"
-                    class="text-lg font-bold text-green-700"
-                  >
-                    €0
-                  </p>
-                </div>
-                <div>
-                  <p class="text-xs text-blue-600 font-bold uppercase">
-                    Net Profit
-                  </p>
-                  <p
-                    id="out-profit-base"
-                    class="text-lg font-bold text-blue-700"
-                  >
-                    €0
-                  </p>
-                </div>
-              </div>
-              <details class="mt-4">
-                <summary
-                  class="cursor-pointer text-sm font-bold text-gray-600 outline-none hover:text-gray-800 transition-colors"
-                >
-                  View Breakdown
-                </summary>
-                <div
-                  class="mt-2 text-sm text-gray-700 bg-white p-3 rounded border border-gray-200 shadow-inner"
-                  id="breakdown-base"
-                >
-                  <span class="text-gray-400 italic"
-                    >Run simulation to see details...</span
-                  >
-                </div>
-              </details>
-              <details class="mt-2">
-                <summary
-                  class="cursor-pointer text-sm font-bold text-gray-600 outline-none hover:text-gray-800 transition-colors"
-                >
-                  View Statistics
-                </summary>
-                <div
-                  class="mt-2 text-sm text-gray-700 bg-white p-3 rounded border border-gray-200 shadow-inner"
-                  id="stats-base"
-                >
-                  <span class="text-gray-400 italic"
-                    >Run simulation to see details...</span
-                  >
-                </div>
-              </details>
-            </div>
-            <!-- With Reman -->
-            <div class="bg-blue-50 p-4 rounded-lg border border-blue-200">
-              <h3
-                class="font-bold text-blue-800 text-lg mb-3 border-b border-blue-200 pb-1"
-              >
-                With Remanufacturing
-              </h3>
-              <div class="grid grid-cols-3 gap-2">
-                <div>
-                  <p class="text-xs text-red-600 font-bold uppercase">
-                    Total Cost
-                  </p>
-                  <p id="out-cost-reman" class="text-lg font-bold text-red-700">
-                    €0
-                  </p>
-                </div>
-                <div>
-                  <p class="text-xs text-green-600 font-bold uppercase">
-                    Total Revenue
-                  </p>
-                  <p
-                    id="out-revenue-reman"
-                    class="text-lg font-bold text-green-700"
-                  >
-                    €0
-                  </p>
-                </div>
-                <div>
-                  <p class="text-xs text-blue-600 font-bold uppercase">
-                    Net Profit
-                  </p>
-                  <p
-                    id="out-profit-reman"
-                    class="text-lg font-bold text-blue-700"
-                  >
-                    €0
-                  </p>
-                </div>
-              </div>
-              <details class="mt-4">
-                <summary
-                  class="cursor-pointer text-sm font-bold text-blue-800 outline-none hover:text-blue-900 transition-colors"
-                >
-                  View Breakdown
-                </summary>
-                <div
-                  class="mt-2 text-sm text-gray-700 bg-white p-3 rounded border border-blue-200 shadow-inner"
-                  id="breakdown-reman"
-                >
-                  <span class="text-gray-400 italic"
-                    >Run simulation to see details...</span
-                  >
-                </div>
-              </details>
-              <details class="mt-2">
-                <summary
-                  class="cursor-pointer text-sm font-bold text-blue-800 outline-none hover:text-blue-900 transition-colors"
-                >
-                  View Statistics
-                </summary>
-                <div
-                  class="mt-2 text-sm text-gray-700 bg-white p-3 rounded border border-blue-200 shadow-inner"
-                  id="stats-reman"
-                >
-                  <span class="text-gray-400 italic"
-                    >Run simulation to see details...</span
-                  >
-                </div>
-              </details>
-            </div>
-          </div>
-
-          <!-- Geographic Map -->
-          <div class="mt-2">
-            <h3 class="font-bold text-gray-700 text-lg mb-3 border-b pb-1">
-              Geographic Distribution
+          <!-- Comparison Charts -->
+          <div class="mb-6 hidden" id="comparison-section">
+            <h3
+              class="font-bold text-gray-700 dark:text-gray-200 text-lg mb-3 border-b dark:border-gray-700 pb-1"
+            >
+              Comparison
             </h3>
-            <div
-              id="map"
-              class="w-full h-[400px] rounded-lg border border-gray-300"
-            ></div>
+            <div class="grid grid-cols-1 gap-4">
+              <div>
+                <canvas
+                  id="compBalanceChart"
+                  style="max-height: 250px; width: 100%"
+                ></canvas>
+              </div>
+              <div>
+                <canvas
+                  id="compStockChart"
+                  style="max-height: 250px; width: 100%"
+                ></canvas>
+              </div>
+            </div>
           </div>
 
-          <!-- Charts -->
-          <div class="grid grid-cols-1 xl:grid-cols-2 gap-6 mt-4">
-            <div class="flex-grow">
-              <canvas
-                id="statesChartBase"
-                style="max-height: 250px; width: 100%"
-              ></canvas>
-            </div>
-            <div class="flex-grow">
-              <canvas
-                id="statesChartReman"
-                style="max-height: 250px; width: 100%"
-              ></canvas>
-            </div>
-
-            <div class="flex-grow">
-              <canvas
-                id="salesChartBase"
-                style="max-height: 250px; width: 100%"
-              ></canvas>
-            </div>
-            <div class="flex-grow">
-              <canvas
-                id="salesChartReman"
-                style="max-height: 250px; width: 100%"
-              ></canvas>
+          <!-- Detailed View -->
+          <div
+            class="bg-gray-50 dark:bg-gray-900/50 p-4 rounded-lg border dark:border-gray-700 hidden"
+            id="detailed-section"
+          >
+            <div
+              class="flex justify-between items-center mb-4 border-b dark:border-gray-700 pb-2"
+            >
+              <h3 class="font-bold text-gray-700 dark:text-gray-200 text-lg">
+                Detailed View
+              </h3>
+              <select
+                id="detail-scenario-selector"
+                class="border dark:border-gray-600 p-1 rounded bg-white dark:bg-gray-700 dark:text-white shadow-sm font-semibold text-sm"
+                onchange="window.updateDetailedView(this.value)"
+              ></select>
             </div>
 
-            <div class="flex-grow">
-              <canvas
-                id="stockChartBase"
-                style="max-height: 250px; width: 100%"
-              ></canvas>
-            </div>
-            <div class="flex-grow">
-              <canvas
-                id="stockChartReman"
-                style="max-height: 250px; width: 100%"
-              ></canvas>
+            <!-- Stats & Breakdown -->
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+              <details>
+                <summary
+                  class="font-bold cursor-pointer text-gray-700 dark:text-gray-300 outline-none"
+                >
+                  Financial Breakdown
+                </summary>
+                <div
+                  id="detail-breakdown"
+                  class="mt-2 bg-white dark:bg-gray-800 p-3 rounded border dark:border-gray-700 text-sm shadow-inner dark:text-gray-200"
+                ></div>
+              </details>
+              <details>
+                <summary
+                  class="font-bold cursor-pointer text-gray-700 dark:text-gray-300 outline-none"
+                >
+                  Operational Statistics
+                </summary>
+                <div
+                  id="detail-stats"
+                  class="mt-2 bg-white dark:bg-gray-800 p-3 rounded border dark:border-gray-700 text-sm shadow-inner dark:text-gray-200"
+                ></div>
+              </details>
             </div>
 
-            <div class="flex-grow">
-              <canvas
-                id="balanceChartBase"
-                style="max-height: 250px; width: 100%"
-              ></canvas>
+            <!-- Charts -->
+            <div class="grid grid-cols-1 gap-4">
+              <div>
+                <canvas
+                  id="detailStatesChart"
+                  style="min-height: 350px; width: 100%"
+                ></canvas>
+              </div>
+              <div>
+                <canvas
+                  id="detailSalesChart"
+                  style="min-height: 350px; width: 100%"
+                ></canvas>
+              </div>
             </div>
-            <div class="flex-grow">
-              <canvas
-                id="balanceChartReman"
-                style="max-height: 250px; width: 100%"
-              ></canvas>
+
+            <!-- Map -->
+            <div class="mt-4">
+              <h4 class="font-bold text-gray-600 dark:text-gray-300 mb-2">
+                Geographic Distribution
+              </h4>
+              <div
+                id="map"
+                class="w-full h-[300px] rounded-lg border border-gray-300 dark:border-gray-700"
+              ></div>
             </div>
           </div>
         </div>
@@ -591,100 +294,288 @@
       let map = null;
       let mapMarkers = [];
 
-      // Initialize Leaflet Map (Centered on Italy)
-      function initMap() {
-        map = L.map("map").setView([41.8719, 12.5674], 5);
-        L.tileLayer(
-          "https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png",
-          {
-            attribution: "&copy; OpenStreetMap contributors &copy; CARTO",
-            subdomains: "abcd",
-            maxZoom: 20,
-          },
-        ).addTo(map);
-      }
-
-      // 1. Collect form data and populate the dictionary of the same format as a typical scenario.
-      function getFormConfig() {
-        const totalPop =
-          parseInt(document.getElementById("total_pop").value) || 0;
-        const b2bPop = parseInt(document.getElementById("b2b_pop").value) || 0;
-        return {
-          description: "Web Run",
-          main: {
-            simulation_length: parseInt(
-              document.getElementById("sim_length").value,
-            ),
-            B2B_population: b2bPop,
-            B2C_population: 0,
-            seed: 1,
-            starting_customers: parseInt(
-              document.getElementById("start_cust").value,
-            ),
-          },
-          oem: {
-            delivery_delay: 1,
-            manufacture_delay: parseInt(
-              document.getElementById("man_delay").value,
-            ),
-            remanufacture_delay: parseInt(
-              document.getElementById("reman_delay").value,
-            ),
-            virgin_stock: 0,
-            reman_stock: 0,
-            core_stock: 0,
-            unit_production_cost_V: parseFloat(
-              document.getElementById("cost_v").value,
-            ),
-            unit_production_cost_R: parseFloat(
-              document.getElementById("cost_r").value,
-            ),
-            core_acceptance_rate: parseFloat(
-              document.getElementById("core_accept").value,
-            ),
-            bounty_value: parseFloat(
-              document.getElementById("bounty_value").value,
-            ),
-            core_collection_cost: 20,
-            core_disposal_cost: 20,
-            core_storage_cost: 2,
-            retail_price_V: parseFloat(
-              document.getElementById("retail_v").value,
-            ),
-            retail_price_R: parseFloat(
-              document.getElementById("retail_r").value,
-            ),
-          },
-          b2b_customer: {
-            patience: parseInt(document.getElementById("b2b_patience").value),
-            mean_lifetime: parseInt(
-              document.getElementById("b2b_mean_life").value,
-            ),
-            lifetime_method: "triangular",
-            lifetime_range: 5,
-            core_return_rate: 1.0,
-          },
-          b2c_customer: {
-            patience: -1,
-            mean_lifetime: 1,
-            lifetime_method: "uniform",
-            lifetime_range: 3,
-            core_return_rate: 1.0,
-          },
-        };
-      }
-
-      // Wrapper to expose to PyScript Python
-      window.getFormConfigString = function () {
-        return JSON.stringify(getFormConfig());
-      };
-
       // 2. Format numbers as currency
       const formatter = new Intl.NumberFormat("en-IE", {
         style: "currency",
         currency: "EUR",
         maximumFractionDigits: 0,
       });
+
+      const paramSchema = {
+        main: {
+          simulation_length: {
+            type: "number",
+            label: "Simulation Length (Days)",
+          },
+          B2B_population: { type: "number", label: "B2B Population" },
+          B2C_population: { type: "number", label: "B2C Population" },
+          seed: { type: "number", label: "Random Seed" },
+          starting_customers: {
+            type: "number",
+            label: "Starting Active Customers",
+          },
+          enable_reman: { type: "boolean", label: "Enable Remanufacturing" },
+        },
+        oem: {
+          delivery_delay: { type: "number" },
+          manufacture_delay: { type: "number" },
+          remanufacture_delay: { type: "number" },
+          virgin_stock: { type: "number" },
+          reman_stock: { type: "number" },
+          core_stock: { type: "number" },
+          unit_production_cost_V: { type: "number", step: 0.1 },
+          unit_production_cost_R: { type: "number", step: 0.1 },
+          core_acceptance_rate: { type: "number", step: 0.01 },
+          bounty_value: { type: "number", step: 0.1 },
+          core_collection_cost: { type: "number", step: 0.1 },
+          core_disposal_cost: { type: "number", step: 0.1 },
+          core_storage_cost: { type: "number", step: 0.1 },
+          retail_price_V: { type: "number", step: 0.1 },
+          retail_price_R: { type: "number", step: 0.1 },
+        },
+        b2b_customer: {
+          patience: { type: "number" },
+          mean_lifetime: { type: "number" },
+          lifetime_method: {
+            type: "select",
+            options: ["triangular", "uniform", "weibull"],
+          },
+          lifetime_range: { type: "number" },
+          core_return_rate: { type: "number", step: 0.01 },
+        },
+        b2c_customer: {
+          patience: { type: "number" },
+          mean_lifetime: { type: "number" },
+          lifetime_method: {
+            type: "select",
+            options: ["triangular", "uniform", "weibull"],
+          },
+          lifetime_range: { type: "number" },
+          core_return_rate: { type: "number", step: 0.01 },
+        },
+      };
+
+      const defaultConfig = {
+        main: {
+          simulation_length: 1000,
+          B2B_population: 1000,
+          B2C_population: 0,
+          seed: 1,
+          starting_customers: 1000,
+          enable_reman: false,
+        },
+        oem: {
+          delivery_delay: 1,
+          manufacture_delay: 5,
+          remanufacture_delay: 4,
+          virgin_stock: 0,
+          reman_stock: 0,
+          core_stock: 0,
+          unit_production_cost_V: 500,
+          unit_production_cost_R: 300,
+          core_acceptance_rate: 1.0,
+          bounty_value: 10,
+          core_collection_cost: 20,
+          core_disposal_cost: 20,
+          core_storage_cost: 2,
+          retail_price_V: 1000,
+          retail_price_R: 1000,
+        },
+        b2b_customer: {
+          patience: 14,
+          mean_lifetime: 200,
+          lifetime_method: "triangular",
+          lifetime_range: 5,
+          core_return_rate: 1.0,
+        },
+        b2c_customer: {
+          patience: -1,
+          mean_lifetime: 1,
+          lifetime_method: "uniform",
+          lifetime_range: 3,
+          core_return_rate: 1.0,
+        },
+      };
+
+      const defaultRemanConfig = JSON.parse(JSON.stringify(defaultConfig));
+      defaultRemanConfig.main.enable_reman = true;
+
+      let scenarios = [
+        {
+          id: 1,
+          name: "Base (No Reman)",
+          config: JSON.parse(JSON.stringify(defaultConfig)),
+        },
+        { id: 2, name: "Reman Enabled", config: defaultRemanConfig },
+      ];
+      let nextId = 3;
+      let activeScenarioId = 1;
+
+      function renderScenarioList() {
+        const sel = document.getElementById("scenario-selector");
+        sel.innerHTML = "";
+        scenarios.forEach((sc) => {
+          const opt = document.createElement("option");
+          opt.value = sc.id;
+          opt.innerText = sc.name;
+          if (sc.id == activeScenarioId) opt.selected = true;
+          sel.appendChild(opt);
+        });
+      }
+
+      function toggleDarkMode() {
+        document.documentElement.classList.toggle("dark");
+        const isDark = document.documentElement.classList.contains("dark");
+        localStorage.setItem("theme", isDark ? "dark" : "light");
+
+        Chart.defaults.color = isDark ? "#9ca3af" : "#666";
+        Chart.defaults.scale.grid.color = isDark ? "#374151" : "#e5e7eb";
+
+        for (let id in charts) {
+          if (charts[id]) charts[id].update();
+        }
+      }
+
+      // Init Chart defaults based on current theme
+      const isDarkTheme = document.documentElement.classList.contains("dark");
+      Chart.defaults.color = isDarkTheme ? "#9ca3af" : "#666";
+      Chart.defaults.scale.grid.color = isDarkTheme ? "#374151" : "#e5e7eb";
+
+      function renderForm() {
+        const container = document.getElementById("dynamic-form");
+        container.innerHTML = "";
+        const activeScen = scenarios.find((s) => s.id == activeScenarioId);
+        if (!activeScen) return;
+
+        document.getElementById("scenario-name").value = activeScen.name;
+
+        for (const [group, fields] of Object.entries(paramSchema)) {
+          const details = document.createElement("details");
+          details.className =
+            "bg-gray-50 dark:bg-gray-700 p-2 rounded border dark:border-gray-600 mb-2 shadow-sm transition-colors";
+          if (group === "main") details.open = true;
+
+          const summary = document.createElement("summary");
+          summary.className =
+            "font-bold text-gray-700 dark:text-gray-200 cursor-pointer capitalize outline-none";
+          summary.innerText = group.replace("_", " ");
+          details.appendChild(summary);
+
+          const grid = document.createElement("div");
+          grid.className = "grid grid-cols-2 gap-4 mt-2";
+
+          for (const [fieldKey, fieldDef] of Object.entries(fields)) {
+            const val = activeScen.config[group][fieldKey];
+            const wrap = document.createElement("div");
+
+            const label = document.createElement("label");
+            label.className =
+              "block text-xs text-gray-600 dark:text-gray-400 font-semibold mb-1 capitalize";
+            label.innerText = fieldDef.label || fieldKey.replace(/_/g, " ");
+            wrap.appendChild(label);
+
+            if (fieldDef.type === "boolean") {
+              const inp = document.createElement("input");
+              inp.type = "checkbox";
+              inp.checked = val;
+              inp.className = "mt-1";
+              inp.onchange = (e) => {
+                activeScen.config[group][fieldKey] = e.target.checked;
+              };
+              wrap.appendChild(inp);
+            } else if (fieldDef.type === "select") {
+              const sel = document.createElement("select");
+              sel.className =
+                "w-full border dark:border-gray-600 p-1 rounded text-sm bg-white dark:bg-gray-800 dark:text-white";
+              fieldDef.options.forEach((opt) => {
+                const option = document.createElement("option");
+                option.value = opt;
+                option.innerText = opt;
+                if (val === opt) option.selected = true;
+                sel.appendChild(option);
+              });
+              sel.onchange = (e) => {
+                activeScen.config[group][fieldKey] = e.target.value;
+              };
+              wrap.appendChild(sel);
+            } else {
+              const inp = document.createElement("input");
+              inp.type = "number";
+              inp.className =
+                "w-full border dark:border-gray-600 p-1 rounded text-sm bg-white dark:bg-gray-800 dark:text-white";
+              inp.value = val;
+              if (fieldDef.step) inp.step = fieldDef.step;
+              inp.onchange = (e) => {
+                activeScen.config[group][fieldKey] = parseFloat(e.target.value);
+              };
+              wrap.appendChild(inp);
+            }
+            grid.appendChild(wrap);
+          }
+          details.appendChild(grid);
+          container.appendChild(details);
+        }
+      }
+
+      function addScenario() {
+        const activeScen = scenarios.find((s) => s.id == activeScenarioId);
+        const newConfig = activeScen
+          ? JSON.parse(JSON.stringify(activeScen.config))
+          : JSON.parse(JSON.stringify(defaultConfig));
+        const newScen = {
+          id: nextId++,
+          name: `Scenario ${nextId - 1}`,
+          config: newConfig,
+        };
+        scenarios.push(newScen);
+        activeScenarioId = newScen.id;
+        renderScenarioList();
+        renderForm();
+      }
+
+      function removeScenario() {
+        if (scenarios.length <= 1)
+          return alert("Must have at least one scenario.");
+        scenarios = scenarios.filter((s) => s.id != activeScenarioId);
+        activeScenarioId = scenarios[0].id;
+        renderScenarioList();
+        renderForm();
+      }
+
+      window.selectScenario = function (id) {
+        activeScenarioId = parseInt(id);
+        renderForm();
+      };
+
+      window.updateScenarioName = function (name) {
+        const activeScen = scenarios.find((s) => s.id == activeScenarioId);
+        if (activeScen) {
+          activeScen.name = name;
+          renderScenarioList();
+        }
+      };
+
+      window.getScenariosJSON = function () {
+        return JSON.stringify(scenarios);
+      };
+
+      window.prepareRun = function () {
+        const pc = document.getElementById("progress-container");
+        pc.innerHTML = "";
+        scenarios.forEach((sc) => {
+          pc.innerHTML += `
+              <div>
+                <div class="flex justify-between text-sm text-gray-600 dark:text-gray-300 mb-1">
+                  <span class="font-bold">${sc.name}</span>
+                  <span id="prog-text-${sc.id}">0 / 0 Days</span>
+                </div>
+                <div class="w-full bg-gray-200 dark:bg-gray-600 rounded-full h-2.5 mb-1">
+                  <div id="prog-bar-${sc.id}" class="bg-blue-600 h-2.5 rounded-full transition-all duration-100" style="width: 0%"></div>
+                </div>
+              </div>`;
+        });
+        pc.classList.remove("hidden");
+      };
 
       function buildStatesChart(canvasId, results, titleText) {
         if (charts[canvasId]) charts[canvasId].destroy();
@@ -742,7 +633,11 @@
             options: {
               responsive: true,
               maintainAspectRatio: false,
-              plugins: { title: { display: true, text: titleText } },
+              interaction: { mode: "index", intersect: false },
+              plugins: {
+                title: { display: true, text: titleText },
+                legend: { position: "right" },
+              },
               scales: {
                 x: { title: { display: true, text: "Day" } },
                 y: {
@@ -781,6 +676,7 @@
             options: {
               responsive: true,
               maintainAspectRatio: false,
+              interaction: { mode: "index", intersect: false },
               plugins: { title: { display: true, text: titleText } },
               scales: {
                 x: { title: { display: true, text: "Day" } },
@@ -823,6 +719,7 @@
             options: {
               responsive: true,
               maintainAspectRatio: false,
+              interaction: { mode: "index", intersect: false },
               plugins: { title: { display: true, text: titleText } },
               scales: {
                 x: { title: { display: true, text: "Day" } },
@@ -855,6 +752,7 @@
             options: {
               responsive: true,
               maintainAspectRatio: false,
+              interaction: { mode: "index", intersect: false },
               plugins: { title: { display: true, text: titleText } },
               scales: {
                 x: { title: { display: true, text: "Day" } },
@@ -865,140 +763,200 @@
         );
       }
 
-      // 3. Receive results from Python and plot them using Chart.js
-      window.plotResults = function (
-        resBaseStr,
-        repBaseStr,
-        resRemanStr,
-        repRemanStr,
-      ) {
-        const resBase = JSON.parse(resBaseStr);
-        const repBase = JSON.parse(repBaseStr);
-        const resReman = JSON.parse(resRemanStr);
-        const repReman = JSON.parse(repRemanStr);
+      const chartColors = [
+        "#3b82f6",
+        "#ef4444",
+        "#10b981",
+        "#f59e0b",
+        "#8b5cf6",
+        "#ec4899",
+        "#14b8a6",
+        "#f97316",
+      ];
 
-        // Update financial text (Base)
-        document.getElementById("out-cost-base").innerText =
-          "-" + formatter.format(repBase["Total Cost"]);
-        document.getElementById("out-revenue-base").innerText =
-          "+" + formatter.format(repBase["Total Revenue"]);
-        document.getElementById("out-profit-base").innerText = formatter.format(
-          repBase["Total Revenue"] - repBase["Total Cost"],
+      function drawComparisonCharts(allResults, scenarioList) {
+        const labels = allResults[scenarioList[0].id].day;
+
+        const balDatasets = scenarioList.map((sc, i) => ({
+          label: sc.name,
+          data: allResults[sc.id].oem_balance,
+          borderColor: chartColors[i % chartColors.length],
+          pointRadius: 0,
+          fill: false,
+        }));
+
+        if (charts["compBalanceChart"]) charts["compBalanceChart"].destroy();
+        charts["compBalanceChart"] = new Chart(
+          document.getElementById("compBalanceChart"),
+          {
+            type: "line",
+            data: { labels: labels, datasets: balDatasets },
+            options: {
+              responsive: true,
+              maintainAspectRatio: false,
+              interaction: { mode: "index", intersect: false },
+              plugins: {
+                title: { display: true, text: "Bank Balance Comparison (€)" },
+              },
+            },
+          },
         );
 
-        // Update financial text (Reman)
-        document.getElementById("out-cost-reman").innerText =
-          "-" + formatter.format(repReman["Total Cost"]);
-        document.getElementById("out-revenue-reman").innerText =
-          "+" + formatter.format(repReman["Total Revenue"]);
-        document.getElementById("out-profit-reman").innerText =
-          formatter.format(repReman["Total Revenue"] - repReman["Total Cost"]);
+        const coreDatasets = scenarioList.map((sc, i) => ({
+          label: sc.name,
+          data: allResults[sc.id].core_stock,
+          borderColor: chartColors[i % chartColors.length],
+          pointRadius: 0,
+          fill: false,
+        }));
 
-        // Build Breakdown HTML
-        const buildBreakdownHtml = (breakdownObj) => {
-          let html = '<ul class="space-y-1">';
-          for (const [key, value] of Object.entries(breakdownObj)) {
-            const isRevenue = key.includes("Sale");
-            const colorClass = isRevenue ? "text-green-600" : "text-red-600";
-            const sign = isRevenue ? "+" : "-";
-            html += `<li class="flex justify-between border-b border-gray-100 last:border-0 pb-1 last:pb-0"><span>${key}:</span> <span class="${colorClass} font-mono">${sign}${formatter.format(value)}</span></li>`;
-          }
-          html += "</ul>";
-          return html;
-        };
-
-        document.getElementById("breakdown-base").innerHTML =
-          buildBreakdownHtml(repBase["Breakdown"]);
-        document.getElementById("breakdown-reman").innerHTML =
-          buildBreakdownHtml(repReman["Breakdown"]);
-
-        // Build Statistics HTML
-        const buildStatsHtml = (statsObj) => {
-          let html = '<ul class="space-y-1">';
-          for (const [key, value] of Object.entries(statsObj)) {
-            html += `<li class="flex justify-between border-b border-gray-100 last:border-0 pb-1 last:pb-0"><span>${key}:</span> <span class="font-mono text-gray-800">${value.toLocaleString()}</span></li>`;
-          }
-          html += "</ul>";
-          return html;
-        };
-
-        document.getElementById("stats-base").innerHTML = buildStatsHtml(
-          repBase["Statistics"],
+        if (charts["compStockChart"]) charts["compStockChart"].destroy();
+        charts["compStockChart"] = new Chart(
+          document.getElementById("compStockChart"),
+          {
+            type: "line",
+            data: { labels: labels, datasets: coreDatasets },
+            options: {
+              responsive: true,
+              maintainAspectRatio: false,
+              interaction: { mode: "index", intersect: false },
+              plugins: {
+                title: { display: true, text: "Core Stock Comparison" },
+              },
+            },
+          },
         );
-        document.getElementById("stats-reman").innerHTML = buildStatsHtml(
-          repReman["Statistics"],
+      }
+
+      function initMap() {
+        if (map) {
+          map.invalidateSize();
+          return;
+        }
+        map = L.map("map", { scrollWheelZoom: false }).setView(
+          [41.8719, 12.5674],
+          5,
         );
+        L.tileLayer(
+          "https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png",
+          {
+            attribution: "&copy; OpenStreetMap contributors &copy; CARTO",
+            subdomains: "abcd",
+            maxZoom: 20,
+          },
+        ).addTo(map);
+      }
 
-        // Initialize map if it hasn't been already
-        if (!map) initMap();
+      window.updateDetailedView = function (scId) {
+        if (!window.lastResults) return;
+        const res = window.lastResults[scId];
+        const rep = window.lastReports[scId];
 
-        // Clear previous markers
+        let htmlB = '<ul class="space-y-1">';
+        for (const [key, value] of Object.entries(rep["Breakdown"])) {
+          const sign = key.includes("Sale") ? "+" : "-";
+          const col = key.includes("Sale")
+            ? "text-green-600 dark:text-green-400"
+            : "text-red-600 dark:text-red-400";
+          htmlB += `<li class="flex justify-between border-b dark:border-gray-600 pb-1 last:border-0"><span>${key}:</span> <span class="${col} font-mono">${sign}${formatter.format(value)}</span></li>`;
+        }
+        htmlB += "</ul>";
+        document.getElementById("detail-breakdown").innerHTML = htmlB;
+
+        let htmlS = '<ul class="space-y-1">';
+        for (const [key, value] of Object.entries(rep["Statistics"])) {
+          htmlS += `<li class="flex justify-between border-b dark:border-gray-600 pb-1 last:border-0"><span>${key}:</span> <span class="font-mono text-gray-800 dark:text-gray-200">${value.toLocaleString()}</span></li>`;
+        }
+        htmlS += "</ul>";
+        document.getElementById("detail-stats").innerHTML = htmlS;
+
+        buildStatesChart("detailStatesChart", res, "Customer States");
+        buildSalesChart("detailSalesChart", res, "Sales (Virgin vs Reman)");
+
+        initMap();
         mapMarkers.forEach((m) => map.removeLayer(m));
         mapMarkers = [];
-
-        // Extract geographic data (using the Base scenario data)
-        const geoData = repBase["Geographic Distribution"]["City Data"];
-
-        // Plot cities on the map
+        const geoData = rep["Geographic Distribution"]["City Data"];
         for (const [cityName, data] of Object.entries(geoData)) {
           if (data.customers > 0 || data.is_oem) {
             let iconHtml = "";
-
-            if (data.is_oem) {
+            if (data.is_oem)
               iconHtml += `<div style="font-size: 26px; text-align: center; line-height: 1; filter: drop-shadow(0px 2px 2px rgba(0,0,0,0.3));">🏭</div>`;
-            }
-            if (data.customers > 0) {
-              iconHtml += `<div style="background: white; border: 1px solid #ccc; border-radius: 12px; padding: 2px 6px; font-size: 12px; font-weight: bold; text-align: center; box-shadow: 0 1px 3px rgba(0,0,0,0.2); margin-top: ${data.is_oem ? "-5px" : "0"};">👤 ${data.customers}x</div>`;
-            }
+            if (data.customers > 0)
+              iconHtml += `<div class="bg-white dark:bg-gray-800 text-gray-800 dark:text-gray-100 border border-gray-300 dark:border-gray-600" style="border-radius: 12px; padding: 2px 6px; font-size: 12px; font-weight: bold; text-align: center; box-shadow: 0 1px 3px rgba(0,0,0,0.2); margin-top: ${data.is_oem ? "-5px" : "0"};">👤 ${data.customers}x</div>`;
 
             const customIcon = L.divIcon({
               html: `<div style="display: flex; flex-direction: column; align-items: center; justify-content: center;">${iconHtml}</div>`,
-              className: "", // Removes default Leaflet white square background
+              className: "",
               iconSize: [40, 40],
               iconAnchor: [20, 20],
             });
-
             const marker = L.marker([data.lat, data.lng], { icon: customIcon })
               .bindTooltip(cityName)
               .addTo(map);
             mapMarkers.push(marker);
           }
         }
-
-        // Plot comparing charts
-        buildStatesChart(
-          "statesChartBase",
-          resBase,
-          "Customer States (No Reman)",
-        );
-        buildStatesChart(
-          "statesChartReman",
-          resReman,
-          "Customer States (With Reman)",
-        );
-        buildSalesChart("salesChartBase", resBase, "Sales (No Reman)");
-        buildSalesChart("salesChartReman", resReman, "Sales (With Reman)");
-        buildStockChart("stockChartBase", resBase, "Stock (No Reman)");
-        buildStockChart("stockChartReman", resReman, "Stock (With Reman)");
-        buildBalanceChart(
-          "balanceChartBase",
-          resBase,
-          "Bank Balance (No Reman)",
-        );
-        buildBalanceChart(
-          "balanceChartReman",
-          resReman,
-          "Bank Balance (With Reman)",
-        );
       };
 
-      // 4. Export logic - creates a downloadable Python dictionary string
+      // 3. Receive results from Python and plot them using Chart.js
+      window.plotMultipleResults = function (resStr, repStr, scStr) {
+        document
+          .getElementById("comparison-section")
+          .classList.remove("hidden");
+        document.getElementById("detailed-section").classList.remove("hidden");
+
+        const allResults = JSON.parse(resStr);
+        const allReports = JSON.parse(repStr);
+        const scenarioList = JSON.parse(scStr);
+
+        const finContainer = document.getElementById("financial-cards");
+        finContainer.innerHTML = "";
+
+        const detSel = document.getElementById("detail-scenario-selector");
+        detSel.innerHTML = "";
+
+        scenarioList.forEach((sc) => {
+          const rep = allReports[sc.id];
+          const profit = rep["Total Revenue"] - rep["Total Cost"];
+
+          finContainer.innerHTML += `
+              <div class="bg-white dark:bg-gray-800 p-4 rounded-lg border dark:border-gray-700 shadow-sm flex flex-col justify-between transition-colors">
+                 <h3 class="font-bold text-gray-800 dark:text-gray-100 border-b dark:border-gray-700 pb-1 mb-2">${sc.name}</h3>
+                 <div class="grid grid-cols-1 gap-1 text-sm">
+                    <div class="flex justify-between text-red-600 dark:text-red-400"><span>Cost:</span> <span class="font-mono">-${formatter.format(rep["Total Cost"])}</span></div>
+                    <div class="flex justify-between text-green-600 dark:text-green-400"><span>Revenue:</span> <span class="font-mono">+${formatter.format(rep["Total Revenue"])}</span></div>
+                    <div class="flex justify-between font-bold text-blue-700 dark:text-blue-400 border-t dark:border-gray-700 pt-1 mt-1"><span>Profit:</span> <span class="font-mono">${formatter.format(profit)}</span></div>
+                 </div>
+              </div>
+           `;
+
+          const opt = document.createElement("option");
+          opt.value = sc.id;
+          opt.innerText = sc.name;
+          detSel.appendChild(opt);
+        });
+
+        window.lastResults = allResults;
+        window.lastReports = allReports;
+        window.lastScenarios = scenarioList;
+
+        drawComparisonCharts(allResults, scenarioList);
+
+        setTimeout(() => {
+          updateDetailedView(scenarioList[0].id);
+        }, 100);
+      };
+
+      // 4. Export logic - creates a downloadable Python dictionary string for the selected scenario
       window.exportScenario = function () {
-        const config = getFormConfig();
+        const activeScen = scenarios.find((s) => s.id == activeScenarioId);
+        if (!activeScen) return;
+        const config = activeScen.config;
 
         let pyString = `import copy\n\n`;
         pyString += `dict_custom = {\n`;
-        pyString += `    "description": "Exported from Web App",\n`;
+        pyString += `    "description": "${activeScen.name}",\n`;
 
         // Helper to format JSON blocks into Python dictionary layout
         const formatDict = (obj) =>
@@ -1018,9 +976,14 @@
         const blob = new Blob([pyString], { type: "text/plain" });
         const a = document.createElement("a");
         a.href = URL.createObjectURL(blob);
-        a.download = "custom_scenario.py";
+        a.download = `${activeScen.name.replace(/\s+/g, "_")}.py`;
         a.click();
       };
+
+      document.addEventListener("DOMContentLoaded", () => {
+        renderScenarioList();
+        renderForm();
+      });
     </script>
 
     <!-- Python Logic mapping PyScript to UI -->
@@ -1034,7 +997,7 @@
       import main_OS
 
       def update_progress(bar_id, text_id, current, total):
-          percentage = (current / total) * 100
+          percentage = (current / total) * 100 if total > 0 else 0
           document.getElementById(bar_id).style.width = f"{percentage}%"
           document.getElementById(text_id).innerText = f"{current} / {total} Days"
 
@@ -1043,45 +1006,38 @@
           btn.innerText = "Running... (Please Wait)"
           btn.classList.add("opacity-50", "cursor-not-allowed")
 
-          prog_container = document.getElementById('progress-container')
-          prog_container.classList.remove("hidden")
-
           try:
-              # 1. Fetch form settings from Javascript
-              config_str = window.getFormConfigString()
-              config_base = json.loads(config_str)
-              config_base["main"]["enable_reman"] = False
+              window.prepareRun()
+              scenarios_str = window.getScenariosJSON()
+              scenarios_list = json.loads(scenarios_str)
 
-              config_reman = json.loads(config_str)
-              config_reman["main"]["enable_reman"] = True
-
-              sim_length = config_base["main"]["simulation_length"]
-              update_progress("progress-bar-base", "progress-text-base", 0, sim_length)
-              update_progress("progress-bar-reman", "progress-text-reman", 0, sim_length)
+              all_results = {}
+              all_reports = {}
 
               def make_progress_callback(bar_id, text_id):
                   def cb(current, total):
                       update_progress(bar_id, text_id, current, total)
                   return cb
 
-              # 2. Run both simulations (Entirely within the user's browser!)
-              results_base, report_base = await main_OS.run_simulation(
-                  config_base, seed=config_base["main"]["seed"], progress_callback=make_progress_callback("progress-bar-base", "progress-text-base")
-              )
-              update_progress("progress-bar-base", "progress-text-base", sim_length, sim_length)
+              for sc in scenarios_list:
+                  sc_id = str(sc["id"])
+                  config = sc["config"]
+                  sim_length = config["main"]["simulation_length"]
 
-              results_reman, report_reman = await main_OS.run_simulation(
-                  config_reman, seed=config_reman["main"]["seed"], progress_callback=make_progress_callback("progress-bar-reman", "progress-text-reman")
-              )
-              update_progress("progress-bar-reman", "progress-text-reman", sim_length, sim_length)
+                  cb = make_progress_callback(f"prog-bar-{sc_id}", f"prog-text-{sc_id}")
 
-              # 3. Pass all data back to Javascript for drawing comparative charts
-              window.plotResults(json.dumps(results_base), json.dumps(report_base), json.dumps(results_reman), json.dumps(report_reman))
+                  res, rep = await main_OS.run_simulation(config, seed=config["main"].get("seed", 1), progress_callback=cb)
+                  update_progress(f"prog-bar-{sc_id}", f"prog-text-{sc_id}", sim_length, sim_length)
+
+                  all_results[sc_id] = res
+                  all_reports[sc_id] = rep
+
+              window.plotMultipleResults(json.dumps(all_results), json.dumps(all_reports), scenarios_str)
 
           except Exception as e:
               window.alert(f"Simulation Error:\n{str(e)}")
           finally:
-              btn.innerText = "▶ Run Simulation"
+              btn.innerText = "▶ Run Simulation(s)"
               btn.classList.remove("opacity-50", "cursor-not-allowed")
 
       # Bind the Python function to the button click event

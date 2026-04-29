@@ -105,31 +105,33 @@ class TestCustomer(unittest.TestCase):
 
     def test_uniform_lifetime(self):
         """Test that the uniform lifetime generator operates within expected boundaries."""
+        self.customer._lifetime_method = "uniform"
         lifetime = self.customer.get_uniform_lifetime(self.rng)
-
-        mean = self.customer._customer_config["mean_lifetime"]
-        variation = self.customer._customer_config.get("lifetime_range", 3)
+        
+        mean = self.customer._mean_lifetime
+        variation = self.customer._lifetime_range
         self.assertTrue(mean - variation <= lifetime < mean + variation)
 
     def test_triangular_lifetime(self):
         """Test that the triangular lifetime generator falls within expected bounds."""
+        self.customer._lifetime_method = "triangular"
         lifetime = self.customer.get_triangular_lifetime(self.rng)
-
-        mean = self.customer._customer_config["mean_lifetime"]
-        variation = self.customer._customer_config.get("lifetime_range", 3)
+        
+        mean = self.customer._mean_lifetime
+        variation = self.customer._lifetime_range
         self.assertTrue(mean - variation <= lifetime <= mean + variation)
 
     # Weibull doesn't behave like the others so is basically impossible to test simply.
 
     def test_handle_active_user_end_of_life(self):
-        """Test that reaching end-of-life drops the active product tracking and shifts state to WANTS_ANY."""
+        """Test that reaching end-of-life shifts state to WANTS_REMAN for the retained active product."""
         self.customer.become_user(self.rng, ProductEnum.R)
         self.customer._end_of_life_day = (
             self.world.now()
         )  # Force product end-of-life on current tick
 
         self.customer._handle_active_user(self.rng)
-        self.assertEqual(self.customer.state(), CustomerStatesEnum.WANTS_ANY)
+        self.assertEqual(self.customer.state(), CustomerStatesEnum.WANTS_REMAN)
         self.assertEqual(self.customer._delivery_day, -1)
         self.assertEqual(self.customer._end_of_life_day, -1)
 
