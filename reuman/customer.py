@@ -73,7 +73,9 @@ class Customer(BaseAgent):
     _product_lifespan: int
     _end_of_patience_day: int
     _core_return_rate: float
-    _config: dict
+    _lifetime_method: str
+    _mean_lifetime: int
+    _lifetime_range: int
 
     def __init__(self, id: int, world: World, oem: OEM, config: dict, location: str = "Brescia"):
         """
@@ -87,16 +89,18 @@ class Customer(BaseAgent):
             location (str): Geographical location of the customer.
         """
         self._state = CustomerStatesEnum.POTENTIAL_USER
-        self._config = config
         self._location = location
         self._delivery_day = -1
         self._end_of_life_day = -1
         self._active_product = None
         super().__init__(id=id, type=AgentEnum.CUSTOMER, world=world)
         self._oem = oem
-        self._patience = self._config["patience"]
-        self._core_return_rate = self._config["core_return_rate"]
+        self._patience = config["patience"]
+        self._core_return_rate = config["core_return_rate"]
         self._end_of_patience_day = -1
+        self._lifetime_method = config.get("lifetime_method", "triangular")
+        self._mean_lifetime = config.get("mean_lifetime", 200)
+        self._lifetime_range = config.get("lifetime_range", 3)
 
     def next(self, rng):
         """
@@ -176,11 +180,7 @@ class Customer(BaseAgent):
         """
         if self._world.now() >= self._end_of_life_day:
                       
-            # Instead have a chance for them to lose interest and go back to being a non-user at some rate, removed by setting to 0.0 not sure if its worth keeping
-            if rng.random() < self._config.get("lose_interest_rate", 0.0):
-                self._state = CustomerStatesEnum.POTENTIAL_USER
-                self._active_product = None
-            elif self._active_product is not None:
+            if self._active_product is not None:
                 self._state = product_params[self._active_product]["wants_state"]
                 # Retain self._active_product so they attempt to buy the same product again
             
@@ -242,7 +242,7 @@ class Customer(BaseAgent):
         self._end_of_patience_day = -1
         
         # Determine the lifetime distribution method from config, defaults to triangular
-        lifetime_method = self._config.get("lifetime_method", "triangular")
+        lifetime_method = self._lifetime_method
         
         if lifetime_method == "uniform":
             lifespan = self.get_uniform_lifetime(rng)
@@ -264,8 +264,8 @@ class Customer(BaseAgent):
         Returns:
             int: The generated lifetime.
         """
-        lifespan_mean = self._config["mean_lifetime"]
-        lifespan_variation = self._config.get("lifetime_range", 3)
+        lifespan_mean = self._mean_lifetime
+        lifespan_variation = self._lifetime_range
         lifespan_range = (lifespan_mean - lifespan_variation, lifespan_mean + lifespan_variation)
         return rng.integers(*lifespan_range)
     
@@ -279,8 +279,8 @@ class Customer(BaseAgent):
         Returns:
             int: The generated lifetime.
         """
-        lifespan_mean = self._config["mean_lifetime"]
-        lifespan_variation = self._config.get("lifetime_range", 3)
+        lifespan_mean = self._mean_lifetime
+        lifespan_variation = self._lifetime_range
         raw_lifespan = rng.triangular(lifespan_mean - lifespan_variation, lifespan_mean, lifespan_mean + lifespan_variation)
         return max(1, int(round(raw_lifespan))) # Rounded to the nearest integer 
     
@@ -294,7 +294,7 @@ class Customer(BaseAgent):
         Returns:
             int: The generated lifetime.
         """
-        lifespan_mean = self._config["mean_lifetime"]
+        lifespan_mean = self._mean_lifetime
         
         # Set up the weibull parameters for the two halves (early failure and regular long life failure)
         defect_rate = 0.035   # 3.5% chance of early failure

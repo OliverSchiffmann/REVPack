@@ -11,33 +11,59 @@ dict_default = {
             "starting_customers": 333,
         },
         "oem": {
-            "delivery_delay": 3, # Doesn't change much, however also the potential to introduce local/national/international distribution?
-            "manufacture_delay": 5, # Really no idea
-            "remanufacture_delay": 4, # Depends on reman method
+            # Financial & Core Storage
+            "balance": 0.0,
+            "location": "Brescia",
             "virgin_stock": 10,
             "reman_stock": 0,
             "core_stock": 0, 
-            "unit_production_cost_V": 500.0, # Euros very approximately
-            "unit_production_cost_R": 300.0, # Depends on the reman method
-            "core_acceptance_rate": 1.0, # Depends on the reman method, fraction of usable cores produced from the returned ones
-            "core_collection_cost": 20, # No idea, also local/national/international
-            "core_disposal_cost": 20, # No idea
-            "core_storage_cost": 2, # Storage cost per core per day
-            "retail_price_V": 1000, # Likewise Euros approx
-            "retail_price_R": 1000, # In theory the same since reman is good as new or better?
+            "core_storage_limit": 100,
+            "bounty_value": 10.0,
+            "unit_production_cost_V": 500.0,
+            "unit_production_cost_R": 300.0,
+            "retail_price_V": 1000,
+            "retail_price_R": 1000,
+            
+            # Processing Rates
+            "delivery_delay": 3, 
+            "manufacture_delay": 5, 
+            "remanufacture_delay": 4,
+            "core_acceptance_rate": 1.0,
+            
+            # Logistics & Processing Costs
+            "core_collection_cost": 20, 
+            "core_disposal_cost": 20, 
+            "core_storage_cost": 2, 
+            "inspection_cost": 0.0,
+            
+            # Heuristic Routing Logistics (New)
+            "local_delivery_cost": 10.0,
+            "shipping_cost_per_km": 0.01,
+            "ferry_fee": 10.0,
+            "driving_hours_per_day": 8.0,
         },
         "b2b_customer": {
             "patience": 10,
-            "mean_lifetime": 200, # AC's last for 10 or so years, how long is the sim meant to be?
+            "mean_lifetime": 200, 
             "lifetime_method": "triangular",
             "lifetime_range": 100,
             "core_return_rate": 1.0,
+            
+            # Market Interaction (New)
+            "advertising_effectiveness_V": 0.0006,
+            "advertising_effectiveness_R": 0.0003,
+            
         },
         "b2c_customer": {
             "patience": -1,
             "mean_lifetime": 1,
             "lifetime_method": "uniform",
             "lifetime_range": 3,
+            "core_return_rate": 1.0, 
+            
+            # Market Interaction (New)
+            "advertising_effectiveness_V": 0.0006,
+            "advertising_effectiveness_R": 0.0003,
         },
     }
 

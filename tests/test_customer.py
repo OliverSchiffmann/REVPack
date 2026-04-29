@@ -76,20 +76,20 @@ class TestCustomer(unittest.TestCase):
 
     def test_uniform_lifetime(self):
         """Test that the uniform lifetime generator operates within expected boundaries."""
-        self.customer._config["lifetime_method"] = "uniform"
+        self.customer._lifetime_method = "uniform"
         lifetime = self.customer.get_uniform_lifetime(self.rng)
         
-        mean = self.customer._config["mean_lifetime"]
-        variation = self.customer._config.get("lifetime_range", 3)
+        mean = self.customer._mean_lifetime
+        variation = self.customer._lifetime_range
         self.assertTrue(mean - variation <= lifetime < mean + variation)
 
     def test_triangular_lifetime(self):
         """Test that the triangular lifetime generator falls within expected bounds."""
-        self.customer._config["lifetime_method"] = "triangular"
+        self.customer._lifetime_method = "triangular"
         lifetime = self.customer.get_triangular_lifetime(self.rng)
         
-        mean = self.customer._config["mean_lifetime"]
-        variation = self.customer._config.get("lifetime_range", 3)
+        mean = self.customer._mean_lifetime
+        variation = self.customer._lifetime_range
         self.assertTrue(mean - variation <= lifetime <= mean + variation)
         
     # Weibull doesn't behave like the others so is basically impossible to test simply.
