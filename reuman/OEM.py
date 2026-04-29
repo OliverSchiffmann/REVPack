@@ -7,15 +7,12 @@ from enum import Enum
 from typing import TYPE_CHECKING
 from ._agent import AgentEnum, BaseAgent
 from .message import Message, MessageType
-from .product import ProductEnum
+from .product import ProductEnum, ProductDetails, product_params
 from .customer import CustomerStatesEnum
+from .states import OEMStatesEnum
 
 if TYPE_CHECKING:
     from .world import World
-
-class OEMStatesEnum(str, Enum):
-    """Enum of possible states for the OEM agent."""
-    OPERATIONAL = "Operational"
 
 
 class OEM(BaseAgent):
@@ -54,7 +51,7 @@ class OEM(BaseAgent):
     _inspection_cost: float
     _total_inspection_costs: float
     _incoming_cores: list[tuple[int, str | None]]
-
+    _config: dict
 
     def __init__(self, id: int, world: World, config: dict) -> None:
         """
@@ -64,64 +61,66 @@ class OEM(BaseAgent):
             id (int): Unique id for the agent.
             world (World): The simulation world the agent belongs to.
             config (dict): Configuration dictionary containing the OEM's parameters.
-            
+
         Raises:
             ValueError: If manufacture_delay or remanufacture_delay is less than 1.
         """
-        if config["manufacture_delay"] < 1:
+        self._config = config
+        oem_config = config["oem"]
+        if oem_config["manufacture_delay"] < 1:
             raise ValueError(
-                f"manufacture_delay must be >=1. Received: {config['manufacture_delay']}"
+                f"manufacture_delay must be >=1. Received: {oem_config['manufacture_delay']}"
             )
-        if config["remanufacture_delay"] < 1:
+        if oem_config["remanufacture_delay"] < 1:
             raise ValueError(
-                f"remanufacture_delay must be >=1. Received: {config['remanufacture_delay']}"
+                f"remanufacture_delay must be >=1. Received: {oem_config['remanufacture_delay']}"
             )
         super().__init__(id=id, type=AgentEnum.OEM, world=world)
         
         self._balance = config.get("balance", 0.0)
         
         self._state                      = OEMStatesEnum.OPERATIONAL
-        self._location                   = config.get("location", "Brescia")
-        self._distance_matrix            = config.get("distance_matrix", {})
+        self._location                   = oem_config.get("location", "Brescia")
+        self._distance_matrix            = oem_config.get("distance_matrix", {})
         self._total_shipping_cost        = 0.0
-        self._delivery_delay             = config.get("delivery_delay", 1)
-        self._manufacture_delay          = config.get("manufacture_delay", 5)
-        self._remanufacture_delay        = config.get("remanufacture_delay", 5)
+        self._delivery_delay             = oem_config.get("delivery_delay", 1)
+        self._manufacture_delay          = oem_config.get("manufacture_delay", 5)
+        self._remanufacture_delay        = oem_config.get("remanufacture_delay", 5)
         self._factory_stock              = {
-                                             ProductEnum.V: config.get("virgin_stock", 0),
-                                             ProductEnum.R: config.get("reman_stock", 0),
+                                             ProductEnum.V: oem_config.get("virgin_stock", 0),
+                                             ProductEnum.R: oem_config.get("reman_stock", 0),
                                          }
         self._production_rate            = {ProductEnum.V: 0, ProductEnum.R: 0}
         self._products_sold              = {ProductEnum.V: 0, ProductEnum.R: 0}
         self._total_products_produced    = {ProductEnum.V: 0, ProductEnum.R: 0}
         self._num_to_man                 = {ProductEnum.V: 0, ProductEnum.R: 0}
-        self._core_stock                 = config.get("core_stock", 0)
-        self._core_acceptance_rate       = config.get("core_acceptance_rate", 0.5)
+        self._core_stock                 = oem_config.get("core_stock", 0)
+        self._core_acceptance_rate       = oem_config.get("core_acceptance_rate", 0.5)
         self._total_cores_collected      = 0
         self._total_core_collection_cost = 0
         self._total_cores_rejected       = 0
         self._total_cores_over_capacity  = 0
         self._total_cores_not_collected  = 0
-        self._unit_production_cost_V     = config.get("unit_production_cost_V", 500)
-        self._unit_production_cost_R     = config.get("unit_production_cost_R", 300)
-        self._core_collection_cost       = config.get("core_collection_cost", 15)
-        self._core_disposal_cost         = config.get("core_disposal_cost", 10)
-        self._core_storage_cost          = config.get("core_storage_cost", 0.0)
+        self._unit_production_cost_V     = oem_config.get("unit_production_cost_V", 500)
+        self._unit_production_cost_R     = oem_config.get("unit_production_cost_R", 300)
+        self._core_collection_cost       = oem_config.get("core_collection_cost", 15)
+        self._core_disposal_cost         = oem_config.get("core_disposal_cost", 10)
+        self._core_storage_cost          = oem_config.get("core_storage_cost", 0.0)
         self._total_core_storage_cost    = 0.0
-        self._core_storage_limit         = config.get("core_storage_limit", 100)
+        self._core_storage_limit         = oem_config.get("core_storage_limit", 100)
         self._bounties_returned          = 0
-        self._bounty_value               = config.get("bounty_value", 10.0)
-        self._retail_price_V             = config.get("retail_price_V", 1000)
-        self._retail_price_R             = config.get("retail_price_R", 1000)
-        self._inspection_cost            = config.get("inspection_cost", 0.0)
+        self._bounty_value               = oem_config.get("bounty_value", 10.0)
+        self._retail_price_V             = oem_config.get("retail_price_V", 1000)
+        self._retail_price_R             = oem_config.get("retail_price_R", 1000)
+        self._inspection_cost            = oem_config.get("inspection_cost", 0.0)
         self._total_inspection_costs     = 0.0
         self._incoming_cores             = []
         
         self._logistic_heuristics        = {
-                                          "local_delivery_cost":config.get("local_delivery_cost", 10.0),
-                                          "shipping_cost_per_km":config.get("shipping_cost_per_km", 0.01),
-                                          "ferry_fee":config.get("ferry_fee", 10.0),
-                                          "driving_hours_per_day":config.get("driving_hours_per_day", 8),
+                                          "local_delivery_cost":oem_config.get("local_delivery_cost", 10.0),
+                                          "shipping_cost_per_km":oem_config.get("shipping_cost_per_km", 0.01),
+                                          "ferry_fee":oem_config.get("ferry_fee", 10.0),
+                                          "driving_hours_per_day":oem_config.get("driving_hours_per_day", 8),
                                           }
 
     def get_shipping_delay(self, destination: str) -> int:
@@ -165,9 +164,8 @@ class OEM(BaseAgent):
         """
         Calculates core collection cost based on distance and route properties.
         Currently is the same logic as the shipping cost, but can be changed later.
-        """        
+        """
         return self.get_shipping_cost(origin, default_cost)
-
 
     def next(self, rng):
         """
@@ -183,7 +181,9 @@ class OEM(BaseAgent):
         self._balance -= self._core_stock * self._core_storage_cost
 
     # Checks the stock of a given product in storage
-    def request_product(self, product: ProductEnum, customer_location: str | None = None) -> bool:
+    def request_product(
+        self, product: ProductEnum, customer_location: str | None = None
+    ) -> bool:
         """
         Process a customer's request to purchase a product.
 
@@ -213,11 +213,15 @@ class OEM(BaseAgent):
     def schedule_core_return(self, customer_location: str | None = None) -> None:
         """
         Schedules a core to be returned to the OEM after a shipping delay.
-        
+
         Args:
             customer_location (str): The location of the customer returning the core.
         """
-        delay = self.get_shipping_delay(customer_location) if customer_location else self._delivery_delay # Works depending on whether the customer location logic is used
+        delay = (
+            self.get_shipping_delay(customer_location)
+            if customer_location
+            else self._delivery_delay
+        )  # Works depending on whether the customer location logic is used
         arrival_day = self._world.now() + delay
         self._incoming_cores.append((arrival_day, customer_location))
 
@@ -244,24 +248,25 @@ class OEM(BaseAgent):
             customer_location (str): The geographical location of the customer.
         """
         self._total_cores_collected += 1
-        
+
         # Pay the bounty
         self._bounties_returned += 1
         self._balance -= self._bounty_value
 
         if customer_location:
-            collection_cost = self.get_core_collection_cost(customer_location, self._core_collection_cost)
+            collection_cost = self.get_core_collection_cost(
+                customer_location, self._core_collection_cost
+            )
         else:
             collection_cost = self._core_collection_cost
 
         self._total_core_collection_cost += collection_cost
         self._balance -= collection_cost
-        
+
         # Add in inspection cost
         self._total_inspection_costs += self._inspection_cost
         self._balance -= self._inspection_cost
-        
-        
+
         if rng.random() < self._core_acceptance_rate:
             # Set a limit on how many cores to have in storage
             if self._core_stock < self._core_storage_limit:
@@ -280,7 +285,7 @@ class OEM(BaseAgent):
         """
         Count all the agents waiting for products and use that to update the manufacturing targets.
         """
-        
+
         for agent in self._world._agents.values():
             if agent.type() == AgentEnum.CUSTOMER:
                 if agent.state() == CustomerStatesEnum.WANTS_VIRGIN:
@@ -291,7 +296,6 @@ class OEM(BaseAgent):
                     self._num_to_man[ProductEnum.V] += 1
                     self._num_to_man[ProductEnum.R] += 1
 
-        
     def update_production(self):
         """
         Update production rates and inventory levels for both virgin and reman products.
@@ -299,32 +303,44 @@ class OEM(BaseAgent):
         Virgin production is determined by current demand and manufacture delay.
         Remanufactured product production is limited by both current demand and available core stock.
         """
-        
+
         for product in ProductEnum:
             match product:
                 case ProductEnum.V:
-                    self._production_rate[product] = self._num_to_man[product] / self._manufacture_delay
+                    self._production_rate[product] = (
+                        self._num_to_man[product] / self._manufacture_delay
+                    )
                     # if self._production_rate[product] < 3: # Could set a maximum production capacity
-                    #     self._production_rate[product] = 3                        
+                    #     self._production_rate[product] = 3
                     self._factory_stock[product] += self._production_rate[product]
-                    self._total_products_produced[product] += self._production_rate[product]
-                    
-                    self._balance -= self._production_rate[product] * self._unit_production_cost_V
-                
-                case ProductEnum.R:
-                    desired_production = self ._num_to_man[product] / self._remanufacture_delay
-                    maximum_production = self._core_stock / self._remanufacture_delay # Could set a maximum production capacity on top of the core limitation
+                    self._total_products_produced[product] += self._production_rate[
+                        product
+                    ]
 
-                    self._production_rate[product] = min(
-                        desired_production, maximum_production
+                    self._balance -= (
+                        self._production_rate[product] * self._unit_production_cost_V
                     )
 
-                    self._factory_stock[product] += self._production_rate[product]
-                    self._total_products_produced[product] += self._production_rate[product]
-                    self._core_stock -= self._production_rate[product]
-                    
-                    self._balance -= self._production_rate[product] * self._unit_production_cost_R
+                case ProductEnum.R:
+                    desired_production = (
+                        self._num_to_man[product] / self._remanufacture_delay
+                    )
+                    cores_per_unit = (
+                        self._config.get("products", {})
+                        .get("R", {})
+                        .get("cores_consumed", 1)
+                    )
 
+                    if desired_production * cores_per_unit > self._core_stock:
+                        self._production_rate[product] = 0
+                    else:
+                        self._production_rate[product] = desired_production
+                        self._factory_stock[product] += desired_production
+                        self._total_products_produced[product] += desired_production
+                        self._core_stock -= desired_production * cores_per_unit
+                        self._balance -= (
+                            desired_production * self._unit_production_cost_R
+                        )
 
         for product in ProductEnum:
             self._num_to_man[product] = 0
@@ -332,8 +348,8 @@ class OEM(BaseAgent):
     def generate_financial_report(self) -> dict:
         """
         Generate the financial report for the OEM.
-        
-        Returns: 
+
+        Returns:
             dict: A dictionary of Total Cost, Total Revenue, a more detailed cost breakdown, and some operational statistics.
         """
 
@@ -344,7 +360,7 @@ class OEM(BaseAgent):
         cost_R = (
             self._total_products_produced[ProductEnum.R] * self._unit_production_cost_R
         )
-        
+
         # Return bounties paid
         cost_bounty = self._bounties_returned * self._bounty_value
 
@@ -352,7 +368,9 @@ class OEM(BaseAgent):
         cost_collection = self._total_core_collection_cost
 
         # Disposal costs
-        cost_disposal = (self._total_cores_rejected + self._total_cores_over_capacity) * self._core_disposal_cost
+        cost_disposal = (
+            self._total_cores_rejected + self._total_cores_over_capacity
+        ) * self._core_disposal_cost
 
         # Storage costs
         cost_storage = self._total_core_storage_cost
@@ -363,7 +381,15 @@ class OEM(BaseAgent):
         # Inspection costs
         cost_inspection = self._total_inspection_costs
 
-        cost_to_meet_demand = cost_V + cost_R + cost_collection + cost_disposal + cost_storage + cost_bounty + cost_inspection
+        cost_to_meet_demand = (
+            cost_V
+            + cost_R
+            + cost_collection
+            + cost_disposal
+            + cost_storage
+            + cost_bounty
+            + cost_inspection
+        )
 
         revenue_V = self._products_sold[ProductEnum.V] * self._retail_price_V
 
