@@ -30,7 +30,7 @@ if __name__ == "__main__":
     results_list = []
     
     # 2. Fetch all log files from your directory (adjust the path and extension)
-    results_files = glob.glob("examples/parameterSweepStudy/results/*.txt")
+    results_files = glob.glob("examples/parameterSweepStudy/Outputs/may_5/results/*.txt")
 
     for file_path in results_files:
         
@@ -69,5 +69,5 @@ if __name__ == "__main__":
 
 
     # Save the results
-    resultsDf.to_csv("examples/parameterSweepStudy/saltelli_outputs_final.csv", index=False)
+    resultsDf.to_csv("examples/parameterSweepStudy/saltelli_outputs_1_5.csv", index=False)
    
