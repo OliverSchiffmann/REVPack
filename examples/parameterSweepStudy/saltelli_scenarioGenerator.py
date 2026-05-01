@@ -13,8 +13,10 @@ if __name__ == "__main__":
 
     # Define where each parameter belongs in the scenario config dictionary
     # Use nested key paths for nested dictionaries like products -> R.
+    # This mapping MUST contain all keys from `problem['names']` from problemBounds.py
+    # to ensure values are placed in the correct part of the scenario dictionary.
     PARAM_MAPPING = {
-        'manufacture_delay': ['oem'],      # manufacture_delay
+        # 'manufacture_delay': ['oem'],      # manufacture_delay
         'remanufacture_delay': ['oem'],      # remanufacture_delay
         # 'unit_production_cost_V': ['oem'],    # unit_production_cost_V
         'unit_production_cost_R': ['oem'],    # unit_production_cost_R
@@ -59,15 +61,21 @@ if __name__ == "__main__":
                 val = int(round(val))
 
             # Force the new value into the correct agent configuration block(s)
-            target_paths = PARAM_MAPPING.get(var_name, ["main"])
+            target_paths = PARAM_MAPPING.get(var_name)
+            if not target_paths:
+                # If a parameter from the problem is not in the mapping, skip it.
+                # This prevents accidentally adding it to the wrong place.
+                print(f"Warning: Parameter '{var_name}' from problem definition is not in PARAM_MAPPING. Skipping.")
+                continue
+
             if target_paths and isinstance(target_paths[0], str):
                 target_paths = [target_paths]
 
             for path in target_paths:
                 target_dict = new_scenario
-                for key in path[:-1]:
+                for key in path:
                     target_dict = target_dict.setdefault(key, {})
-                target_dict[path[-1]] = val
+                target_dict[var_name] = val
 
         all_scenarios[scenario_id] = new_scenario
 

@@ -24,8 +24,8 @@ export PYTHONPATH=$(pwd)
 
 # File Paths
 SCENARIO_FILE="examples/parameterSweepStudy/saltelli_parameters_1_5.py"
-OUTPUT_DIR="examples/parameterSweepStudy/may_5/results"
-LOGS_DIR="examples/parameterSweepStudy/may_5/logs"
+OUTPUT_DIR="examples/parameterSweepStudy/Outputs/may_5/results"
+LOGS_DIR="examples/parameterSweepStudy/Outputs/may_5/logs"
 
 # Ensure output directories exist
 mkdir -p $OUTPUT_DIR
