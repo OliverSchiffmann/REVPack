@@ -157,11 +157,7 @@ class Customer(BaseAgent):
                       
             if self._active_product is not None:
                 self._state = CustomerStatesEnum.WANTS_ANY
-<<<<<<< warOnBloat
                 self._active_product = None
-=======
-                # Retain self._active_product so they attempt to buy the same product again
->>>>>>> main
             
             self._delivery_day = -1           
             self._end_of_life_day = -1
