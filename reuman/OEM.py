@@ -52,6 +52,10 @@ class OEM(BaseAgent):
     _total_inspection_costs: float
     _incoming_cores: list[tuple[int, str | None]]
     _config: dict
+    _reman_implementation_cost: float
+    _reman_annual_operating_cost: float
+    _total_reman_operating_cost: float
+    _reman_enabled: bool
 
     def __init__(self, id: int, world: World, config: dict) -> None:
         """
@@ -123,6 +127,14 @@ class OEM(BaseAgent):
                                           "driving_hours_per_day":oem_config.get("driving_hours_per_day", 8),
                                           }
 
+        self._reman_implementation_cost  = oem_config["reman_implementation_cost"]
+        self._reman_annual_operating_cost = oem_config["reman_annual_operating_cost"]
+        self._total_reman_operating_cost = 0.0
+        self._reman_enabled              = ProductEnum.R in self._world.get_active_products()
+
+        if self._reman_enabled:
+            self._balance -= self._reman_implementation_cost
+
     def get_shipping_delay(self, destination: str) -> int:
         """
         Calculates the shipping delay based on routing data if available.
@@ -179,6 +191,12 @@ class OEM(BaseAgent):
         self.update_production()
         self._total_core_storage_cost += self._core_stock * self._core_storage_cost
         self._balance -= self._core_stock * self._core_storage_cost
+
+        # Deduct reman annual operating cost proportionally per day
+        if self._reman_enabled:
+            daily_op_cost = self._reman_annual_operating_cost / 365.0
+            self._balance -= daily_op_cost
+            self._total_reman_operating_cost += daily_op_cost
 
     def get_tracking_metrics(self) -> dict:
         """
@@ -402,6 +420,9 @@ class OEM(BaseAgent):
         # Inspection costs
         cost_inspection = self._total_inspection_costs
 
+        cost_reman_impl = self._reman_implementation_cost if self._reman_enabled else 0.0
+        cost_reman_op = self._total_reman_operating_cost if self._reman_enabled else 0.0
+
         cost_to_meet_demand = (
             cost_V
             + cost_R
@@ -410,6 +431,8 @@ class OEM(BaseAgent):
             + cost_storage
             + cost_bounty
             + cost_inspection
+            + cost_reman_impl
+            + cost_reman_op
         )
 
         revenue_V = self._products_sold[ProductEnum.V] * self._retail_price_V
@@ -431,6 +454,8 @@ class OEM(BaseAgent):
                 "Storage of cores": cost_storage,
                 "Sale of virgin products": revenue_V,
                 "Sale of reman products": revenue_R,
+                "Reman implementation cost": cost_reman_impl,
+                "Reman operating cost": cost_reman_op,
             },
             "Statistics": {
                 "Total units produced": self._total_products_produced[ProductEnum.V]
