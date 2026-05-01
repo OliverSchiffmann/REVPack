@@ -155,7 +155,7 @@ class Customer(BaseAgent):
         if self._world.now() >= self._end_of_life_day:
                       
             if self._active_product is not None:
-                self._state = product_params[self._active_product]["wants_state"]
+                self._state = CustomerStatesEnum.WANTS_ANY
                 # Retain self._active_product so they attempt to buy the same product again
             
             self._delivery_day = -1           
