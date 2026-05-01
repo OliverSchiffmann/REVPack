@@ -8,7 +8,7 @@ dict_default = {
             "B2C_population": 0,
             "seed": 1,
             "enable_reman": True,
-            "starting_customers": 333,
+            "starting_customers": 100,
         },
         "oem": {
             # Financial & Core Storage
@@ -48,11 +48,7 @@ dict_default = {
             "lifetime_method": "triangular",
             "lifetime_range": 100,
             "core_return_rate": 1.0,
-            
-            # Market Interaction (New)
-            "advertising_effectiveness_V": 0.0006,
-            "advertising_effectiveness_R": 0.0003,
-            
+
         },
         "b2c_customer": {
             "patience": -1,
@@ -60,11 +56,19 @@ dict_default = {
             "lifetime_method": "uniform",
             "lifetime_range": 3,
             "core_return_rate": 1.0, 
-            
-            # Market Interaction (New)
-            "advertising_effectiveness_V": 0.0006,
-            "advertising_effectiveness_R": 0.0003,
+
         },
+        "products": {
+            "V": {
+                "advertising_effectiveness": 0.0006,
+                "wom_threshold": 0.015,
+            },
+            "R": {
+                "advertising_effectiveness": 0.0003,
+                "wom_threshold": 0.015,
+                "cores_consumed": 2,
+        },
+        }
     }
 
 dict_no_reman = copy.deepcopy(dict_default)
