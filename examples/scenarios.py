@@ -8,27 +8,27 @@ dict_default = {
             "B2C_population": 0,
             "seed": 1,
             "enable_reman": True,
-            "starting_customers": 100,
+            "starting_customers": 0,
         },
         "oem": {
             # Financial & Core Storage
             "balance": 0.0,
             "location": "Brescia",
-            "virgin_stock": 10,
+            "virgin_stock": 50,
             "reman_stock": 0,
-            "core_stock": 0, 
+            "core_stock": 5, 
             "core_storage_limit": 100,
             "bounty_value": 10.0,
             "unit_production_cost_V": 500.0,
             "unit_production_cost_R": 300.0,
             "retail_price_V": 1000,
-            "retail_price_R": 1000,
+            "retail_price_R": 900,
             
             # Processing Rates
             "delivery_delay": 3, 
             "manufacture_delay": 5, 
             "remanufacture_delay": 4,
-            "core_acceptance_rate": 1.0,
+            "core_acceptance_rate": 0.7,
             
             # Logistics & Processing Costs
             "core_collection_cost": 20, 
@@ -66,7 +66,7 @@ dict_default = {
             "R": {
                 "advertising_effectiveness": 0.0003,
                 "wom_threshold": 0.015,
-                "cores_consumed": 2,
+                "cores_consumed": 1,
         },
         }
     }
