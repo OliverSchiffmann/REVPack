@@ -22,7 +22,7 @@ dict_default = {
             "unit_production_cost_V": 500.0,
             "unit_production_cost_R": 300.0,
             "retail_price_V": 1000,
-            "retail_price_R": 900,
+            "retail_price_R": 1000,
             
             # Processing Rates
             "delivery_delay": 3, 
@@ -32,11 +32,11 @@ dict_default = {
             
             # Logistics & Processing Costs
             "core_collection_cost": 20, 
-            "core_disposal_cost": 20, 
+            "core_disposal_cost": 10, 
             "core_storage_cost": 2, 
-            "inspection_cost": 0.0,
+            "inspection_cost": 20,
             
-            # Heuristic Routing Logistics (New)
+            # Heuristic Routing Logistics
             "local_delivery_cost": 10.0,
             "shipping_cost_per_km": 0.01,
             "ferry_fee": 10.0,
@@ -47,7 +47,7 @@ dict_default = {
             "mean_lifetime": 200, 
             "lifetime_method": "triangular",
             "lifetime_range": 100,
-            "core_return_rate": 1.0,
+            "core_return_rate": 0.8,
 
         },
         "b2c_customer": {

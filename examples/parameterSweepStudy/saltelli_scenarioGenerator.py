@@ -12,15 +12,22 @@ from examples.scenarios import SCENARIOS
 if __name__ == "__main__":
 
     # Define where each parameter belongs in the scenario config dictionary
+    # Use nested key paths for nested dictionaries like products -> R.
     PARAM_MAPPING = {
-        'manufacture_delay': ['oem'],
-        'remanufacture_delay': ['oem'],
-        'unit_production_cost_V': ['oem'],
-        'unit_production_cost_R': ['oem'],
-        'core_acceptance_rate': ['oem'],
-        'patience': ['b2b_customer', 'b2c_customer'],
-        'retail_price_V': ['oem'],
-        'retail_price_R': ['oem']
+        'manufacture_delay': ['oem'],      # manufacture_delay
+        'remanufacture_delay': ['oem'],      # remanufacture_delay
+        # 'unit_production_cost_V': ['oem'],    # unit_production_cost_V
+        'unit_production_cost_R': ['oem'],    # unit_production_cost_R
+        'core_acceptance_rate': ['oem'],   # core_acceptance_rate (Float)
+        'core_return_rate': ['b2b_customer'],      # core_return_rate
+        # 'patience': ['b2b_customer'],      # patience 
+        'mean_lifetime': ['b2b_customer'],     # mean_lifetime
+        # 'core_collection_cost': ['oem'],     # core_collection_cost
+        # 'core_disposal_cost': ['oem'],     # core_disposal_cost
+        # 'retail_price_V': ['b2b_customer'],  # retail_price_V
+        # 'retail_price_R': ['b2b_customer'],   # retail_price_R
+        'cores_consumed': ['products', 'R'],
+        'core_storage_limit': ['oem']
     }
 
     # --- 2. Generate Saltelli Samples ---
@@ -52,15 +59,20 @@ if __name__ == "__main__":
                 val = int(round(val))
 
             # Force the new value into the correct agent configuration block(s)
-            target_categories = PARAM_MAPPING.get(var_name, ["main"])
-            for category in target_categories:
-                if category in new_scenario:
-                    new_scenario[category][var_name] = val
+            target_paths = PARAM_MAPPING.get(var_name, ["main"])
+            if target_paths and isinstance(target_paths[0], str):
+                target_paths = [target_paths]
+
+            for path in target_paths:
+                target_dict = new_scenario
+                for key in path[:-1]:
+                    target_dict = target_dict.setdefault(key, {})
+                target_dict[path[-1]] = val
 
         all_scenarios[scenario_id] = new_scenario
 
     # --- 4. Save to .py ---
-    output_filename = "examples/parameterSweepStudy/saltelli_parameters_24_4.py"
+    output_filename = "examples/parameterSweepStudy/saltelli_parameters_1_5.py"
     with open(output_filename, "w") as f:
         f.write("import numpy as np \n")
         f.write("SCENARIOS = " + pprint.pformat(all_scenarios, indent=4))
