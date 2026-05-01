@@ -71,9 +71,9 @@ class Customer(BaseAgent):
         self._patience = self._customer_config["patience"]
         self._core_return_rate = self._customer_config["core_return_rate"]
         self._end_of_patience_day = -1
-        self._lifetime_method = self._customer_config.get("lifetime_method", "triangular")
-        self._mean_lifetime = self._customer_config.get("mean_lifetime", 200)
-        self._lifetime_range = self._customer_config.get("lifetime_range", 3)
+        self._lifetime_method = self._customer_config["lifetime_method"]
+        self._mean_lifetime = self._customer_config["mean_lifetime"]
+        self._lifetime_range = self._customer_config["lifetime_range"]
 
     def next(self, rng):
         """
@@ -109,11 +109,7 @@ class Customer(BaseAgent):
         productsToConsider = self._world.get_active_products()
         rng.shuffle(productsToConsider)
         for product in productsToConsider:
-            ad_effectiveness = (
-                self._config.get("products", {})
-                .get(product.name, {})
-                .get("advertising_effectiveness")
-            )
+            ad_effectiveness = self._config["products"][product.name]["advertising_effectiveness"]
             if rng.random() < ad_effectiveness:
                 self._state = product_params[product]["wants_state"]
                 self._active_product = product
