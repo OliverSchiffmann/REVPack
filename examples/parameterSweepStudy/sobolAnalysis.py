@@ -8,11 +8,9 @@ from problemBounds import problem
 if __name__ == "__main__":
 
     HPCResults = pd.read_csv("examples/parameterSweepStudy/saltelli_outputs_1_5.csv")
+    # HPCResults = HPCResults.groupby("Scenario", as_index=False).mean()
 
-    # Group the results by scenario and get the mean of the 10 seeds
-    mean_results = HPCResults.groupby("Scenario").mean()
-
-    Si = sobol.analyze(problem, mean_results["Profit"].to_numpy(), print_to_console=True)
+    Si = sobol.analyze(problem, HPCResults["Profit"].to_numpy(), print_to_console=True)
 
     # Define the target parameters to plot
     target_params = [
