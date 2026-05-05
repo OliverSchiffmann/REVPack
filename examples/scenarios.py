@@ -20,9 +20,16 @@ dict_default = {
             "core_storage_limit": 100,
             "bounty_value": 10.0,
             "unit_production_cost_V": 500.0,
-            "unit_production_cost_R": 300.0,
+            
             "retail_price_V": 1000,
             "retail_price_R": 900,
+            
+            # Reman Implementation, grouping these together as i can imagine these being the main levers that are pulled from an oem perspective
+            "reman_implementation_cost": 10000.0, # One off to buy inspection equipment and such
+            "reman_annual_operating_cost": 5000.0, # Fixed annual costs for reman production
+            "bounty_value": 10.0,
+            "core_storage_limit": 100,
+            "unit_production_cost_R": 300.0,            
             
             # Processing Rates
             "delivery_delay": 3, 
