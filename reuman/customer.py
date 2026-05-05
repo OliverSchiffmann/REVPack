@@ -105,16 +105,15 @@ class Customer(BaseAgent):
         """
         Handles logic for customers not yet in the market.
         """
-        # This section is needed to avoid bias towards one product by always checking that first
-        productsToConsider = self._world.get_active_products()
-        rng.shuffle(productsToConsider)
-        for product in productsToConsider:
-            ad_effectiveness = self._config["products"][product.name]["advertising_effectiveness"]
-            if rng.random() < ad_effectiveness:
-                self._state = product_params[product]["wants_state"]
-                self._active_product = product
-                self.try_and_buy(rng, product)
-                break
+        # Agents no longer independently decide to enter the market.
+        # This is now handled centrally by World.generate_demand()
+        pass
+
+    def force_market_entry(self, rng, product: ProductEnum):
+        """Called centrally by the World to transition agent out of POTENTIAL_USER state."""
+        self._state = product_params[product]["wants_state"]
+        self._active_product = product
+        self.try_and_buy(rng, product)
 
     def _handle_waiting_customer(self, rng):
         """

@@ -36,15 +36,15 @@ class World:
     _num_wants_any: int
     _message_queue: list[Message]
     _active_products: list[ProductEnum]
+    _config: dict
 
-    def __init__(self, enable_reman: bool = True) -> None:
+    def __init__(self, config: dict) -> None:
         
         """
         Initialise the World agent.
 
         Args:
-            id (int): Unique id for the agent.
-            enable_reman (bool): Boolean to tell whether remanufactured products are available in the simulation.
+            config (dict): The global configuration dictionary.
         """
         
         self._now = 0
@@ -56,8 +56,31 @@ class World:
         self._num_wants_any = 0
         self._message_queue = []
         self._active_products = [ProductEnum.V]
-        if enable_reman:
+        self._config = config
+        if config["main"]["enable_reman"]:
             self._active_products.append(ProductEnum.R)
+            
+        # Preload any deterministic demand CSV files so they aren't processed during the simulation ticks
+        for _, product_data in self._config["products"].items():
+            profile = product_data["demand_profile"]
+            if profile["type"] == "deterministic":
+                amount = profile["amount_per_day"]
+                if isinstance(amount, str):
+                    try:
+                        import csv
+                        loaded_amounts = []
+                        with open(amount, 'r', encoding='utf-8') as f:
+                            reader = csv.reader(f)
+                            for row in reader:
+                                if row:
+                                    try:
+                                        loaded_amounts.append(int(float(row[0])))
+                                    except ValueError:
+                                        pass  # Skip headers or non-numeric rows
+                        profile["amount_per_day"] = loaded_amounts
+                    except Exception as e:
+                        print(f"Warning: Failed to load demand CSV '{amount}': {e}. Defaulting to 0.")
+                        profile["amount_per_day"] = 0
 
     def tick(self) -> None:
         
@@ -118,6 +141,54 @@ class World:
         
         for agent in agents:
             self.add_agent(agent)
+
+    def generate_demand(self, rng):
+        """
+        Calculates daily demand based on global product configurations and 
+        forcefully transitions selected POTENTIAL_USERs into the market.
+        """
+        from .customer import CustomerStatesEnum
+        
+        potential_users = [
+            agent for agent in self._agents.values() 
+            if agent.type() == AgentEnum.CUSTOMER and agent.state() == CustomerStatesEnum.POTENTIAL_USER
+        ]
+        
+        if not potential_users:
+            return
+            
+        products_to_consider = self.get_active_products()
+        rng.shuffle(products_to_consider)
+        
+        for product in products_to_consider:
+            profile = self._config["products"][product.name]["demand_profile"]
+            profile_type = profile["type"]
+            
+            if profile_type == "stochastic":
+                rate = profile["rate"]
+                # Binomial is mathematically identical to individual ad checks but significantly faster
+                num_to_enter = rng.binomial(len(potential_users), rate)
+            elif profile_type == "deterministic":
+                amount = profile["amount_per_day"]
+                
+                if isinstance(amount, list):
+                    # _now is 1 on the first simulated day, so we subtract 1 for the 0-based list index
+                    idx = self._now - 1
+                    if 0 <= idx < len(amount):
+                        num_to_enter = amount[idx]
+                    else:
+                        num_to_enter = 0  # Default to 0 if the simulation runs longer than the list
+                else:
+                    num_to_enter = amount
+                
+            num_to_enter = min(num_to_enter, len(potential_users))
+            
+            if num_to_enter > 0:
+                picked_indices = rng.choice(len(potential_users), size=num_to_enter, replace=False)
+                # Sort descending so we can safely pop them out of the list
+                for idx in sorted(picked_indices, reverse=True):
+                    agent = potential_users.pop(idx)
+                    agent.force_market_entry(rng, product)
 
     def call_next(self, rng):
         
@@ -232,6 +303,7 @@ class World:
             for key, value in oem_metrics.items():
                 results[key].append(value)
 
+            self.generate_demand(rng)
             self.call_next(rng)
 
             if progress_callback is not None:

@@ -22,7 +22,7 @@ async def run_simulation(config, seed=None, progress_callback=None):
     else:
         rng = random.default_rng(config["main"]["seed"])
 
-    world = World(enable_reman=config["main"]["enable_reman"])
+    world = World(config=config)
 
     B2B_population: int = config["main"]["B2B_population"]
     B2C_population: int = config["main"]["B2C_population"]

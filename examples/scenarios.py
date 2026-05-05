@@ -67,11 +67,11 @@ dict_default = {
         },
         "products": {
             "V": {
-                "advertising_effectiveness": 0.0006,
+                "demand_profile": {"type": "stochastic", "rate": 0.0006},
                 "wom_threshold": 0.015,
             },
             "R": {
-                "advertising_effectiveness": 0.0003,
+                "demand_profile": {"type": "stochastic", "rate": 0.0003},
                 "wom_threshold": 0.015,
                 "cores_consumed": 1,
         },
@@ -79,6 +79,13 @@ dict_default = {
     }
 
 dict_no_reman = copy.deepcopy(dict_default)
+dict_no_reman["description"] = "Run with remanufacturing disabled"
+dict_no_reman["main"]["enable_reman"] = False
+
+SCENARIOS = {
+    "Default": dict_default,
+    "No Reman": dict_no_reman,
+}
 dict_no_reman["description"] = "Run with remanufacturing disabled"
 dict_no_reman["main"]["enable_reman"] = False
 

@@ -12,11 +12,12 @@ class TestCustomer(unittest.TestCase):
     def setUp(self):
         # Initialise a random number generator with a fixed seed for reproducible tests
         self.rng = np.random.default_rng(42)
-        self.world = World(enable_reman=True)
+
 
         test_config = copy.deepcopy(TEST_SCENARIOS["Default"])
         self.config = test_config
         
+        self.world = World(config=test_config)
         self.oem = OEM(id=-1, world=self.world, config=self.config)
         self.customer = Customer(
             id=2,
