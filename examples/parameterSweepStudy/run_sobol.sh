@@ -7,7 +7,7 @@
 #SBATCH --cpus-per-task=1
 #SBATCH --time=03:00:00             
 #SBATCH --mem=4G                    # Memory per task
-#SBATCH --array=1-410               # 20480 total scenarios / 50 per chunk = 410
+#SBATCH --array=1-328               # 16384 total scenarios / 50 per chunk = 327.7
 #SBATCH --output=examples/parameterSweepStudy/logs/out_%A_%a.log
 #SBATCH --error=examples/parameterSweepStudy/logs/error_%A_%a.txt
 
@@ -23,16 +23,16 @@ cd /user/work/nj21997/REVPack/
 export PYTHONPATH=$(pwd)
 
 # File Paths
-SCENARIO_FILE="examples/parameterSweepStudy/saltelli_parameters_24_4.py"
-OUTPUT_DIR="examples/parameterSweepStudy/results"
-LOGS_DIR="examples/parameterSweepStudy/logs"
+SCENARIO_FILE="examples/parameterSweepStudy/saltelli_parameters_1_5.py"
+OUTPUT_DIR="examples/parameterSweepStudy/Outputs/may_5/results"
+LOGS_DIR="examples/parameterSweepStudy/Outputs/may_5/logs"
 
 # Ensure output directories exist
 mkdir -p $OUTPUT_DIR
 mkdir -p $LOGS_DIR
 
 # N=1024, D=9 -> Total Scenarios = 1024 * (2*9 + 2) = 20480
-MAX_SCENARIOS=20480
+MAX_SCENARIOS=16384
 CHUNK_SIZE=50
 SEEDS=10 # Set this if you want multiple stochastic seeds per scenario
 
