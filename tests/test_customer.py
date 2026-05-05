@@ -96,14 +96,11 @@ class TestCustomer(unittest.TestCase):
         self.assertEqual(self.customer._delivery_day, -1)
         self.assertEqual(self.customer._end_of_life_day, -1)
 
-    def test_handle_potential_user(self):
-        """Test that a potential user transitions correctly based on advertising effectiveness."""
-        # Force 100% ad effectiveness for Virgin product
-        self.config["products"]["V"]["advertising_effectiveness"] = 1.0
-        self.config["products"]["R"]["advertising_effectiveness"] = 0.0
+    def test_force_market_entry(self):
+        """Test that a potential user transitions correctly when forcefully entered into the market."""
         self.oem._delivery_delay = 0  # Instant delivery to jump straight to USES_VIRGIN
         
-        self.customer._handle_potential_user(self.rng)
+        self.customer.force_market_entry(self.rng, ProductEnum.V)
         
         self.assertEqual(self.customer.state(), CustomerStatesEnum.USES_VIRGIN)
         self.assertEqual(self.customer._active_product, ProductEnum.V)

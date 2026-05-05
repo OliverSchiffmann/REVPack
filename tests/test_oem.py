@@ -13,10 +13,10 @@ class TestOEM(unittest.TestCase):
         
         # Initialise a random number generator with a fixed seed for reproducible tests
         self.rng = np.random.default_rng(42)
-        self.world = World(enable_reman=True)
         
         # Copy the config from the baseline scenario
         test_config = copy.deepcopy(TEST_SCENARIOS["Default"])
+        self.world = World(config=test_config)
 
         # Override values to match the specific expectations in the test cases
         test_config["oem"]["delivery_delay"] = 1
