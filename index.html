@@ -313,21 +313,29 @@
           enable_reman: { type: "boolean", label: "Enable Remanufacturing" },
         },
         oem: {
-          delivery_delay: { type: "number" },
-          manufacture_delay: { type: "number" },
-          remanufacture_delay: { type: "number" },
+          balance: { type: "number" },
+          location: { type: "text" },
           virgin_stock: { type: "number" },
           reman_stock: { type: "number" },
           core_stock: { type: "number" },
+          core_storage_limit: { type: "number" },
+          bounty_value: { type: "number", step: 0.1 },
           unit_production_cost_V: { type: "number", step: 0.1 },
           unit_production_cost_R: { type: "number", step: 0.1 },
+          retail_price_V: { type: "number", step: 0.1 },
+          retail_price_R: { type: "number", step: 0.1 },
+          delivery_delay: { type: "number" },
+          manufacture_delay: { type: "number" },
+          remanufacture_delay: { type: "number" },
           core_acceptance_rate: { type: "number", step: 0.01 },
-          bounty_value: { type: "number", step: 0.1 },
           core_collection_cost: { type: "number", step: 0.1 },
           core_disposal_cost: { type: "number", step: 0.1 },
           core_storage_cost: { type: "number", step: 0.1 },
-          retail_price_V: { type: "number", step: 0.1 },
-          retail_price_R: { type: "number", step: 0.1 },
+          inspection_cost: { type: "number", step: 0.1 },
+          local_delivery_cost: { type: "number", step: 0.1 },
+          shipping_cost_per_km: { type: "number", step: 0.01 },
+          ferry_fee: { type: "number", step: 0.1 },
+          driving_hours_per_day: { type: "number", step: 0.1 },
         },
         b2b_customer: {
           patience: { type: "number" },
@@ -348,6 +356,15 @@
           },
           lifetime_range: { type: "number" },
           core_return_rate: { type: "number", step: 0.01 },
+        },
+        products_V: {
+          advertising_effectiveness: { type: "number", step: 0.0001 },
+          wom_threshold: { type: "number", step: 0.001 },
+        },
+        products_R: {
+          advertising_effectiveness: { type: "number", step: 0.0001 },
+          wom_threshold: { type: "number", step: 0.001 },
+          cores_consumed: { type: "number" },
         },
       };
 
@@ -357,31 +374,39 @@
           B2B_population: 1000,
           B2C_population: 0,
           seed: 1,
-          starting_customers: 1000,
-          enable_reman: false,
+          enable_reman: true,
+          starting_customers: 0,
         },
         oem: {
-          delivery_delay: 1,
+          balance: 0.0,
+          location: "Brescia",
+          virgin_stock: 50,
+          reman_stock: 0,
+          core_stock: 5,
+          core_storage_limit: 100,
+          bounty_value: 10.0,
+          unit_production_cost_V: 500.0,
+          unit_production_cost_R: 300.0,
+          retail_price_V: 1000,
+          retail_price_R: 900,
+          delivery_delay: 3,
           manufacture_delay: 5,
           remanufacture_delay: 4,
-          virgin_stock: 0,
-          reman_stock: 0,
-          core_stock: 0,
-          unit_production_cost_V: 500,
-          unit_production_cost_R: 300,
-          core_acceptance_rate: 1.0,
-          bounty_value: 10,
+          core_acceptance_rate: 0.7,
           core_collection_cost: 20,
           core_disposal_cost: 20,
           core_storage_cost: 2,
-          retail_price_V: 1000,
-          retail_price_R: 1000,
+          inspection_cost: 0.0,
+          local_delivery_cost: 10.0,
+          shipping_cost_per_km: 0.01,
+          ferry_fee: 10.0,
+          driving_hours_per_day: 8.0,
         },
         b2b_customer: {
-          patience: 14,
+          patience: 10,
           mean_lifetime: 200,
           lifetime_method: "triangular",
-          lifetime_range: 5,
+          lifetime_range: 100,
           core_return_rate: 1.0,
         },
         b2c_customer: {
@@ -391,18 +416,27 @@
           lifetime_range: 3,
           core_return_rate: 1.0,
         },
+        products_V: {
+          advertising_effectiveness: 0.0006,
+          wom_threshold: 0.015,
+        },
+        products_R: {
+          advertising_effectiveness: 0.0003,
+          wom_threshold: 0.015,
+          cores_consumed: 1,
+        },
       };
 
-      const defaultRemanConfig = JSON.parse(JSON.stringify(defaultConfig));
-      defaultRemanConfig.main.enable_reman = true;
+      const defaultNoRemanConfig = JSON.parse(JSON.stringify(defaultConfig));
+      defaultNoRemanConfig.main.enable_reman = false;
 
       let scenarios = [
         {
           id: 1,
-          name: "Base (No Reman)",
+          name: "Default",
           config: JSON.parse(JSON.stringify(defaultConfig)),
         },
-        { id: 2, name: "Reman Enabled", config: defaultRemanConfig },
+        { id: 2, name: "No Reman", config: defaultNoRemanConfig },
       ];
       let nextId = 3;
       let activeScenarioId = 1;
@@ -494,6 +528,16 @@
                 activeScen.config[group][fieldKey] = e.target.value;
               };
               wrap.appendChild(sel);
+            } else if (fieldDef.type === "text") {
+              const inp = document.createElement("input");
+              inp.type = "text";
+              inp.className =
+                "w-full border dark:border-gray-600 p-1 rounded text-sm bg-white dark:bg-gray-800 dark:text-white";
+              inp.value = val;
+              inp.onchange = (e) => {
+                activeScen.config[group][fieldKey] = e.target.value;
+              };
+              wrap.appendChild(inp);
             } else {
               const inp = document.createElement("input");
               inp.type = "number";
@@ -632,13 +676,15 @@
               interaction: { mode: "index", intersect: false },
               plugins: {
                 title: { display: true, text: titleText },
-                legend: { position: "right" },
+                legend: { position: "bottom" },
               },
               scales: {
                 x: { title: { display: true, text: "Day" } },
                 y: {
                   stacked: true,
                   title: { display: true, text: "Customers" },
+                  min: 0,
+                  // max: B2B_population + B2C_population,
                 },
               },
             },
@@ -948,7 +994,7 @@
       window.exportScenario = function () {
         const activeScen = scenarios.find((s) => s.id == activeScenarioId);
         if (!activeScen) return;
-        const config = activeScen.config;
+        const config = JSON.parse(JSON.stringify(activeScen.config));
 
         let pyString = `import copy\n\n`;
         pyString += `dict_custom = {\n`;
@@ -961,10 +1007,16 @@
             .replace(/false/g, "False")
             .replace(/\n/g, "\n    ");
 
+        const products = {
+          V: config.products_V,
+          R: config.products_R,
+        };
+
         pyString += `    "main": ${formatDict(config.main).trim()},\n`;
         pyString += `    "oem": ${formatDict(config.oem).trim()},\n`;
         pyString += `    "b2b_customer": ${formatDict(config.b2b_customer).trim()},\n`;
-        pyString += `    "b2c_customer": ${formatDict(config.b2c_customer).trim()}\n`;
+        pyString += `    "b2c_customer": ${formatDict(config.b2c_customer).trim()},\n`;
+        pyString += `    "products": ${formatDict(products).trim()}\n`;
         pyString += `}\n\n`;
         pyString += `SCENARIOS = {\n    "Custom": dict_custom\n}\n`;
 
@@ -1019,6 +1071,12 @@
                   sc_id = str(sc["id"])
                   config = sc["config"]
                   sim_length = config["main"]["simulation_length"]
+
+                  if "products_V" in config and "products_R" in config:
+                      config["products"] = {
+                          "V": config.pop("products_V"),
+                          "R": config.pop("products_R")
+                      }
 
                   cb = make_progress_callback(f"prog-bar-{sc_id}", f"prog-text-{sc_id}")
 
