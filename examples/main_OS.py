@@ -96,7 +96,7 @@ async def run_simulation(config, seed=None, progress_callback=None):
 
     world.add_agents_from_list(customer_agents)
 
-    starting_customers = config["main"].get("starting_customers", 0)
+    starting_customers = config["main"]["starting_customers"]
     if starting_customers > 0:
         indices = rng.choice(
             len(customer_agents),

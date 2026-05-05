@@ -1,9 +1,10 @@
-import unittest
+import unittest, copy
 import numpy as np
-from reuman.customer import Customer, CustomerStatesEnum
+from reuman.customer import Customer
 from reuman.world import World
 from reuman.OEM import OEM, OEMStatesEnum
 from reuman.product import ProductEnum
+from tests.test_scenarios import TEST_SCENARIOS
 
 
 class TestOEM(unittest.TestCase):
@@ -15,30 +16,22 @@ class TestOEM(unittest.TestCase):
         self.world = World(enable_reman=True)
         
         # Copy the config from the baseline scenario
-        test_config = {
-            'oem':{
-                "delivery_delay": 1,
-                "manufacture_delay": 5,
-                "remanufacture_delay": 4,
-                "virgin_stock": 10,
-                "reman_stock": 0,
-                "core_stock": 0,
-                "unit_production_cost_V": 500.0,
-                "unit_production_cost_R": 300.0,
-                "core_acceptance_rate": 1.0,
-                "core_collection_cost": 20,
-                "core_disposal_cost": 20,
-                "retail_price_V": 1000,
-                "retail_price_R": 1000,
-                },
-            'b2b_customer':{
-                "patience": 10,
-                "mean_lifetime": 200,
-                "lifetime_method": "triangular",
-                "lifetime_range": 50,
-                "core_return_rate": 1.0,
-                }
-            }
+        test_config = copy.deepcopy(TEST_SCENARIOS["Default"])
+
+        # Override values to match the specific expectations in the test cases
+        test_config["oem"]["delivery_delay"] = 1
+        test_config["oem"]["manufacture_delay"] = 5
+        test_config["oem"]["remanufacture_delay"] = 4
+        test_config["oem"]["virgin_stock"] = 10
+        test_config["oem"]["reman_stock"] = 0
+        test_config["oem"]["core_stock"] = 0
+        test_config["oem"]["core_acceptance_rate"] = 1.0
+        test_config["oem"]["unit_production_cost_V"] = 500.0
+        test_config["oem"]["unit_production_cost_R"] = 300.0
+        test_config["oem"]["retail_price_V"] = 1000.0
+        test_config["oem"]["retail_price_R"] = 900.0
+        test_config["oem"]["core_storage_limit"] = 100
+
         self.oem = OEM(id=-1, world=self.world, config=test_config)
         
         # Provide a baseline config for the customer
@@ -181,5 +174,7 @@ class TestOEM(unittest.TestCase):
         self.assertIn("Total bounties paid", report["Breakdown"])
         self.assertIn("Virgin units sold", report["Statistics"])
 
+if __name__ == "__main__":
+    unittest.main()
 if __name__ == "__main__":
     unittest.main()

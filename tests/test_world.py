@@ -1,4 +1,4 @@
-import unittest
+import unittest, copy
 import numpy as np
 from reuman import world,customer
 from reuman import world
@@ -7,6 +7,7 @@ from reuman.product import ProductEnum
 from reuman.states import CustomerStatesEnum
 from reuman.message import Message, MessageType
 from reuman.OEM import OEM
+from tests.test_scenarios import TEST_SCENARIOS
 from reuman.customer import Customer
 
 
@@ -57,16 +58,14 @@ class TestWorld(unittest.TestCase):
     def test_update_customer_state_counts(self):
         testWorld = world.World()
         # Create a mock OEM config to initialize Customers safely
-        config = {
-            "oem": {"manufacture_delay": 1, "remanufacture_delay": 1, "delivery_delay": 1, "virgin_stock": 0, "reman_stock": 0, "core_stock": 0, "core_acceptance_rate": 1, "unit_production_cost_V": 1, "unit_production_cost_R": 1, "core_collection_cost": 1, "core_disposal_cost": 1, "retail_price_V": 1, "retail_price_R": 1},
-            "b2b_customer": {"patience": 1, "core_return_rate": 1, "mean_lifetime": 1}
-        }
-        oem = OEM(id=99, world=testWorld, config=config)
+        # Copy the config from the baseline scenario
+        test_config = copy.deepcopy(TEST_SCENARIOS["Default"])
+        oem = OEM(id=99, world=testWorld, config=test_config)
         
-        c1 = Customer(id=1, world=testWorld, oem=oem, config=config, customer_type="b2b_customer")
+        c1 = Customer(id=1, world=testWorld, oem=oem, config=test_config, customer_type="b2b_customer")
         c1._state = CustomerStatesEnum.WANTS_VIRGIN
         
-        c2 = Customer(id=2, world=testWorld, oem=oem, config=config, customer_type="b2b_customer")
+        c2 = Customer(id=2, world=testWorld, oem=oem, config=test_config, customer_type="b2b_customer")
         c2._state = CustomerStatesEnum.USES_REMAN
         
         testWorld.add_agents_from_list([c1, c2])

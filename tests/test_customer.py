@@ -1,9 +1,10 @@
-import unittest
+import unittest, copy
 import numpy as np
 from reuman.customer import Customer, CustomerStatesEnum, B2B_Customer, B2C_Customer
 from reuman.world import World
 from reuman.OEM import OEM
 from reuman.product import ProductEnum
+from tests.test_scenarios import TEST_SCENARIOS
 
 
 class TestCustomer(unittest.TestCase):
@@ -13,50 +14,9 @@ class TestCustomer(unittest.TestCase):
         self.rng = np.random.default_rng(42)
         self.world = World(enable_reman=True)
 
-        # Full config structure matching the new interface
-        self.config = {
-            "oem": {
-                "delivery_delay": 1,
-                "manufacture_delay": 5,
-                "remanufacture_delay": 3,
-                "virgin_stock": 10,
-                "reman_stock": 0,
-                "core_stock": 0,
-                "unit_production_cost_V": 500.0,
-                "unit_production_cost_R": 300.0,
-                "core_acceptance_rate": 1.0,
-                "core_collection_cost": 20,
-                "core_disposal_cost": 20,
-                "core_storage_cost": 0.5,
-                "retail_price_V": 1000,
-                "retail_price_R": 1000,
-            },
-            "b2b_customer": {
-                "patience": 10,
-                "mean_lifetime": 200,
-                "lifetime_method": "triangular",
-                "lifetime_range": 50,
-                "core_return_rate": 1.0,
-            },
-            "b2c_customer": {
-                "patience": -1,
-                "mean_lifetime": 50,
-                "lifetime_method": "uniform",
-                "lifetime_range": 10,
-                "core_return_rate": 0.5,
-            },
-            "products": {
-                "V": {
-                    "advertising_effectiveness": 0.0006,
-                    "wom_threshold": 0.015,
-                },
-                "R": {
-                    "advertising_effectiveness": 0.0003,
-                    "wom_threshold": 0.015,
-                    "cores_consumed": 1,
-                },
-            },
-        }
+        test_config = copy.deepcopy(TEST_SCENARIOS["Default"])
+        self.config = test_config
+        
         self.oem = OEM(id=-1, world=self.world, config=self.config)
         self.customer = Customer(
             id=2,
@@ -211,5 +171,7 @@ class TestCustomer(unittest.TestCase):
         # Should record 1 uncollected core with the OEM
         self.assertEqual(self.oem._total_cores_not_collected, initial_not_collected + 1)
 
+if __name__ == "__main__":
+    unittest.main()
 if __name__ == "__main__":
     unittest.main()
