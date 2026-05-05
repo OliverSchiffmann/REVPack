@@ -128,8 +128,15 @@ class World:
             rng (numpy.random.Generator): Random number generator.
         """
                 
-        for _, agent in self._agents.items():
-            agent.next(rng)
+        # Call OEM agents first (as they were originally added first)
+        for oem_id in self._agents_by_type[AgentEnum.OEM]:
+            self._agents[oem_id].next(rng)
+            
+        # Shuffle customer agents to prevent ordering bias for limited stock
+        customer_ids = self._agents_by_type[AgentEnum.CUSTOMER][:]
+        rng.shuffle(customer_ids)
+        for cust_id in customer_ids:
+            self._agents[cust_id].next(rng)
 
     def update_customer_state_counts(self):
         
