@@ -86,10 +86,3 @@ SCENARIOS = {
     "Default": dict_default,
     "No Reman": dict_no_reman,
 }
-dict_no_reman["description"] = "Run with remanufacturing disabled"
-dict_no_reman["main"]["enable_reman"] = False
-
-SCENARIOS = {
-    "Default": dict_default,
-    "No Reman": dict_no_reman,
-}

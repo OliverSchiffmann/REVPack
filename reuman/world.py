@@ -14,7 +14,7 @@ from .product import ProductEnum
 
 
 if TYPE_CHECKING:
-    from .customer import Customer, CustomerStatesEnum
+    from .customer import Customer, CustomerStatesEnum, Customer
     from .OEM import OEM
 
 
@@ -60,27 +60,36 @@ class World:
         if config["main"]["enable_reman"]:
             self._active_products.append(ProductEnum.R)
             
-        # Preload any deterministic demand CSV files so they aren't processed during the simulation ticks
+        # Preload any demand CSV files so they aren't processed during the simulation ticks
         for _, product_data in self._config["products"].items():
             profile = product_data["demand_profile"]
+            
             if profile["type"] == "deterministic":
-                amount = profile["amount_per_day"]
-                if isinstance(amount, str):
-                    try:
-                        import csv
-                        loaded_amounts = []
-                        with open(amount, 'r', encoding='utf-8') as f:
-                            reader = csv.reader(f)
-                            for row in reader:
-                                if row:
-                                    try:
-                                        loaded_amounts.append(int(float(row[0])))
-                                    except ValueError:
-                                        pass  # Skip headers or non-numeric rows
-                        profile["amount_per_day"] = loaded_amounts
-                    except Exception as e:
-                        print(f"Warning: Failed to load demand CSV '{amount}': {e}. Defaulting to 0.")
-                        profile["amount_per_day"] = 0
+                val = profile["amount_per_day"]
+                key = "amount_per_day"
+                cast_func = lambda x: int(float(x))
+            elif profile["type"] == "stochastic":
+                val = profile["rate"]
+                key = "rate"
+                cast_func = float
+            else:
+                continue
+
+            if isinstance(val, str):
+                try:
+                    import csv
+                    loaded_vals = []
+                    with open(val, 'r', encoding='utf-8') as f:
+                        reader = csv.reader(f)
+                        for row in reader:
+                            if row:
+                                try:
+                                    loaded_vals.append(cast_func(row[0]))
+                                except ValueError:
+                                    pass  # Skip headers or non-numeric rows
+                    profile[key] = loaded_vals
+                except Exception as e:
+                    raise RuntimeError(f"Failed to load demand CSV '{val}': {e}") from e
 
     def tick(self) -> None:
         
@@ -166,8 +175,16 @@ class World:
             
             if profile_type == "stochastic":
                 rate = profile["rate"]
-                # Binomial is mathematically identical to individual ad checks but significantly faster
-                num_to_enter = rng.binomial(len(potential_users), rate)
+                if isinstance(rate, list):
+                    idx = self._now - 1
+                    if 0 <= idx < len(rate):
+                        current_rate = rate[idx]
+                    else:
+                        current_rate = 0.0
+                else:
+                    current_rate = rate
+                    
+                num_to_enter = rng.binomial(len(potential_users), current_rate)
             elif profile_type == "deterministic":
                 amount = profile["amount_per_day"]
                 
@@ -188,7 +205,7 @@ class World:
                 # Sort descending so we can safely pop them out of the list
                 for idx in sorted(picked_indices, reverse=True):
                     agent = potential_users.pop(idx)
-                    agent.force_market_entry(rng, product)
+                    agent.force_market_entry(rng, product)  # type: ignore
 
     def call_next(self, rng):
         
