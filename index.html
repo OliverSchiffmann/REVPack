@@ -140,14 +140,23 @@
                 <button
                   onclick="addScenario()"
                   class="bg-green-500 hover:bg-green-600 text-white px-3 py-1 rounded text-sm font-bold shadow"
+                  title="Add Default Scenario"
                 >
                   +
                 </button>
                 <button
                   onclick="removeScenario()"
                   class="bg-red-500 hover:bg-red-600 text-white px-3 py-1 rounded text-sm font-bold shadow ml-1"
+                  title="Remove Selected Scenario"
                 >
                   -
+                </button>
+                <button
+                  onclick="duplicateScenario()"
+                  class="bg-blue-500 hover:bg-blue-600 text-white px-3 py-1 rounded text-sm font-bold shadow ml-1"
+                  title="Duplicate Selected Scenario"
+                >
+                  🔁
                 </button>
               </div>
             </div>
@@ -808,10 +817,7 @@
       }
 
       function addScenario() {
-        const activeScen = scenarios.find((s) => s.id == activeScenarioId);
-        const newConfig = activeScen
-          ? JSON.parse(JSON.stringify(activeScen.config))
-          : JSON.parse(JSON.stringify(defaultConfig));
+        const newConfig = JSON.parse(JSON.stringify(defaultConfig));
         const newScen = {
           id: nextId++,
           name: `Scenario ${nextId - 1}`,
@@ -828,6 +834,22 @@
           return alert("Must have at least one scenario.");
         scenarios = scenarios.filter((s) => s.id != activeScenarioId);
         activeScenarioId = scenarios[0].id;
+        renderScenarioList();
+        renderForm();
+      }
+
+      function duplicateScenario() {
+        const activeScen = scenarios.find((s) => s.id == activeScenarioId);
+        if (!activeScen) return;
+
+        const newConfig = JSON.parse(JSON.stringify(activeScen.config));
+        const newScen = {
+          id: nextId++,
+          name: `${activeScen.name} (Copy)`,
+          config: newConfig,
+        };
+        scenarios.push(newScen);
+        activeScenarioId = newScen.id;
         renderScenarioList();
         renderForm();
       }
