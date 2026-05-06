@@ -80,7 +80,7 @@ if __name__ == "__main__":
         all_scenarios[scenario_id] = new_scenario
 
     # --- 4. Save to .py ---
-    output_filename = "examples/parameterSweepStudy/saltelli_parameters_1_5.py"
+    output_filename = "examples/parameterSweepStudy/saltelli_parameters_6_5.py"
     with open(output_filename, "w") as f:
         f.write("import numpy as np \n")
         f.write("SCENARIOS = " + pprint.pformat(all_scenarios, indent=4))
