@@ -95,6 +95,12 @@
         </div>
         <div class="space-x-4 flex">
           <button
+            onclick="toggleSettings()"
+            class="bg-gray-200 hover:bg-gray-300 dark:bg-gray-700 dark:hover:bg-gray-600 text-gray-800 dark:text-gray-200 font-bold py-2 px-4 rounded transition"
+          >
+            ⚙️ Show/Hide Setup
+          </button>
+          <button
             id="export-btn"
             onclick="exportScenario()"
             class="bg-gray-200 hover:bg-gray-300 dark:bg-gray-700 dark:hover:bg-gray-600 text-gray-800 dark:text-gray-200 font-bold py-2 px-4 rounded transition"
@@ -121,6 +127,7 @@
       <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
         <!-- Settings Panel -->
         <div
+          id="settings-panel"
           class="bg-white dark:bg-gray-800 dark:border-gray-700 border p-6 rounded-lg shadow-md lg:col-span-1 flex flex-col h-[800px] transition-colors"
         >
           <!-- Scenario Selector -->
@@ -168,6 +175,7 @@
 
         <!-- Results Panel -->
         <div
+          id="results-panel"
           class="bg-white dark:bg-gray-800 dark:border-gray-700 border p-6 rounded-lg shadow-md lg:col-span-2 flex flex-col h-[800px] overflow-y-auto transition-colors"
         >
           <!-- Progress Bars -->
@@ -200,85 +208,164 @@
                   style="max-height: 250px; width: 100%"
                 ></canvas>
               </div>
-              <div>
-                <canvas
-                  id="compStockChart"
-                  style="max-height: 250px; width: 100%"
-                ></canvas>
+            </div>
+          </div>
+
+          <!-- Side-by-Side Comparison -->
+          <div class="hidden mt-6" id="side-by-side-section">
+            <h3
+              class="font-bold text-gray-700 dark:text-gray-200 text-lg mb-3 border-b dark:border-gray-700 pb-1"
+            >
+              Side-by-Side Detail Comparison
+            </h3>
+            <div class="grid grid-cols-1 xl:grid-cols-2 gap-6">
+              <!-- Column 1 -->
+              <div
+                class="bg-gray-50 dark:bg-gray-900/50 p-4 rounded-lg border dark:border-gray-700 flex flex-col gap-4"
+              >
+                <select
+                  id="col1-selector"
+                  class="w-full border dark:border-gray-600 p-2 rounded bg-white dark:bg-gray-800 dark:text-white shadow-sm font-semibold"
+                  onchange="window.updateCol(1, this.value)"
+                ></select>
+
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <details>
+                    <summary
+                      class="font-bold cursor-pointer text-gray-700 dark:text-gray-300 outline-none"
+                    >
+                      Financial Breakdown
+                    </summary>
+                    <div
+                      id="col1-breakdown"
+                      class="mt-2 bg-white dark:bg-gray-800 p-3 rounded border dark:border-gray-700 text-sm shadow-inner dark:text-gray-200"
+                    ></div>
+                  </details>
+                  <details>
+                    <summary
+                      class="font-bold cursor-pointer text-gray-700 dark:text-gray-300 outline-none"
+                    >
+                      Operational Stats
+                    </summary>
+                    <div
+                      id="col1-stats"
+                      class="mt-2 bg-white dark:bg-gray-800 p-3 rounded border dark:border-gray-700 text-sm shadow-inner dark:text-gray-200"
+                    ></div>
+                  </details>
+                </div>
+
+                <div>
+                  <canvas
+                    id="col1-StatesChart"
+                    style="min-height: 300px; width: 100%"
+                  ></canvas>
+                </div>
+                <div>
+                  <canvas
+                    id="col1-SalesChart"
+                    style="min-height: 300px; width: 100%"
+                  ></canvas>
+                </div>
+
+                <div class="mt-2">
+                  <details>
+                    <summary
+                      class="font-bold text-gray-600 dark:text-gray-300 mb-2"
+                    >
+                      Geographic Distribution
+                    </summary>
+                    <div
+                      id="map-1"
+                      class="w-full h-[300px] rounded-lg border border-gray-300 dark:border-gray-700 z-0"
+                    ></div>
+                  </details>
+                </div>
+              </div>
+
+              <!-- Column 2 -->
+              <div
+                class="bg-gray-50 dark:bg-gray-900/50 p-4 rounded-lg border dark:border-gray-700 flex flex-col gap-4"
+              >
+                <select
+                  id="col2-selector"
+                  class="w-full border dark:border-gray-600 p-2 rounded bg-white dark:bg-gray-800 dark:text-white shadow-sm font-semibold"
+                  onchange="window.updateCol(2, this.value)"
+                ></select>
+
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <details>
+                    <summary
+                      class="font-bold cursor-pointer text-gray-700 dark:text-gray-300 outline-none"
+                    >
+                      Financial Breakdown
+                    </summary>
+                    <div
+                      id="col2-breakdown"
+                      class="mt-2 bg-white dark:bg-gray-800 p-3 rounded border dark:border-gray-700 text-sm shadow-inner dark:text-gray-200"
+                    ></div>
+                  </details>
+                  <details>
+                    <summary
+                      class="font-bold cursor-pointer text-gray-700 dark:text-gray-300 outline-none"
+                    >
+                      Operational Stats
+                    </summary>
+                    <div
+                      id="col2-stats"
+                      class="mt-2 bg-white dark:bg-gray-800 p-3 rounded border dark:border-gray-700 text-sm shadow-inner dark:text-gray-200"
+                    ></div>
+                  </details>
+                </div>
+
+                <div>
+                  <canvas
+                    id="col2-StatesChart"
+                    style="min-height: 300px; width: 100%"
+                  ></canvas>
+                </div>
+                <div>
+                  <canvas
+                    id="col2-SalesChart"
+                    style="min-height: 300px; width: 100%"
+                  ></canvas>
+                </div>
+
+                <div class="mt-2">
+                  <details>
+                    <summary
+                      class="font-bold text-gray-600 dark:text-gray-300 mb-2"
+                    >
+                      Geographic Distribution
+                    </summary>
+                    <div
+                      id="map-2"
+                      class="w-full h-[300px] rounded-lg border border-gray-300 dark:border-gray-700 z-0"
+                    ></div>
+                  </details>
+                </div>
               </div>
             </div>
           </div>
 
-          <!-- Detailed View -->
-          <div
-            class="bg-gray-50 dark:bg-gray-900/50 p-4 rounded-lg border dark:border-gray-700 hidden"
-            id="detailed-section"
-          >
-            <div
-              class="flex justify-between items-center mb-4 border-b dark:border-gray-700 pb-2"
+          <!-- Core Stock Comparison (Collapsible) -->
+          <div class="hidden mt-6 mb-6" id="core-stock-section">
+            <details
+              class="bg-gray-50 dark:bg-gray-900/50 p-4 rounded-lg border dark:border-gray-700"
             >
-              <h3 class="font-bold text-gray-700 dark:text-gray-200 text-lg">
-                Detailed View
-              </h3>
-              <select
-                id="detail-scenario-selector"
-                class="border dark:border-gray-600 p-1 rounded bg-white dark:bg-gray-700 dark:text-white shadow-sm font-semibold text-sm"
-                onchange="window.updateDetailedView(this.value)"
-              ></select>
-            </div>
-
-            <!-- Stats & Breakdown -->
-            <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
-              <details>
-                <summary
-                  class="font-bold cursor-pointer text-gray-700 dark:text-gray-300 outline-none"
-                >
-                  Financial Breakdown
-                </summary>
-                <div
-                  id="detail-breakdown"
-                  class="mt-2 bg-white dark:bg-gray-800 p-3 rounded border dark:border-gray-700 text-sm shadow-inner dark:text-gray-200"
-                ></div>
-              </details>
-              <details>
-                <summary
-                  class="font-bold cursor-pointer text-gray-700 dark:text-gray-300 outline-none"
-                >
-                  Operational Statistics
-                </summary>
-                <div
-                  id="detail-stats"
-                  class="mt-2 bg-white dark:bg-gray-800 p-3 rounded border dark:border-gray-700 text-sm shadow-inner dark:text-gray-200"
-                ></div>
-              </details>
-            </div>
-
-            <!-- Charts -->
-            <div class="grid grid-cols-1 gap-4">
-              <div>
-                <canvas
-                  id="detailStatesChart"
-                  style="min-height: 350px; width: 100%"
-                ></canvas>
-              </div>
-              <div>
-                <canvas
-                  id="detailSalesChart"
-                  style="min-height: 350px; width: 100%"
-                ></canvas>
-              </div>
-            </div>
-
-            <!-- Map -->
-            <div class="mt-4">
-              <h4 class="font-bold text-gray-600 dark:text-gray-300 mb-2">
-                Geographic Distribution
-              </h4>
+              <summary
+                class="font-bold cursor-pointer text-gray-700 dark:text-gray-200 text-lg outline-none"
+              >
+                Core Stock Comparison
+              </summary>
               <div
-                id="map"
-                class="w-full h-[300px] rounded-lg border border-gray-300 dark:border-gray-700"
-              ></div>
-            </div>
+                class="mt-4 bg-white dark:bg-gray-800 p-4 rounded-lg border dark:border-gray-700"
+              >
+                <canvas
+                  id="compStockChart"
+                  style="max-height: 300px; width: 100%"
+                ></canvas>
+              </div>
+            </details>
           </div>
         </div>
       </div>
@@ -287,8 +374,8 @@
     <!-- Javascript Logic for handling the UI and drawing Charts -->
     <script>
       const charts = {};
-      let map = null;
-      let mapMarkers = [];
+      let maps = { 1: null, 2: null };
+      let mapMarkers = { 1: [], 2: [] };
 
       // 2. Format numbers as currency
       const formatter = new Intl.NumberFormat("en-IE", {
@@ -534,6 +621,23 @@
           if (sc.id == activeScenarioId) opt.selected = true;
           sel.appendChild(opt);
         });
+      }
+
+      function toggleSettings() {
+        const settings = document.getElementById("settings-panel");
+        const results = document.getElementById("results-panel");
+        settings.classList.toggle("hidden");
+
+        if (settings.classList.contains("hidden")) {
+          results.classList.remove("lg:col-span-2");
+          results.classList.add("lg:col-span-3");
+        } else {
+          results.classList.remove("lg:col-span-3");
+          results.classList.add("lg:col-span-2");
+        }
+
+        // Force charts and maps to resize slightly after DOM transition
+        setTimeout(() => window.dispatchEvent(new Event("resize")), 200);
       }
 
       function toggleDarkMode() {
@@ -1016,15 +1120,14 @@
         );
       }
 
-      function initMap() {
-        if (map) {
-          map.invalidateSize();
-          return;
+      function initMap(colIndex) {
+        if (maps[colIndex]) {
+          maps[colIndex].invalidateSize();
+          return maps[colIndex];
         }
-        map = L.map("map", { scrollWheelZoom: false }).setView(
-          [41.8719, 12.5674],
-          5,
-        );
+        maps[colIndex] = L.map(`map-${colIndex}`, {
+          scrollWheelZoom: false,
+        }).setView([41.8719, 12.5674], 5);
         L.tileLayer(
           "https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png",
           {
@@ -1032,10 +1135,11 @@
             subdomains: "abcd",
             maxZoom: 20,
           },
-        ).addTo(map);
+        ).addTo(maps[colIndex]);
+        return maps[colIndex];
       }
 
-      window.updateDetailedView = function (scId) {
+      window.updateCol = function (colIndex, scId) {
         if (!window.lastResults) return;
         const res = window.lastResults[scId];
         const rep = window.lastReports[scId];
@@ -1049,22 +1153,27 @@
           htmlB += `<li class="flex justify-between border-b dark:border-gray-600 pb-1 last:border-0"><span>${key}:</span> <span class="${col} font-mono">${sign}${formatter.format(value)}</span></li>`;
         }
         htmlB += "</ul>";
-        document.getElementById("detail-breakdown").innerHTML = htmlB;
+        document.getElementById(`col${colIndex}-breakdown`).innerHTML = htmlB;
 
         let htmlS = '<ul class="space-y-1">';
         for (const [key, value] of Object.entries(rep["Statistics"])) {
           htmlS += `<li class="flex justify-between border-b dark:border-gray-600 pb-1 last:border-0"><span>${key}:</span> <span class="font-mono text-gray-800 dark:text-gray-200">${value.toLocaleString()}</span></li>`;
         }
         htmlS += "</ul>";
-        document.getElementById("detail-stats").innerHTML = htmlS;
+        document.getElementById(`col${colIndex}-stats`).innerHTML = htmlS;
 
-        buildStatesChart("detailStatesChart", res, "Customer States");
-        buildSalesChart("detailSalesChart", res, "Sales (Virgin vs Reman)");
+        buildStatesChart(`col${colIndex}-StatesChart`, res, "Customer States");
+        buildSalesChart(
+          `col${colIndex}-SalesChart`,
+          res,
+          "Sales (Virgin vs Reman)",
+        );
 
-        initMap();
-        mapMarkers.forEach((m) => map.removeLayer(m));
-        mapMarkers = [];
+        const mapInstance = initMap(colIndex);
+        mapMarkers[colIndex].forEach((m) => mapInstance.removeLayer(m));
+        mapMarkers[colIndex] = [];
         const geoData = rep["Geographic Distribution"]["City Data"];
+
         for (const [cityName, data] of Object.entries(geoData)) {
           if (data.customers > 0 || data.is_oem) {
             let iconHtml = "";
@@ -1081,8 +1190,8 @@
             });
             const marker = L.marker([data.lat, data.lng], { icon: customIcon })
               .bindTooltip(cityName)
-              .addTo(map);
-            mapMarkers.push(marker);
+              .addTo(mapInstance);
+            mapMarkers[colIndex].push(marker);
           }
         }
       };
@@ -1092,7 +1201,12 @@
         document
           .getElementById("comparison-section")
           .classList.remove("hidden");
-        document.getElementById("detailed-section").classList.remove("hidden");
+        document
+          .getElementById("side-by-side-section")
+          .classList.remove("hidden");
+        document
+          .getElementById("core-stock-section")
+          .classList.remove("hidden");
 
         const allResults = JSON.parse(resStr);
         const allReports = JSON.parse(repStr);
@@ -1101,8 +1215,10 @@
         const finContainer = document.getElementById("financial-cards");
         finContainer.innerHTML = "";
 
-        const detSel = document.getElementById("detail-scenario-selector");
-        detSel.innerHTML = "";
+        const sel1 = document.getElementById("col1-selector");
+        const sel2 = document.getElementById("col2-selector");
+        sel1.innerHTML = "";
+        sel2.innerHTML = "";
 
         scenarioList.forEach((sc) => {
           const rep = allReports[sc.id];
@@ -1119,11 +1235,25 @@
               </div>
            `;
 
-          const opt = document.createElement("option");
-          opt.value = sc.id;
-          opt.innerText = sc.name;
-          detSel.appendChild(opt);
+          const opt1 = document.createElement("option");
+          opt1.value = sc.id;
+          opt1.innerText = sc.name;
+          sel1.appendChild(opt1);
+
+          const opt2 = document.createElement("option");
+          opt2.value = sc.id;
+          opt2.innerText = sc.name;
+          sel2.appendChild(opt2);
         });
+
+        if (scenarioList.length > 0) {
+          sel1.value = scenarioList[0].id;
+          if (scenarioList.length > 1) {
+            sel2.value = scenarioList[1].id;
+          } else {
+            sel2.value = scenarioList[0].id;
+          }
+        }
 
         window.lastResults = allResults;
         window.lastReports = allReports;
@@ -1132,7 +1262,10 @@
         drawComparisonCharts(allResults, scenarioList);
 
         setTimeout(() => {
-          updateDetailedView(scenarioList[0].id);
+          if (scenarioList.length > 0) {
+            updateCol(1, sel1.value);
+            updateCol(2, sel2.value);
+          }
         }, 100);
       };
 
