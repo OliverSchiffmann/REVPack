@@ -32,7 +32,7 @@ class TestWebappSync(unittest.TestCase):
     def test_parameters_in_paramSchema(self):
         """Check if all parameters in the default scenario exist in index.html's paramSchema."""
         # Extract the paramSchema block from index.html
-        schema_match = re.search(r'const paramSchema = \{(.*?)\};\s*const defaultConfig', self.index_content, re.DOTALL)
+        schema_match = re.search(r'const paramSchema = \{(.*?)\};\s*(?:const|let) defaultConfig', self.index_content, re.DOTALL)
         if schema_match is None:
             self.fail("Could not find 'paramSchema' block in index.html")
         schema_block = schema_match.group(1)

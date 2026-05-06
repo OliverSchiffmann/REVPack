@@ -41,7 +41,8 @@
 
     <!-- Dynamic PyScript Configuration with Cache Busting -->
     <script>
-      const ts = new Date().getTime();
+      // Use a static version to allow the browser to cache Python files and drastically improve load speed
+      const ts = "1.0.0";
       const pyConfig = document.createElement("py-config");
       pyConfig.innerHTML = JSON.stringify({
         packages: ["numpy", "matplotlib"],
@@ -55,6 +56,7 @@
           { from: `reuman/product.py?v=${ts}`, to_file: "reuman/product.py" },
           { from: `reuman/world.py?v=${ts}`, to_file: "reuman/world.py" },
           { from: `reuman/states.py?v=${ts}`, to_file: "reuman/states.py" },
+          { from: `examples/scenarios.py?v=${ts}`, to_file: "scenarios.py" },
           {
             from: `examples/locations/it.csv?v=${ts}`,
             to_file: "examples/locations/it.csv",
@@ -158,6 +160,20 @@
                 >
                   🔁
                 </button>
+                <button
+                  onclick="document.getElementById('import-file').click()"
+                  class="bg-purple-500 hover:bg-purple-600 text-white px-3 py-1 rounded text-sm font-bold shadow ml-1"
+                  title="Import Scenario (.py)"
+                >
+                  📂
+                </button>
+                <input
+                  type="file"
+                  id="import-file"
+                  accept=".py"
+                  class="hidden"
+                  onchange="handleImport(event)"
+                />
               </div>
             </div>
             <select
@@ -533,90 +549,8 @@
         },
       };
 
-      const defaultConfig = {
-        main: {
-          simulation_length: 1000,
-          B2B_population: 1000,
-          B2C_population: 0,
-          seed: 1,
-          enable_reman: true,
-          starting_customers: 0,
-        },
-        oem: {
-          // Financial & Core Storage
-          balance: 0.0,
-          location: "Brescia",
-          virgin_stock: 50,
-          reman_stock: 0,
-          core_stock: 5,
-          core_storage_limit: 100,
-          bounty_value: 10.0,
-          unit_production_cost_V: 500.0,
-
-          retail_price_V: 1000,
-          retail_price_R: 1000,
-
-          // Reman Implementation
-          reman_implementation_cost: 10000.0, // One off to buy inspection equipment and such
-          reman_annual_operating_cost: 5000.0, // Fixed annual costs for reman production
-          bounty_value: 10.0,
-          core_storage_limit: 100,
-          unit_production_cost_R: 300.0,
-
-          // Processing Rates
-          delivery_delay: 3,
-          manufacture_delay: 5,
-          remanufacture_delay: 4,
-          core_acceptance_rate: 0.7,
-
-          // Logistics & Processing Costs
-          core_collection_cost: 20,
-          core_disposal_cost: 10,
-          core_storage_cost: 2,
-          inspection_cost: 20,
-
-          // Heuristic Routing Logistics
-          local_delivery_cost: 10.0,
-          shipping_cost_per_km: 0.01,
-          ferry_fee: 10.0,
-          driving_hours_per_day: 8.0,
-        },
-        b2b_customer: {
-          patience: 10,
-          mean_lifetime: 200,
-          lifetime_method: "triangular",
-          lifetime_range: 100,
-          core_return_rate: 1.0,
-        },
-        b2c_customer: {
-          patience: -1,
-          mean_lifetime: 1,
-          lifetime_method: "uniform",
-          lifetime_range: 3,
-          core_return_rate: 1.0,
-        },
-        products_V: {
-          demand_profile: { type: "stochastic", value: 0.0006 },
-          wom_threshold: 0.015,
-        },
-        products_R: {
-          demand_profile: { type: "stochastic", value: 0.0003 },
-          wom_threshold: 0.015,
-          cores_consumed: 1,
-        },
-      };
-
-      const defaultNoRemanConfig = JSON.parse(JSON.stringify(defaultConfig));
-      defaultNoRemanConfig.main.enable_reman = false;
-
-      let scenarios = [
-        {
-          id: 1,
-          name: "Default",
-          config: JSON.parse(JSON.stringify(defaultConfig)),
-        },
-        { id: 2, name: "No Reman", config: defaultNoRemanConfig },
-      ];
+      let defaultConfig = null;
+      let scenarios = [];
       let nextId = 3;
       let activeScenarioId = 1;
 
@@ -631,6 +565,24 @@
           sel.appendChild(opt);
         });
       }
+
+      window.setDefaultConfig = function (configStr) {
+        defaultConfig = JSON.parse(configStr);
+        const defaultNoRemanConfig = JSON.parse(JSON.stringify(defaultConfig));
+        defaultNoRemanConfig.main.enable_reman = false;
+
+        scenarios = [
+          {
+            id: 1,
+            name: "Default",
+            config: JSON.parse(JSON.stringify(defaultConfig)),
+          },
+          { id: 2, name: "No Reman", config: defaultNoRemanConfig },
+        ];
+        activeScenarioId = 1;
+        renderScenarioList();
+        renderForm();
+      };
 
       function toggleSettings() {
         const settings = document.getElementById("settings-panel");
@@ -854,6 +806,21 @@
         renderForm();
       }
 
+      window.handleImport = function (event) {
+        const file = event.target.files[0];
+        if (!file) return;
+        const reader = new FileReader();
+        reader.onload = function (e) {
+          if (window.handle_py_import) {
+            window.handle_py_import(e.target.result);
+          } else {
+            alert("PyScript is still loading, please try again in a moment.");
+          }
+        };
+        reader.readAsText(file);
+        event.target.value = ""; // Reset the input so the same file can be uploaded again
+      };
+
       window.selectScenario = function (id) {
         activeScenarioId = parseInt(id);
         renderForm();
@@ -865,6 +832,13 @@
           activeScen.name = name;
           renderScenarioList();
         }
+      };
+
+      window.applyImportedConfig = function (configStr) {
+        const activeScen = scenarios.find((s) => s.id == activeScenarioId);
+        if (!activeScen) return;
+        activeScen.config = JSON.parse(configStr);
+        renderForm(); // Refresh the inputs dynamically
       };
 
       window.getScenariosJSON = function () {
@@ -889,7 +863,14 @@
         pc.classList.remove("hidden");
       };
 
-      function buildStatesChart(canvasId, results, titleText) {
+      function buildGenericChart(
+        canvasId,
+        results,
+        datasets,
+        titleText,
+        yAxisText,
+        isStacked,
+      ) {
         if (charts[canvasId]) charts[canvasId].destroy();
         charts[canvasId] = new Chart(
           document.getElementById(canvasId).getContext("2d"),
@@ -897,50 +878,7 @@
             type: "line",
             data: {
               labels: results.day,
-              datasets: [
-                {
-                  label: "Potential Users",
-                  data: results.potential_users,
-                  backgroundColor: "#2fa8e9",
-                  fill: true,
-                  pointRadius: 0,
-                },
-                {
-                  label: "Wants Virgin",
-                  data: results.wants_virgin,
-                  backgroundColor: "#fb9a99",
-                  fill: true,
-                  pointRadius: 0,
-                },
-                {
-                  label: "Uses Virgin",
-                  data: results.uses_virgin,
-                  backgroundColor: "#d91c1f",
-                  fill: true,
-                  pointRadius: 0,
-                },
-                {
-                  label: "Wants Reman",
-                  data: results.wants_reman,
-                  backgroundColor: "#bce499",
-                  fill: true,
-                  pointRadius: 0,
-                },
-                {
-                  label: "Uses Reman",
-                  data: results.uses_reman,
-                  backgroundColor: "#33a02c",
-                  fill: true,
-                  pointRadius: 0,
-                },
-                {
-                  label: "Wants Any",
-                  data: results.wants_any,
-                  backgroundColor: "#D1AB23",
-                  fill: true,
-                  pointRadius: 0,
-                },
-              ],
+              datasets: datasets,
             },
             options: {
               responsive: true,
@@ -948,129 +886,15 @@
               interaction: { mode: "index", intersect: false },
               plugins: {
                 title: { display: true, text: titleText },
-                legend: { position: "bottom" },
+                legend: { position: isStacked ? "bottom" : "top" },
               },
               scales: {
                 x: { title: { display: true, text: "Day" } },
                 y: {
-                  stacked: true,
-                  title: { display: true, text: "Customers" },
-                  min: 0,
-                  // max: B2B_population + B2C_population,
+                  stacked: isStacked,
+                  title: { display: true, text: yAxisText },
+                  min: isStacked ? 0 : undefined,
                 },
-              },
-            },
-          },
-        );
-      }
-
-      function buildSalesChart(canvasId, results, titleText) {
-        if (charts[canvasId]) charts[canvasId].destroy();
-        charts[canvasId] = new Chart(
-          document.getElementById(canvasId).getContext("2d"),
-          {
-            type: "line",
-            data: {
-              labels: results.day,
-              datasets: [
-                {
-                  label: "Virgin Sold",
-                  data: results.virgin_sold,
-                  borderColor: "#d91c1f",
-                  pointRadius: 0,
-                },
-                {
-                  label: "Reman Sold",
-                  data: results.reman_sold,
-                  borderColor: "#33a02c",
-                  pointRadius: 0,
-                },
-              ],
-            },
-            options: {
-              responsive: true,
-              maintainAspectRatio: false,
-              interaction: { mode: "index", intersect: false },
-              plugins: { title: { display: true, text: titleText } },
-              scales: {
-                x: { title: { display: true, text: "Day" } },
-                y: { title: { display: true, text: "Units" } },
-              },
-            },
-          },
-        );
-      }
-
-      function buildStockChart(canvasId, results, titleText) {
-        if (charts[canvasId]) charts[canvasId].destroy();
-        charts[canvasId] = new Chart(
-          document.getElementById(canvasId).getContext("2d"),
-          {
-            type: "line",
-            data: {
-              labels: results.day,
-              datasets: [
-                {
-                  label: "Virgin Stock",
-                  data: results.virgin_stock,
-                  borderColor: "#d91c1f",
-                  pointRadius: 0,
-                },
-                {
-                  label: "Reman Stock",
-                  data: results.reman_stock,
-                  borderColor: "#33a02c",
-                  pointRadius: 0,
-                },
-                {
-                  label: "Core Stock",
-                  data: results.core_stock,
-                  borderColor: "#2fa8e9",
-                  pointRadius: 0,
-                },
-              ],
-            },
-            options: {
-              responsive: true,
-              maintainAspectRatio: false,
-              interaction: { mode: "index", intersect: false },
-              plugins: { title: { display: true, text: titleText } },
-              scales: {
-                x: { title: { display: true, text: "Day" } },
-                y: { title: { display: true, text: "Units" } },
-              },
-            },
-          },
-        );
-      }
-
-      function buildBalanceChart(canvasId, results, titleText) {
-        if (charts[canvasId]) charts[canvasId].destroy();
-        charts[canvasId] = new Chart(
-          document.getElementById(canvasId).getContext("2d"),
-          {
-            type: "line",
-            data: {
-              labels: results.day,
-              datasets: [
-                {
-                  label: "Bank Balance (€)",
-                  data: results.oem_balance,
-                  borderColor: "#8b5cf6",
-                  backgroundColor: "rgba(139, 92, 246, 0.2)",
-                  fill: true,
-                  pointRadius: 0,
-                },
-              ],
-            },
-            options: {
-              responsive: true,
-              maintainAspectRatio: false,
-              interaction: { mode: "index", intersect: false },
-              plugins: { title: { display: true, text: titleText } },
-              scales: {
-                x: { title: { display: true, text: "Day" } },
-                y: { title: { display: true, text: "Balance (€)" } },
               },
             },
           },
@@ -1184,11 +1008,78 @@
         htmlS += "</ul>";
         document.getElementById(`col${colIndex}-stats`).innerHTML = htmlS;
 
-        buildStatesChart(`col${colIndex}-StatesChart`, res, "Customer States");
-        buildSalesChart(
+        buildGenericChart(
+          `col${colIndex}-StatesChart`,
+          res,
+          [
+            {
+              label: "Potential Users",
+              data: res.potential_users,
+              backgroundColor: "#2fa8e9",
+              fill: true,
+              pointRadius: 0,
+            },
+            {
+              label: "Wants Virgin",
+              data: res.wants_virgin,
+              backgroundColor: "#fb9a99",
+              fill: true,
+              pointRadius: 0,
+            },
+            {
+              label: "Uses Virgin",
+              data: res.uses_virgin,
+              backgroundColor: "#d91c1f",
+              fill: true,
+              pointRadius: 0,
+            },
+            {
+              label: "Wants Reman",
+              data: res.wants_reman,
+              backgroundColor: "#bce499",
+              fill: true,
+              pointRadius: 0,
+            },
+            {
+              label: "Uses Reman",
+              data: res.uses_reman,
+              backgroundColor: "#33a02c",
+              fill: true,
+              pointRadius: 0,
+            },
+            {
+              label: "Wants Any",
+              data: res.wants_any,
+              backgroundColor: "#D1AB23",
+              fill: true,
+              pointRadius: 0,
+            },
+          ],
+          "Customer States",
+          "Customers",
+          true,
+        );
+
+        buildGenericChart(
           `col${colIndex}-SalesChart`,
           res,
+          [
+            {
+              label: "Virgin Sold",
+              data: res.virgin_sold,
+              borderColor: "#d91c1f",
+              pointRadius: 0,
+            },
+            {
+              label: "Reman Sold",
+              data: res.reman_sold,
+              borderColor: "#33a02c",
+              pointRadius: 0,
+            },
+          ],
           "Sales (Virgin vs Reman)",
+          "Units",
+          false,
         );
 
         const mapInstance = initMap(colIndex);
@@ -1298,7 +1189,7 @@
         const config = JSON.parse(JSON.stringify(activeScen.config));
 
         let pyString = `import copy\n\n`;
-        pyString += `dict_custom = {\n`;
+        pyString += `config = {\n`;
         pyString += `    "description": "${activeScen.name}",\n`;
 
         // Helper to format JSON blocks into Python dictionary layout
@@ -1331,7 +1222,7 @@
         pyString += `    "b2c_customer": ${formatDict(config.b2c_customer).trim()},\n`;
         pyString += `    "products": ${formatDict(products).trim()}\n`;
         pyString += `}\n\n`;
-        pyString += `SCENARIOS = {\n    "Custom": dict_custom\n}\n`;
+        pyString += `SCENARIOS = {\n    "Custom": config\n}\n`;
 
         // Trigger download
         const blob = new Blob([pyString], { type: "text/plain" });
@@ -1342,8 +1233,7 @@
       };
 
       document.addEventListener("DOMContentLoaded", () => {
-        renderScenarioList();
-        renderForm();
+        // UI will render after PyScript loads and calls setDefaultConfig
       });
     </script>
 
@@ -1356,6 +1246,59 @@
 
       # Import your local refactored simulation logic!
       import main_OS
+      import copy
+
+      def load_default_config():
+          try:
+              import scenarios
+              cfg = copy.deepcopy(scenarios.SCENARIOS["Default"])
+
+              # Map 'products' back to 'products_V' and 'products_R' for the UI
+              products = cfg.pop("products", {})
+              for p_type in ["V", "R"]:
+                  if p_type in products:
+                      ui_key = f"products_{p_type}"
+                      cfg[ui_key] = products[p_type]
+                      dp = cfg[ui_key].get("demand_profile", {})
+                      # Extract the rate or amount_per_day into 'value'
+                      val = dp.pop("rate", dp.pop("amount_per_day", 0))
+                      dp["value"] = val
+
+              window.setDefaultConfig(json.dumps(cfg))
+          except Exception as e:
+              window.console.error(f"Error loading scenarios.py: {e}")
+
+      # Load the config right away
+      load_default_config()
+
+      def handle_py_import(py_code):
+          namespace = {}
+          try:
+              exec(py_code, {}, namespace)
+              # Attempt to find "config", fallback to the first scenario inside SCENARIOS if re-imported
+              if 'config' in namespace:
+                  cfg = namespace['config']
+              elif 'SCENARIOS' in namespace and isinstance(namespace['SCENARIOS'], dict):
+                  cfg = list(namespace['SCENARIOS'].values())[0]
+              else:
+                  window.alert("Error: No 'config' dictionary found in the uploaded .py file.")
+                  return
+
+              cfg = copy.deepcopy(cfg)
+              products = cfg.pop("products", {})
+              for p_type in ["V", "R"]:
+                  if p_type in products:
+                      ui_key = f"products_{p_type}"
+                      cfg[ui_key] = products[p_type]
+                      dp = cfg[ui_key].get("demand_profile", {})
+                      val = dp.pop("rate", dp.pop("amount_per_day", 0))
+                      dp["value"] = val
+
+              window.applyImportedConfig(json.dumps(cfg))
+          except Exception as e:
+              window.alert(f"Error parsing uploaded file: {str(e)}")
+
+      window.handle_py_import = handle_py_import
 
       def update_progress(bar_id, text_id, current, total):
           percentage = (current / total) * 100 if total > 0 else 0
