@@ -3,9 +3,10 @@ import importlib.util
 import os
 import sys
 import asyncio
+import json
 
 # Import the simulation runner logic
-from examples.main_OS import run_simulation
+from examples.simulation_runner import run_simulation
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Run HPC Sobol Analysis")
@@ -40,20 +41,14 @@ if __name__ == "__main__":
     # 2. Run the simulation core
     results, report = asyncio.run(run_simulation(config, args.seed))
 
-    # 3. Extract logic specifically for regex capturing
-    cost = report["Total Cost"]
-    revenue = report["Total Revenue"]
-    profit = revenue - cost
-
-    # Required targets for profitRegex.py
-    print("\nBreakdown:")
-    for key, value in report["Breakdown"].items():
-        print(f"  {key}: €{value:,.2f}")
-
-    print("-" * 40)
-    print(f"NET PROFIT (€):      {profit:+,.2f}")
-    print("-" * 40)
-
-    # Add any extra metrics you'd want to dump or print specifically for Sobol here!
-    # For example:
-    # print(f"Cores Rejected:      {report['Statistics']['Cores rejected']}")
+    # 3. Output results directly as a JSON payload
+    output_data = {
+        "metadata": {
+            "scenario_id": args.scenario,
+            "seed": args.seed
+        },
+        "report": report
+    }
+    
+    # Print with a distinct prefix so it can be easily grabbed from stdout log files
+    print(f"HPC_JSON_RESULT::{json.dumps(output_data)}")
