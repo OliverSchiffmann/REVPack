@@ -26,6 +26,7 @@ if __name__ == "__main__":
     profit_pattern = re.compile(r"NET PROFIT \(\€\):\s+([+-]?\d{1,3}(?:,\d{3})*\.\d{2})")
     virgin_sales_pattern = re.compile(r"Sale of virgin products:\s+€(\d{1,3}(?:,\d{3})*\.\d{2})")
     reman_sales_pattern = re.compile(r"Sale of reman products:\s+€(\d{1,3}(?:,\d{3})*\.\d{2})")
+    reman_impl_pattern = re.compile(r"Reman implementation cost:\s+€(\d{1,3}(?:,\d{3})*\.\d{2})")
 
     results_list = []
     
@@ -50,20 +51,22 @@ if __name__ == "__main__":
                 p_match = profit_pattern.search(run_content)
                 v_match = virgin_sales_pattern.search(run_content)
                 r_match = reman_sales_pattern.search(run_content)
+                i_match = reman_impl_pattern.search(run_content)
                 
-                if p_match and v_match and r_match:
+                if p_match and v_match and r_match and i_match:
                     results_list.append({
                         "Scenario": scenario_num,
                         "Seed": seed_num,
                         "Profit": float(p_match.group(1).replace(',', '')),
                         "Virgin Sales": float(v_match.group(1).replace(',', '')),
-                        "Reman Sales": float(r_match.group(1).replace(',', ''))
+                        "Reman Sales": float(r_match.group(1).replace(',', '')),
+                        "Implementation Cost": float(i_match.group(1).replace(',', ''))
                     })
 
     if results_list:
         resultsDf = pd.DataFrame(results_list)
     else:
-        resultsDf = pd.DataFrame(columns=["Scenario", "Seed", "Profit", "Virgin Sales", "Reman Sales"])
+        resultsDf = pd.DataFrame(columns=["Scenario", "Seed", "Profit", "Virgin Sales", "Reman Sales", "Implementation Cost"])
     
     print(f"Successfully extracted {len(resultsDf.dropna()['Profit'])} profit records.")
 
