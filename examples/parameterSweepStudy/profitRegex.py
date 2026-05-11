@@ -70,6 +70,7 @@ if __name__ == "__main__":
         # We only apply mean to numeric columns, keeping the code robust against any string values
         numeric_cols = resultsDf.select_dtypes(include=['number']).columns.tolist()
         if "Scenario" in numeric_cols:
+            
             numeric_cols.remove("Scenario")
             
         resultsDf = resultsDf.groupby("Scenario", as_index=False)[numeric_cols].mean()
