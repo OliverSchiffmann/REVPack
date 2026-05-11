@@ -50,11 +50,11 @@ def plot_3d_surface(df, x_col, y_col, z_col, title, z_label, colorscale='Viridis
 
 if __name__ == "__main__":
     # 1. Load the outputs parsed by profitRegex.py
-    results_path = "examples/parameterSweepStudy/saltelli_outputs_11_5.csv"
+    results_path = "examples/parameterSweepStudy/ofat_outputs_11_5.csv"
     
     # 2. Load the input parameters that correspond to each scenario
     # (Assume you saved the LHS/Saltelli samples to a CSV where row index or a column matches 'Scenario')
-    params_path = "examples/parameterSweepStudy/saltelli_parameters_1_5.py" 
+    params_path = "examples/parameterSweepStudy/ofat_parameters_v2.py" 
     
     if not os.path.exists(results_path) or not os.path.exists(params_path):
         print("Please ensure both output results and input parameters CSVs exist.")
@@ -111,7 +111,7 @@ if __name__ == "__main__":
 
     # --- Generate Plots ---
     # Example 1: Core Acceptance Rate vs Core Return Rate vs Profit
-    plot_3d_surface(df, x_col='mean_lifetime', y_col='cores_consumed', z_col='Profit', title='Profit Surface', z_label='Net Profit (€)')
+    plot_3d_surface(df, x_col='unit_production_cost_R', y_col='cores_consumed', z_col='Profit', title='Profit Surface', z_label='Net Profit (€)')
 
     # Example 2: Unit Production Cost R vs Acceptance Rate vs Payback Period
     # Drop NaNs so the interpolation doesn't fail on unprofitable scenarios

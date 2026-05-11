@@ -23,20 +23,21 @@ cd /user/work/nj21997/REVPack/
 export PYTHONPATH=$(pwd)
 
 # File Paths
+# Scenario file contains the dictionary/json of all the different scenarios that were generated in the previous step.
 SCENARIO_FILE="examples/parameterSweepStudy/saltelli_parameters_6_5.py"
 
+# Sets the output directory for all the results and potential error files
 OUTPUT_DIR="examples/parameterSweepStudy/Outputs/may_6/results"
-LOGS_DIR="examples/parameterSweepStudy/Outputs/may_6/logs"
 
 # Ensure output directories exist
 mkdir -p $OUTPUT_DIR
-mkdir -p $LOGS_DIR
 
-# N=1024, D=9 -> Total Scenarios = 1024 * (2*9 + 2) = 20480
+# Ensure that the max number of scenarios matches the number that you have generated (either do the maths, or it will tell you in the command box)
 MAX_SCENARIOS=16384
 CHUNK_SIZE=50
-SEEDS=10 # Set this if you want multiple stochastic seeds per scenario
+SEEDS=10 # Set this if you want multiple seeds per scenario, which we probably do since lots of the randomness comes from the seed
 
+# Define the start and end scenarios for this chunk
 START_ID=$(( (SLURM_ARRAY_TASK_ID - 1) * CHUNK_SIZE + 1 ))
 END_ID=$(( SLURM_ARRAY_TASK_ID * CHUNK_SIZE ))
 

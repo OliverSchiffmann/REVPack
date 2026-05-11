@@ -12,6 +12,6 @@ examples/parameterSweepStudy/.DS_Store
 slurm*
 examples/parameterSweepStudy/saltelli_*.csv
 examples/parameterSweepStudy/saltelli_parameters*.py
-examples/parameterSweepStudy/ofat__*.csv
+examples/parameterSweepStudy/ofat_*.csv
 examples/parameterSweepStudy/ofat_parameters*.py
 OSRM*

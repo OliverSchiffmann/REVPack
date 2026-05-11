@@ -8,21 +8,11 @@ import matplotlib.pyplot as plt
 import pandas as pd
 
 if __name__ == "__main__":
-    
-    # # First check that all of the logged error files are empty
-    
-    # log_files = glob.glob("examples/parameterSweepStudy/logs/*.txt")
-    
-    # for log in log_files:
-    #     with open(log, 'r') as file:
-    #         content = file.read()
-    #         if content.strip():
-    #             raise ValueError(f"Error log file {log} is not empty. Simulation may have failed.")
 
     results_list = []
     
     # 1. Fetch all log files from your directory (adjust the path and extension)
-    results_files = glob.glob("examples/parameterSweepStudy/Outputs/may_6/results/*.txt")
+    results_files = glob.glob("examples/parameterSweepStudy/Outputs/local/*.txt")
 
     for file_path in results_files:
         with open(file_path, 'r', encoding='utf-8') as file:
@@ -88,5 +78,5 @@ if __name__ == "__main__":
 
 
     # Save the results
-    resultsDf.to_csv("examples/parameterSweepStudy/saltelli_outputs_11_5.csv", index=False)
+    resultsDf.to_csv("examples/parameterSweepStudy/ofat_outputs_11_5.csv", index=False)
    
