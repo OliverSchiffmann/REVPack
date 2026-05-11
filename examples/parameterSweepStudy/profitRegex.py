@@ -38,7 +38,7 @@ if __name__ == "__main__":
                         
                         # Dynamically add any extra metadata if present
                         for k, v in data.get("metadata", {}).items():
-                            row_data[f"metadata_{k}"] = v
+                            row_data[f"{k}"] = v
                         
                         report = data.get("report", {})
                         
@@ -69,15 +69,18 @@ if __name__ == "__main__":
         # Group by Scenario to average across seeds and greatly reduce the CSV size
         # We only apply mean to numeric columns, keeping the code robust against any string values
         numeric_cols = resultsDf.select_dtypes(include=['number']).columns.tolist()
-        if "Scenario" in numeric_cols:
+        if "scenario_id" in numeric_cols:
             
-            numeric_cols.remove("Scenario")
+            numeric_cols.remove("scenario_id")
             
-        resultsDf = resultsDf.groupby("Scenario", as_index=False)[numeric_cols].mean()
+        resultsDf = resultsDf.groupby("scenario_id", as_index=False)[numeric_cols].mean()
         
-        # We can drop 'Seed' as the averaged seed number is meaningless
-        if "Seed" in resultsDf.columns:
-            resultsDf = resultsDf.drop(columns=["Seed"])
+        # drop the seed
+        if "seed" in resultsDf.columns:
+            resultsDf = resultsDf.drop(columns=["seed"])
+            
+        # Round all values to 2 decimal places
+        resultsDf = resultsDf.round(2)
     else:
         raise ValueError("No valid HPC_JSON_RESULT data found in the provided log files. Check your output directory and log content.")
     
