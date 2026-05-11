@@ -33,7 +33,7 @@ if __name__ == "__main__":
     # Optionally, save the pure baseline as the very first scenario for easy reference
     baseline_scenario = copy.deepcopy(SCENARIOS['Default'])
     baseline_scenario["description"] = "Baseline Scenario (All nominal values)"
-    all_scenarios["baseline"] = baseline_scenario
+    all_scenarios["0"] = baseline_scenario
 
     scenario_counter = 1
 
@@ -68,9 +68,9 @@ if __name__ == "__main__":
 
             # Traverse to the correct nested dictionary and update the value
             target_dict = new_scenario
-            for key in target_path[:-1]:
+            for key in target_path:
                 target_dict = target_dict.setdefault(key, {})
-            target_dict[target_path[-1]] = val_formatted
+            target_dict[var_name] = val_formatted
 
             all_scenarios[scenario_id] = new_scenario
             scenario_counter += 1
