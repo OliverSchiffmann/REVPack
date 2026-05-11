@@ -13,10 +13,9 @@ class TestCustomer(unittest.TestCase):
         # Initialise a random number generator with a fixed seed for reproducible tests
         self.rng = np.random.default_rng(42)
 
-
         test_config = copy.deepcopy(TEST_SCENARIOS["Default"])
         self.config = test_config
-        
+
         self.world = World(config=test_config)
         self.oem = OEM(id=-1, world=self.world, config=self.config)
         self.customer = Customer(
@@ -68,7 +67,7 @@ class TestCustomer(unittest.TestCase):
         """Test that the uniform lifetime generator operates within expected boundaries."""
         self.customer._lifetime_method = "uniform"
         lifetime = self.customer.get_uniform_lifetime(self.rng)
-        
+
         mean = self.customer._mean_lifetime
         variation = self.customer._lifetime_range
         self.assertTrue(mean - variation <= lifetime < mean + variation)
@@ -77,7 +76,7 @@ class TestCustomer(unittest.TestCase):
         """Test that the triangular lifetime generator falls within expected bounds."""
         self.customer._lifetime_method = "triangular"
         lifetime = self.customer.get_triangular_lifetime(self.rng)
-        
+
         mean = self.customer._mean_lifetime
         variation = self.customer._lifetime_range
         self.assertTrue(mean - variation <= lifetime <= mean + variation)
@@ -99,9 +98,9 @@ class TestCustomer(unittest.TestCase):
     def test_force_market_entry(self):
         """Test that a potential user transitions correctly when forcefully entered into the market."""
         self.oem._delivery_delay = 0  # Instant delivery to jump straight to USES_VIRGIN
-        
+
         self.customer.force_market_entry(self.rng, ProductEnum.V)
-        
+
         self.assertEqual(self.customer.state(), CustomerStatesEnum.USES_VIRGIN)
         self.assertEqual(self.customer._active_product, ProductEnum.V)
 
@@ -110,9 +109,9 @@ class TestCustomer(unittest.TestCase):
         self.customer._state = CustomerStatesEnum.WAITING_FOR_DELIVERY
         self.customer._active_product = ProductEnum.V
         self.customer._delivery_day = self.world.now()  # Delivery arrives today
-        
+
         self.customer._handle_waiting_customer(self.rng)
-        
+
         self.assertEqual(self.customer.state(), CustomerStatesEnum.USES_VIRGIN)
         self.assertEqual(self.customer._delivery_day, -1)
 
@@ -122,15 +121,15 @@ class TestCustomer(unittest.TestCase):
         self.customer._active_product = ProductEnum.V
         self.customer._delivery_day = -1
         self.customer._end_of_patience_day = self.world.now()  # Patience expires today
-        
+
         self.customer._handle_waiting_customer(self.rng)
-        
+
         self.assertEqual(self.customer.state(), CustomerStatesEnum.WANTS_ANY)
 
     def test_initialise_as_active_user(self):
         """Test that a customer can be initialised with a random remaining lifespan."""
         self.customer.initialise_as_active_user(self.rng, ProductEnum.R)
-        
+
         self.assertEqual(self.customer.state(), CustomerStatesEnum.USES_REMAN)
         self.assertEqual(self.customer._active_product, ProductEnum.R)
         self.assertTrue(self.customer._end_of_life_day > self.world.now())
@@ -140,7 +139,7 @@ class TestCustomer(unittest.TestCase):
         b2b = B2B_Customer(id=3, world=self.world, oem=self.oem, config=self.config)
         self.assertEqual(b2b._customer_config["mean_lifetime"], 200)
         self.assertEqual(b2b._patience, 10)
-        
+
         b2c = B2C_Customer(id=4, world=self.world, oem=self.oem, config=self.config)
         self.assertEqual(b2c._customer_config["mean_lifetime"], 50)
         self.assertEqual(b2c._patience, -1)
@@ -150,10 +149,10 @@ class TestCustomer(unittest.TestCase):
         self.customer.become_user(self.rng, ProductEnum.R)
         self.customer._end_of_life_day = self.world.now()
         self.customer._core_return_rate = 1.0  # Guarantee return
-        
+
         initial_incoming = len(self.oem._incoming_cores)
         self.customer._handle_active_user(self.rng)
-        
+
         # Should schedule 1 core return to the OEM
         self.assertEqual(len(self.oem._incoming_cores), initial_incoming + 1)
 
@@ -162,12 +161,13 @@ class TestCustomer(unittest.TestCase):
         self.customer.become_user(self.rng, ProductEnum.R)
         self.customer._end_of_life_day = self.world.now()
         self.customer._core_return_rate = 0.0  # Guarantee NO return
-        
+
         initial_not_collected = self.oem._total_cores_not_collected
         self.customer._handle_active_user(self.rng)
-        
+
         # Should record 1 uncollected core with the OEM
         self.assertEqual(self.oem._total_cores_not_collected, initial_not_collected + 1)
+
 
 if __name__ == "__main__":
     unittest.main()

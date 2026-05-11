@@ -6,6 +6,7 @@ from reuman.product import ProductEnum
 from reuman.OEM import OEM
 from reuman.customer import B2B_Customer, B2C_Customer
 
+
 async def run_simulation(config, seed=None, progress_callback=None):
     """Runs the simulation given a config dictionary and returns the results arrays and report."""
     if seed is not None:

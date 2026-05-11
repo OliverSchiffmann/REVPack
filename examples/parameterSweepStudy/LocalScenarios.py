@@ -1,78 +1,116 @@
+import argparse
 import importlib.util
 import os
 import sys
-import asyncio
-import json
 import multiprocessing
-from concurrent.futures import ProcessPoolExecutor, as_completed
+import subprocess
+from concurrent.futures import ThreadPoolExecutor, as_completed
 
-# Import the simulation runner logic
-from examples.simulation_runner import run_simulation
 
-def worker_task(task_args):
-    """Runs the simulation for a single scenario and seed in a separate process."""
-    scenario_id, config, seed = task_args
+def run_hpc_main(scenario_file, chunk_ids, seed):
+    """Calls HPC_main.py as a subprocess, mimicking a SLURM array job."""
+    cmd = (
+        [
+            sys.executable,  # Uses the current active python environment
+            "examples/parameterSweepStudy/HPC_main.py",
+            "--scenario_file",
+            scenario_file,
+            "--scenarios",
+        ]
+        + [str(c) for c in chunk_ids]
+        + ["--seed", str(seed)]
+    )
+
     try:
-        # Run the simulation core
-        results, report = asyncio.run(run_simulation(config, seed))
+        # capture_output catches prints (like our JSON) natively
+        result = subprocess.run(cmd, capture_output=True, text=True, check=True)
+        return result.stdout
+    except subprocess.CalledProcessError as e:
+        return f"ERROR::Subprocess failed with exit code {e.returncode}\n{e.stderr}\n"
 
-        # Output results directly as a JSON payload
-        output_data = {
-            "metadata": {
-                "Scenario": scenario_id,
-                "Seed": seed
-            },
-            "report": report
-        }
-        return f"HPC_JSON_RESULT::{json.dumps(output_data)}\n"
-    except Exception as e:
-        return f"ERROR::Scenario_{scenario_id}::Seed_{seed}::{str(e)}\n"
 
 if __name__ == "__main__":
-    # --- Configuration ---
-    SCENARIO_FILE = "examples/parameterSweepStudy/ofat_parameters_v2.py"
-    OUTPUT_FILE = "examples/parameterSweepStudy/Outputs/local/ofat_results.txt"
-    SEEDS = 1
-    
-    # Default to using all available cores except one (so your computer remains usable)
-    WORKERS = max(1, multiprocessing.cpu_count() - 2)
-    
-    # 1. Load the scenario config
-    if not os.path.exists(SCENARIO_FILE):
-        print(f"Error: Scenario file '{SCENARIO_FILE}' not found.")
+    # Add the usual selection of parameters so that you can run it from the command line if you wish, I prefer running in the IDE so will change the default values to suit my needs.
+    parser = argparse.ArgumentParser(
+        description="Local runner that simulates SLURM by calling HPC_main.py"
+    )
+    parser.add_argument(
+        "--scenario_file",
+        type=str,
+        default="examples/parameterSweepStudy/ofat_parameters_v2.py",
+        help="Scenario dictionary file",
+    )
+    parser.add_argument(
+        "--output_file",
+        type=str,
+        default="examples/parameterSweepStudy/Outputs/local/ofat_results.txt",
+        help="Output file path",
+    )
+    parser.add_argument(
+        "--chunk_size",
+        type=int,
+        default=10,
+        help="Number of scenarios to run per HPC_main.py process",
+    )
+    parser.add_argument(
+        "--seeds", type=int, default=1, help="Number of random seeds per scenario"
+    )
+    parser.add_argument(
+        "--workers",
+        type=int,
+        default=max(1, multiprocessing.cpu_count() - 2),
+        help="Number of parallel workers",
+    )
+    args = parser.parse_args()
+
+    # 1. Load the scenario config just to extract the available scenario keys (IDs)
+    if not os.path.exists(args.scenario_file):
+        print(f"Error: Scenario file '{args.scenario_file}' not found.")
         sys.exit(1)
 
-    spec = importlib.util.spec_from_file_location("scenario_module", SCENARIO_FILE)
+    spec = importlib.util.spec_from_file_location("scenario_module", args.scenario_file)
     if spec is None or spec.loader is None:
-        print(f"Error: Could not load scenario file '{SCENARIO_FILE}'.")
+        print(f"Error: Could not load scenario file '{args.scenario_file}'.")
         sys.exit(1)
     scenario_module = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(scenario_module)
-    
+
     SCENARIOS = scenario_module.SCENARIOS
-    
-    # 2. Prepare the tasks
+    scenario_ids = list(SCENARIOS.keys())
+
+    # 2. Prepare the tasks (Chunks of scenario IDs + Seed combinations)
     tasks = []
-    for scenario_id, config in SCENARIOS.items():
-        for seed in range(1, SEEDS + 1):
-            tasks.append((scenario_id, config, seed))
-            
+    for i in range(0, len(scenario_ids), args.chunk_size):
+        chunk = scenario_ids[i : i + args.chunk_size]
+        for seed in range(1, args.seeds + 1):
+            tasks.append((args.scenario_file, chunk, seed))
+
     total_tasks = len(tasks)
-    print(f"Prepared {total_tasks} tasks from {len(SCENARIOS)} scenarios, running with {SEEDS} seeds each.")
-    print(f"Starting execution with {WORKERS} parallel workers...\n")
+    print(
+        f"Prepared {total_tasks} chunks (Chunks of {args.chunk_size} across {args.seeds} seeds)."
+    )
+    print(
+        f"Starting execution with {args.workers} parallel workers calling HPC_main.py...\n"
+    )
 
-    os.makedirs(os.path.dirname(os.path.abspath(OUTPUT_FILE)), exist_ok=True)
+    os.makedirs(os.path.dirname(os.path.abspath(args.output_file)), exist_ok=True)
 
-    # 3. Execute in parallel and write to output file
+    # 3. Execute subprocesses in parallel and aggregate stdout locally
     completed = 0
-    with open(OUTPUT_FILE, "w") as f:
-        with ProcessPoolExecutor(max_workers=WORKERS) as executor:
-            futures = {executor.submit(worker_task, task): task for task in tasks}
-            
+
+    # Note: We use ThreadPoolExecutor instead of ProcessPoolExecutor because threading
+    # is much more efficient for waiting on completely separate CLI subprocesses.
+    with open(args.output_file, "w") as f:
+        with ThreadPoolExecutor(max_workers=args.workers) as executor:
+            futures = {executor.submit(run_hpc_main, *task): task for task in tasks}
+
             for future in as_completed(futures):
                 f.write(future.result())
-                f.flush() # Ensure it writes to disk immediately
+                f.flush()  # Ensure it writes to disk immediately
                 completed += 1
-                print(f"\rProgress: {completed}/{total_tasks} ({(completed/total_tasks)*100:.1f}%) complete.", end="")
+                print(
+                    f"\rProgress: {completed}/{total_tasks} ({(completed/total_tasks)*100:.1f}%) complete.",
+                    end="",
+                )
 
-    print(f"\n\nAll tasks complete. Results saved to {OUTPUT_FILE}")
+    print(f"\n\nAll tasks complete. Results saved to {args.output_file}")

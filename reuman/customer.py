@@ -149,12 +149,12 @@ class Customer(BaseAgent):
         Handles logic for customers currently using a product until it reaches end-of-life.
         """
         if self._world.now() >= self._end_of_life_day:
-                      
+
             if self._active_product is not None:
                 self._state = CustomerStatesEnum.WANTS_ANY
                 self._active_product = None
-            
-            self._delivery_day = -1           
+
+            self._delivery_day = -1
             self._end_of_life_day = -1
             if ProductEnum.R in self._world.get_active_products():
                 if rng.random() < self._core_return_rate:

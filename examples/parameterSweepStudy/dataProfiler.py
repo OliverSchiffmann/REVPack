@@ -17,8 +17,9 @@ if not os.path.exists(scenario_file):
     scenario_file = "examples/scenarios.py"
     
 spec = importlib.util.spec_from_file_location("scenario_module", scenarios)
-scenario_module = importlib.util.module_from_spec(spec)
-spec.loader.exec_module(scenario_module)
+if spec and spec.loader:
+    scenario_module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(scenario_module)
 SCENARIOS = scenario_module.SCENARIOS
 
 # Flatten the specific target nested parameters into a list of simple dictionaries
