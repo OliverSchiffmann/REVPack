@@ -34,10 +34,9 @@ do
         # Print a header so profitRegex.py can find the scenario and seed
         echo "=== SCENARIO_$SCENARIO_ID SEED_$i ===" >> "examples/parameterSweepStudy/results/out_task_${subtask}.txt"
 
-        python -u examples/main_OS.py \
+        python -u examples/parameterSweepStudy/HPC_main.py \
             --scenario_file $scenario_file \
             --scenario "$SCENARIO_ID" \
-            --no_plot \
             --seed $i \
             >> "examples/parameterSweepStudy/results/out_task_${subtask}.txt" \
             2> "examples/parameterSweepStudy/logs/err_scenario_${SCENARIO_ID}_seed_${i}.txt"

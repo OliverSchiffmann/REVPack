@@ -3,7 +3,7 @@ import copy
 dict_default = {
         "description": "Standard run with default parameters",
         "main": {
-            "simulation_length": 1000,
+            "simulation_length": 5000,
             "B2B_population": 1000,
             "B2C_population": 0,
             "seed": 1,
@@ -51,7 +51,7 @@ dict_default = {
         },
         "b2b_customer": {
             "patience": 10,
-            "mean_lifetime": 200, 
+            "mean_lifetime": 500, 
             "lifetime_method": "triangular",
             "lifetime_range": 100,
             "core_return_rate": 0.8,

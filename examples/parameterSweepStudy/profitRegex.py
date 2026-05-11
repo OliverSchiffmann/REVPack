@@ -69,15 +69,15 @@ if __name__ == "__main__":
         # Group by Scenario to average across seeds and greatly reduce the CSV size
         # We only apply mean to numeric columns, keeping the code robust against any string values
         numeric_cols = resultsDf.select_dtypes(include=['number']).columns.tolist()
-        if "scenario_id" in numeric_cols:
+        if "Scenario" in numeric_cols:
             
-            numeric_cols.remove("scenario_id")
+            numeric_cols.remove("Scenario")
             
-        resultsDf = resultsDf.groupby("scenario_id", as_index=False)[numeric_cols].mean()
+        resultsDf = resultsDf.groupby("Scenario", as_index=False)[numeric_cols].mean()
         
         # drop the seed
-        if "seed" in resultsDf.columns:
-            resultsDf = resultsDf.drop(columns=["seed"])
+        if "Seed" in resultsDf.columns:
+            resultsDf = resultsDf.drop(columns=["Seed"])
             
         # Round all values to 2 decimal places
         resultsDf = resultsDf.round(2)

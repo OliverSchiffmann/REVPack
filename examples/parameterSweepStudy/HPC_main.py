@@ -9,7 +9,7 @@ import json
 from examples.simulation_runner import run_simulation
 
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser(description="Run HPC Sobol Analysis")
+    parser = argparse.ArgumentParser(description="Run Generic HPC Batch Simulation")
     parser.add_argument("--scenario_file", type=str, required=True, help="Scenario dictionary file")
     parser.add_argument("--scenario", type=str, required=True, help="Scenario ID to run")
     parser.add_argument("--seed", type=int, default=1, help="Random seed for reproducibility")
@@ -44,8 +44,8 @@ if __name__ == "__main__":
     # 3. Output results directly as a JSON payload
     output_data = {
         "metadata": {
-            "scenario_id": args.scenario,
-            "seed": args.seed
+            "Scenario": args.scenario,
+            "Seed": args.seed
         },
         "report": report
     }
