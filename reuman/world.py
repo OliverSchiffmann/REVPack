@@ -12,7 +12,7 @@ from . import customer
 from .product import ProductEnum
 
 if TYPE_CHECKING:
-    from .customer import Customer, CustomerStatesEnum, Customer
+    from .customer import Customer, CustomerStatesEnum
     from .OEM import OEM
 
 
