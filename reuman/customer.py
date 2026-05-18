@@ -71,9 +71,9 @@ class Customer(BaseAgent):
         self._patience = self._customer_config["patience"]
         self._core_return_rate = self._customer_config["core_return_rate"]
         self._end_of_patience_day = -1
-        self._lifetime_method = self._customer_config.get("lifetime_method", "triangular")
-        self._mean_lifetime = self._customer_config.get("mean_lifetime", 200)
-        self._lifetime_range = self._customer_config.get("lifetime_range", 3)
+        self._lifetime_method = self._customer_config["lifetime_method"]
+        self._mean_lifetime = self._customer_config["mean_lifetime"]
+        self._lifetime_range = self._customer_config["lifetime_range"]
 
     def next(self, rng):
         """
@@ -105,20 +105,15 @@ class Customer(BaseAgent):
         """
         Handles logic for customers not yet in the market.
         """
-        # This section is needed to avoid bias towards one product by always checking that first
-        productsToConsider = self._world.get_active_products()
-        rng.shuffle(productsToConsider)
-        for product in productsToConsider:
-            ad_effectiveness = (
-                self._config.get("products", {})
-                .get(product.name, {})
-                .get("advertising_effectiveness")
-            )
-            if rng.random() < ad_effectiveness:
-                self._state = product_params[product]["wants_state"]
-                self._active_product = product
-                self.try_and_buy(rng, product)
-                break
+        # Agents no longer independently decide to enter the market.
+        # This is now handled centrally by World.generate_demand()
+        pass
+
+    def force_market_entry(self, rng, product: ProductEnum):
+        """Called centrally by the World to transition agent out of POTENTIAL_USER state."""
+        self._state = product_params[product]["wants_state"]
+        self._active_product = product
+        self.try_and_buy(rng, product)
 
     def _handle_waiting_customer(self, rng):
         """
@@ -154,12 +149,12 @@ class Customer(BaseAgent):
         Handles logic for customers currently using a product until it reaches end-of-life.
         """
         if self._world.now() >= self._end_of_life_day:
-                      
+
             if self._active_product is not None:
                 self._state = CustomerStatesEnum.WANTS_ANY
                 self._active_product = None
-            
-            self._delivery_day = -1           
+
+            self._delivery_day = -1
             self._end_of_life_day = -1
             if ProductEnum.R in self._world.get_active_products():
                 if rng.random() < self._core_return_rate:
