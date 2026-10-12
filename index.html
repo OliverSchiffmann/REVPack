@@ -42,12 +42,13 @@
     <!-- Dynamic PyScript Configuration with Cache Busting -->
     <script>
       // Use a static version to allow the browser to cache Python files and drastically improve load speed
-      const ts = "1.0.0";
+      const ts = "1.0.2";
       const pyConfig = document.createElement("py-config");
       pyConfig.innerHTML = JSON.stringify({
         packages: ["numpy", "matplotlib"],
         fetch: [
           { from: `examples/main_OS.py?v=${ts}`, to_file: "main_OS.py" },
+          { from: `examples/simulation_runner.py?v=${ts}`, to_file: "examples/simulation_runner.py" },
           { from: `reuman/__init__.py?v=${ts}`, to_file: "reuman/__init__.py" },
           { from: `reuman/_agent.py?v=${ts}`, to_file: "reuman/_agent.py" },
           { from: `reuman/customer.py?v=${ts}`, to_file: "reuman/customer.py" },
