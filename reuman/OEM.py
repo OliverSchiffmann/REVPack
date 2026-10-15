@@ -31,6 +31,7 @@ class OEM(BaseAgent):
     _production_rate: dict[ProductEnum, float]
     _products_sold: dict[ProductEnum, int]
     _total_products_produced: dict[ProductEnum, float]
+    _num_to_man: dict[ProductEnum, float]
     _core_stock: float  # initial stock of cores for remanufacturing
     _core_acceptance_rate: float
     _total_cores_collected: int
@@ -359,7 +360,7 @@ class OEM(BaseAgent):
                     self._production_rate[product] = (
                         self._num_to_man[product] / self._manufacture_delay
                     )
-                    # if self._production_rate[product] < 3: # Could set a maximum production capacity
+                    # if self._production_rate[product] > 3: # Could set a maximum production capacity
                     #     self._production_rate[product] = 3
                     self._factory_stock[product] += self._production_rate[product]
                     self._total_products_produced[product] += self._production_rate[
@@ -387,7 +388,7 @@ class OEM(BaseAgent):
                     self._balance -= actual_production * self._unit_production_cost_R
 
         for product in ProductEnum:
-            self._num_to_man[product] = 0
+            self._num_to_man[product] -= self._production_rate[product]
 
     def generate_financial_report(self) -> dict:
         """
