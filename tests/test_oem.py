@@ -81,6 +81,7 @@ class TestOEM(unittest.TestCase):
         """Test whether the production rates act as expected, assuming baseline no cores."""
         self.oem._num_to_man[ProductEnum.V] = 10
         self.oem._num_to_man[ProductEnum.R] = 10
+        self.oem._factory_stock[ProductEnum.V] = 0
         self.oem.update_production()
         self.assertEqual(self.oem._production_rate[ProductEnum.V], 2)
         self.assertEqual(self.oem._production_rate[ProductEnum.R], 0)
@@ -93,13 +94,14 @@ class TestOEM(unittest.TestCase):
 
         self.oem._num_to_man[ProductEnum.V] = 10
         self.oem._num_to_man[ProductEnum.R] = 10
+        self.oem._factory_stock[ProductEnum.V] = 0
         self.oem._core_stock = 10
         self.oem.update_production()
 
         self.assertEqual(self.oem._production_rate[ProductEnum.V], 2)
         self.assertEqual(self.oem._production_rate[ProductEnum.R], 2.5)
 
-        self.assertEqual(self.oem._factory_stock[ProductEnum.V], 12)
+        self.assertEqual(self.oem._factory_stock[ProductEnum.V], 2)
         self.assertEqual(self.oem._factory_stock[ProductEnum.R], 2.5)
         self.assertEqual(self.oem._core_stock, 7.5)
 
