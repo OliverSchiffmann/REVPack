@@ -355,10 +355,14 @@ class OEM(BaseAgent):
         """
 
         for product in ProductEnum:
+            # Only produce for demand not already covered by stock on the shelf
+            still_needed = max(
+                0.0, self._num_to_man[product] - self._factory_stock[product]
+            )
             match product:
                 case ProductEnum.V:
                     self._production_rate[product] = (
-                        self._num_to_man[product] / self._manufacture_delay
+                        still_needed / self._manufacture_delay
                     )
                     # if self._production_rate[product] > 3: # Could set a maximum production capacity
                     #     self._production_rate[product] = 3
@@ -372,23 +376,26 @@ class OEM(BaseAgent):
                     )
 
                 case ProductEnum.R:
-                    desired_production = (
-                        self._num_to_man[product] / self._remanufacture_delay
-                    )
-                    cores_per_unit = self._config["products"]["R"]["cores_consumed"]
+                    if self._reman_enabled:
+                        desired_production = still_needed / self._remanufacture_delay
+                        cores_per_unit = self._config["products"]["R"]["cores_consumed"]
 
-                    # Production is limited by whichever runs out first: demand or cores
-                    max_from_cores = self._core_stock / cores_per_unit
-                    actual_production = min(desired_production, max_from_cores)
+                        # Production is limited by whichever runs out first: demand or cores
+                        max_from_cores = self._core_stock / cores_per_unit
+                        actual_production = min(desired_production, max_from_cores)
 
-                    self._production_rate[product] = actual_production
-                    self._factory_stock[product] += actual_production
-                    self._total_products_produced[product] += actual_production
-                    self._core_stock -= actual_production * cores_per_unit
-                    self._balance -= actual_production * self._unit_production_cost_R
+                        self._production_rate[product] = actual_production
+                        self._factory_stock[product] += actual_production
+                        self._total_products_produced[product] += actual_production
+                        self._core_stock -= actual_production * cores_per_unit
+                        self._balance -= (
+                            actual_production * self._unit_production_cost_R
+                        )
+                    else:
+                        self._production_rate[product] = 0
 
         for product in ProductEnum:
-            self._num_to_man[product] -= self._production_rate[product]
+            self._num_to_man[product] = 0
 
     def generate_financial_report(self) -> dict:
         """
