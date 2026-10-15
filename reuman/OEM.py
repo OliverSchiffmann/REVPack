@@ -69,6 +69,7 @@ class OEM(BaseAgent):
 
         Raises:
             ValueError: If manufacture_delay or remanufacture_delay is less than 1.
+            ValueError: if cores consumed is not a positive number greater than 0.
         """
         self._config = config
         oem_config = config["oem"]
@@ -80,6 +81,10 @@ class OEM(BaseAgent):
             raise ValueError(
                 f"remanufacture_delay must be >=1. Received: {oem_config['remanufacture_delay']}"
             )
+        cores_consumed = config["products"]["R"]["cores_consumed"]
+        if cores_consumed <= 0:
+            raise ValueError(f"cores_consumed must be >0. Received: {cores_consumed}")
+
         super().__init__(id=id, type=AgentEnum.OEM, world=world)
 
         self._balance = oem_config["balance"]

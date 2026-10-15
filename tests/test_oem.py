@@ -79,31 +79,36 @@ class TestOEM(unittest.TestCase):
 
     def test_update_production_no_cores(self):
         """Test whether the production rates act as expected, assuming baseline no cores."""
-        self.oem._num_to_man[ProductEnum.V] = 10
+        self.oem._num_to_man[ProductEnum.V] = 15
         self.oem._num_to_man[ProductEnum.R] = 10
-        self.oem._factory_stock[ProductEnum.V] = 0
         self.oem.update_production()
-        self.assertEqual(self.oem._production_rate[ProductEnum.V], 2)
-        self.assertEqual(self.oem._production_rate[ProductEnum.R], 0)
+        self.assertAlmostEqual(self.oem._production_rate[ProductEnum.V], 1)
+        self.assertAlmostEqual(self.oem._production_rate[ProductEnum.R], 0)
 
-        self.assertEqual(self.oem._factory_stock[ProductEnum.V], 12)
-        self.assertEqual(self.oem._factory_stock[ProductEnum.R], 0)
+        self.assertAlmostEqual(self.oem._factory_stock[ProductEnum.V], 11)
+        self.assertAlmostEqual(self.oem._factory_stock[ProductEnum.R], 0)
 
     def test_update_production_cores(self):
-        """Test whether the production rates act as expected, with available cores."""
+        """Production is netted against stock on hand; reman is limited by demand when cores are plentiful."""
+        self.oem._factory_stock[ProductEnum.R] = (
+            5  # only needed if setUp still has reman_stock = 0
+        )
 
-        self.oem._num_to_man[ProductEnum.V] = 10
+        self.oem._num_to_man[ProductEnum.V] = 15
         self.oem._num_to_man[ProductEnum.R] = 10
-        self.oem._factory_stock[ProductEnum.V] = 0
         self.oem._core_stock = 10
         self.oem.update_production()
 
-        self.assertEqual(self.oem._production_rate[ProductEnum.V], 2)
-        self.assertEqual(self.oem._production_rate[ProductEnum.R], 2.5)
+        self.assertAlmostEqual(
+            self.oem._production_rate[ProductEnum.V], 1.0
+        )  # (15 - 10) / 5
+        self.assertAlmostEqual(
+            self.oem._production_rate[ProductEnum.R], 1.25
+        )  # (10 - 5) / 4
 
-        self.assertEqual(self.oem._factory_stock[ProductEnum.V], 2)
-        self.assertEqual(self.oem._factory_stock[ProductEnum.R], 2.5)
-        self.assertEqual(self.oem._core_stock, 7.5)
+        self.assertAlmostEqual(self.oem._factory_stock[ProductEnum.V], 11)  # 10 + 1
+        self.assertAlmostEqual(self.oem._factory_stock[ProductEnum.R], 6.25)  # 5 + 1.25
+        self.assertAlmostEqual(self.oem._core_stock, 8.75)  # 10 - 1.25
 
     def test_get_shipping_delay(self):
         """Test shipping delay calculation with and without distance matrix."""
@@ -185,6 +190,30 @@ class TestOEM(unittest.TestCase):
         self.assertIn("Statistics", report)
         self.assertIn("Total bounties paid", report["Breakdown"])
         self.assertIn("Virgin units sold", report["Statistics"])
+
+    def test_init_rejects_non_positive_cores_consumed(self):
+        """OEM should refuse a config where a reman unit consumes zero or negative cores."""
+        for bad_value in (0, -1):
+            with self.subTest(cores_consumed=bad_value):
+                config = copy.deepcopy(TEST_SCENARIOS["Default"])
+                config["products"]["R"]["cores_consumed"] = bad_value
+                with self.assertRaises(ValueError):
+                    OEM(id=-1, world=World(config=config), config=config)
+
+    def test_update_production_reman_disabled(self):
+        """With reman disabled, no reman units are produced and cores are untouched."""
+        config = copy.deepcopy(TEST_SCENARIOS["Default"])
+        config["main"]["enable_reman"] = False
+        world = World(config=config)
+        oem = OEM(id=-1, world=world, config=config)
+
+        oem._num_to_man[ProductEnum.R] = 10
+        oem._core_stock = 10
+        oem.update_production()
+
+        self.assertEqual(oem._production_rate[ProductEnum.R], 0)
+        self.assertEqual(oem._core_stock, 10)
+        self.assertEqual(oem._factory_stock[ProductEnum.R], 0)
 
 
 if __name__ == "__main__":
