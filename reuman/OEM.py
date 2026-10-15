@@ -80,57 +80,57 @@ class OEM(BaseAgent):
                 f"remanufacture_delay must be >=1. Received: {oem_config['remanufacture_delay']}"
             )
         super().__init__(id=id, type=AgentEnum.OEM, world=world)
-        
-        self._balance = oem_config["balance"]
-        
-        self._state                      = OEMStatesEnum.OPERATIONAL
-        self._location                   = oem_config["location"]
-        self._distance_matrix            = oem_config["distance_matrix"]
-        self._total_shipping_cost        = 0.0
-        self._delivery_delay             = oem_config["delivery_delay"]
-        self._manufacture_delay          = oem_config["manufacture_delay"]
-        self._remanufacture_delay        = oem_config["remanufacture_delay"]
-        self._factory_stock              = {
-                                             ProductEnum.V: oem_config["virgin_stock"],
-                                             ProductEnum.R: oem_config["reman_stock"],
-                                         }
-        self._production_rate            = {ProductEnum.V: 0, ProductEnum.R: 0}
-        self._products_sold              = {ProductEnum.V: 0, ProductEnum.R: 0}
-        self._total_products_produced    = {ProductEnum.V: 0, ProductEnum.R: 0}
-        self._num_to_man                 = {ProductEnum.V: 0, ProductEnum.R: 0}
-        self._core_stock                 = oem_config["core_stock"]
-        self._core_acceptance_rate       = oem_config["core_acceptance_rate"]
-        self._total_cores_collected      = 0
-        self._total_core_collection_cost = 0
-        self._total_cores_rejected       = 0
-        self._total_cores_over_capacity  = 0
-        self._total_cores_not_collected  = 0
-        self._unit_production_cost_V     = oem_config["unit_production_cost_V"]
-        self._unit_production_cost_R     = oem_config["unit_production_cost_R"]
-        self._core_collection_cost       = oem_config["core_collection_cost"]
-        self._core_disposal_cost         = oem_config["core_disposal_cost"]
-        self._core_storage_cost          = oem_config["core_storage_cost"]
-        self._total_core_storage_cost    = 0.0
-        self._core_storage_limit         = oem_config["core_storage_limit"]
-        self._bounties_returned          = 0
-        self._bounty_value               = oem_config["bounty_value"]
-        self._retail_price_V             = oem_config["retail_price_V"]
-        self._retail_price_R             = oem_config["retail_price_R"]
-        self._inspection_cost            = oem_config["inspection_cost"]
-        self._total_inspection_costs     = 0.0
-        self._incoming_cores             = []
-        
-        self._logistic_heuristics        = {
-                                          "local_delivery_cost":oem_config["local_delivery_cost"],
-                                          "shipping_cost_per_km":oem_config["shipping_cost_per_km"],
-                                          "ferry_fee":oem_config["ferry_fee"],
-                                          "driving_hours_per_day":oem_config["driving_hours_per_day"],
-                                          }
 
-        self._reman_implementation_cost  = oem_config["reman_implementation_cost"]
+        self._balance = oem_config["balance"]
+
+        self._state = OEMStatesEnum.OPERATIONAL
+        self._location = oem_config["location"]
+        self._distance_matrix = oem_config["distance_matrix"]
+        self._total_shipping_cost = 0.0
+        self._delivery_delay = oem_config["delivery_delay"]
+        self._manufacture_delay = oem_config["manufacture_delay"]
+        self._remanufacture_delay = oem_config["remanufacture_delay"]
+        self._factory_stock = {
+            ProductEnum.V: oem_config["virgin_stock"],
+            ProductEnum.R: oem_config["reman_stock"],
+        }
+        self._production_rate = {ProductEnum.V: 0, ProductEnum.R: 0}
+        self._products_sold = {ProductEnum.V: 0, ProductEnum.R: 0}
+        self._total_products_produced = {ProductEnum.V: 0, ProductEnum.R: 0}
+        self._num_to_man = {ProductEnum.V: 0, ProductEnum.R: 0}
+        self._core_stock = oem_config["core_stock"]
+        self._core_acceptance_rate = oem_config["core_acceptance_rate"]
+        self._total_cores_collected = 0
+        self._total_core_collection_cost = 0
+        self._total_cores_rejected = 0
+        self._total_cores_over_capacity = 0
+        self._total_cores_not_collected = 0
+        self._unit_production_cost_V = oem_config["unit_production_cost_V"]
+        self._unit_production_cost_R = oem_config["unit_production_cost_R"]
+        self._core_collection_cost = oem_config["core_collection_cost"]
+        self._core_disposal_cost = oem_config["core_disposal_cost"]
+        self._core_storage_cost = oem_config["core_storage_cost"]
+        self._total_core_storage_cost = 0.0
+        self._core_storage_limit = oem_config["core_storage_limit"]
+        self._bounties_returned = 0
+        self._bounty_value = oem_config["bounty_value"]
+        self._retail_price_V = oem_config["retail_price_V"]
+        self._retail_price_R = oem_config["retail_price_R"]
+        self._inspection_cost = oem_config["inspection_cost"]
+        self._total_inspection_costs = 0.0
+        self._incoming_cores = []
+
+        self._logistic_heuristics = {
+            "local_delivery_cost": oem_config["local_delivery_cost"],
+            "shipping_cost_per_km": oem_config["shipping_cost_per_km"],
+            "ferry_fee": oem_config["ferry_fee"],
+            "driving_hours_per_day": oem_config["driving_hours_per_day"],
+        }
+
+        self._reman_implementation_cost = oem_config["reman_implementation_cost"]
         self._reman_annual_operating_cost = oem_config["reman_annual_operating_cost"]
         self._total_reman_operating_cost = 0.0
-        self._reman_enabled              = ProductEnum.R in self._world.get_active_products()
+        self._reman_enabled = ProductEnum.R in self._world.get_active_products()
 
         if self._reman_enabled:
             self._balance -= self._reman_implementation_cost
@@ -148,7 +148,9 @@ class OEM(BaseAgent):
             route = self._distance_matrix[self._location].get(destination)
             if route:
                 hours = route["driving_hours"]
-                days = 1 + int(hours // self._logistic_heuristics["driving_hours_per_day"])
+                days = 1 + int(
+                    hours // self._logistic_heuristics["driving_hours_per_day"]
+                )
                 if route.get("has_ferry"):
                     days += 1
                 return days
@@ -243,8 +245,12 @@ class OEM(BaseAgent):
             #     shipping_cost = self.get_shipping_cost(customer_location, 20.0)
             #     self._total_shipping_cost += shipping_cost
             #     self._balance -= shipping_cost
-                
-            self._balance += self._retail_price_V if product == ProductEnum.V else self._retail_price_R
+
+            self._balance += (
+                self._retail_price_V
+                if product == ProductEnum.V
+                else self._retail_price_R
+            )
             return True
 
         return False
@@ -332,6 +338,10 @@ class OEM(BaseAgent):
                 elif agent.state() == CustomerStatesEnum.WANTS_REMAN:
                     self._num_to_man[ProductEnum.R] += 1
                 elif agent.state() == CustomerStatesEnum.WANTS_ANY:
+                    # note that whilst this add two units to the queue to be made, it is deliberate
+                    # this is just a way to resolve customers being stuck in the wants_any state for now
+                    # also the production of reman or virgin units may be constrained by something else
+                    # so even if they are due to be produced, they might not necissarily get produced
                     self._num_to_man[ProductEnum.V] += 1
                     self._num_to_man[ProductEnum.R] += 1
 
@@ -366,16 +376,15 @@ class OEM(BaseAgent):
                     )
                     cores_per_unit = self._config["products"]["R"]["cores_consumed"]
 
-                    if desired_production * cores_per_unit > self._core_stock:
-                        self._production_rate[product] = 0
-                    else:
-                        self._production_rate[product] = desired_production
-                        self._factory_stock[product] += desired_production
-                        self._total_products_produced[product] += desired_production
-                        self._core_stock -= desired_production * cores_per_unit
-                        self._balance -= (
-                            desired_production * self._unit_production_cost_R
-                        )
+                    # Production is limited by whichever runs out first: demand or cores
+                    max_from_cores = self._core_stock / cores_per_unit
+                    actual_production = min(desired_production, max_from_cores)
+
+                    self._production_rate[product] = actual_production
+                    self._factory_stock[product] += actual_production
+                    self._total_products_produced[product] += actual_production
+                    self._core_stock -= actual_production * cores_per_unit
+                    self._balance -= actual_production * self._unit_production_cost_R
 
         for product in ProductEnum:
             self._num_to_man[product] = 0
@@ -416,7 +425,9 @@ class OEM(BaseAgent):
         # Inspection costs
         cost_inspection = self._total_inspection_costs
 
-        cost_reman_impl = self._reman_implementation_cost if self._reman_enabled else 0.0
+        cost_reman_impl = (
+            self._reman_implementation_cost if self._reman_enabled else 0.0
+        )
         cost_reman_op = self._total_reman_operating_cost if self._reman_enabled else 0.0
 
         cost_to_meet_demand = (
