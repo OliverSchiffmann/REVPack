@@ -192,15 +192,22 @@ def estimate_ad_rates(
 
     n_days = len(next(iter(given.values())).values)
     pool = market_size - starting_customers
+    if pool <= 0:
+        raise ValueError(
+            "There are no potential customers: starting customers must be "
+            "fewer than the market size."
+        )
     pool_days = 0.0  # sum of the pool size over all days
 
     for t in range(n_days):
-        if pool <= 0:
+        day_sales = sum(s.values[t] for s in given.values())
+        if day_sales > pool:
             raise ValueError(
-                f"The market runs out of potential customers on day {t + 1}. "
+                f"On day {t + 1} the data has {day_sales:g} new customers but only "
+                f"{pool:g} potential customers are left. "
                 "Market size is too small for these sales figures."
             )
         pool_days += pool
-        pool -= sum(s.values[t] for s in given.values())
+        pool -= day_sales
 
     return {k: round_sig(sum(s.values) / pool_days) for k, s in given.items()}

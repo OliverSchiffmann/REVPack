@@ -12,6 +12,7 @@ from . import customer
 from .product import ProductEnum
 import copy
 from . import demand_inputs
+from collections.abc import Sequence
 
 if TYPE_CHECKING:
     from .customer import Customer, CustomerStatesEnum
@@ -38,6 +39,7 @@ class World:
     _config: dict
     _demand_profiles: dict
     _demand_calibration: dict
+    _new_customers_today: dict[ProductEnum, int]
 
     def __init__(self, config: dict) -> None:
         """
@@ -54,6 +56,7 @@ class World:
         self._num_wants = {ProductEnum.V: 0, ProductEnum.R: 0}
         self._num_uses = {ProductEnum.V: 0, ProductEnum.R: 0}
         self._num_wants_any = 0
+        self._new_customers_today = {ProductEnum.V: 0, ProductEnum.R: 0}
         self._message_queue = []
         self._active_products = [ProductEnum.V]
         self._config = config
@@ -214,7 +217,7 @@ class World:
         self._agents[agent.id()] = agent
         self._agents_by_type[agent.type()].append(agent.id())
 
-    def add_agents_from_list(self, agents: list[BaseAgent]):
+    def add_agents_from_list(self, agents: Sequence[BaseAgent]):
         """
         Adds a list of agents to the simulation world.
 
@@ -231,6 +234,8 @@ class World:
         forcefully transitions selected POTENTIAL_USERs into the market.
         """
         from .customer import CustomerStatesEnum
+
+        self._new_customers_today = {product: 0 for product in ProductEnum}
 
         potential_users = [
             agent
@@ -275,6 +280,7 @@ class World:
                     num_to_enter = amount
 
             num_to_enter = min(num_to_enter, len(potential_users))
+            self._new_customers_today[product] = max(0, int(num_to_enter))
 
             if num_to_enter > 0:
                 picked_indices = rng.choice(
@@ -389,6 +395,8 @@ class World:
             "inspection_cost": [],
             "bounty_values_paid": [],
             "oem_balance": [],
+            "new_customers_V": [],
+            "new_customers_R": [],
         }
 
         for i in range(simulation_length):
@@ -410,6 +418,9 @@ class World:
                 results[key].append(value)
 
             self.generate_demand(rng)
+            # Recorded after generate_demand so each value belongs to the same day
+            results["new_customers_V"].append(self._new_customers_today[ProductEnum.V])
+            results["new_customers_R"].append(self._new_customers_today[ProductEnum.R])
             self.call_next(rng)
 
             if progress_callback is not None:
