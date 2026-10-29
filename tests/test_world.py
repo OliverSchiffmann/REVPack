@@ -1,4 +1,10 @@
 import unittest, copy
+import asyncio
+import json
+import os
+import tempfile
+from reuman import demand_inputs
+from tests.test_demand_inputs import make_forecast
 import numpy as np
 import test
 from reuman import world, customer
@@ -141,5 +147,141 @@ class TestWorld(unittest.TestCase):
         self.assertEqual(market_entered_count, 5)
 
 
-if __name__ == "__main_":
+class TestWorldForecastProfiles(unittest.TestCase):
+    """Forecast demand profiles are turned into stochastic rates when a World is created."""
+
+    def setUp(self):
+        self.config = copy.deepcopy(TEST_SCENARIOS["Default"])
+        self.config["main"]["B2B_population"] = 1000
+        self.config["main"]["B2C_population"] = 0
+        self.config["main"]["starting_customers"] = 200
+        self.v_data = make_forecast([1, 0, 2, 1, 0, 1, 1], [1, 2, 1])
+        self.r_data = make_forecast([0, 0, 1, 0, 0, 0, 0], [0, 0, 1])
+        self.config["products"]["V"]["demand_profile"] = {
+            "type": "forecast",
+            "forecast": self.v_data,
+        }
+        self.config["products"]["R"]["demand_profile"] = {
+            "type": "forecast",
+            "forecast": self.r_data,
+        }
+
+    def test_forecasts_become_stochastic_rates(self):
+        w = world.World(config=self.config)
+        expected = demand_inputs.estimate_ad_rates(
+            demand_inputs.build_daily_series(self.v_data),
+            demand_inputs.build_daily_series(self.r_data),
+            market_size=1000,
+            starting_customers=200,
+        )
+        self.assertEqual(
+            w._demand_profiles["V"], {"type": "stochastic", "rate": expected["V"]}
+        )
+        self.assertEqual(
+            w._demand_profiles["R"], {"type": "stochastic", "rate": expected["R"]}
+        )
+
+    def test_config_is_not_changed(self):
+        before = copy.deepcopy(self.config)
+        world.World(config=self.config)
+        self.assertEqual(self.config, before)
+
+    def test_calibration_details_are_kept(self):
+        cal = world.World(config=self.config).get_demand_calibration()
+        self.assertEqual(set(cal), {"V", "R"})
+        self.assertEqual(cal["V"]["start_date"], "2025-01-01")
+        self.assertEqual(cal["V"]["end_date"], "2025-01-10")
+        self.assertEqual(cal["V"]["history_days"], 7)
+        self.assertEqual(cal["V"]["daily_values"], [1, 0, 2, 1, 0, 1, 1, 1, 2, 1])
+
+    def test_file_path_route(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            path = os.path.join(tmp, "v.json")
+            with open(path, "w", encoding="utf-8") as f:
+                json.dump(self.v_data, f)
+            self.config["products"]["V"]["demand_profile"]["forecast"] = path
+            from_path = world.World(config=self.config)._demand_profiles["V"]
+        self.config["products"]["V"]["demand_profile"]["forecast"] = self.v_data
+        from_dict = world.World(config=self.config)._demand_profiles["V"]
+        self.assertEqual(from_path, from_dict)
+
+    def test_only_one_forecast(self):
+        # R keeps its hand-typed stochastic rate; only V is calibrated
+        self.config["products"]["R"]["demand_profile"] = {
+            "type": "stochastic",
+            "rate": 0.0003,
+        }
+        w = world.World(config=self.config)
+        self.assertEqual(w._demand_profiles["V"]["type"], "stochastic")
+        self.assertEqual(
+            w._demand_profiles["R"], {"type": "stochastic", "rate": 0.0003}
+        )
+        self.assertEqual(set(w.get_demand_calibration()), {"V"})
+
+    def test_no_forecasts_gives_empty_calibration(self):
+        w = world.World(config=copy.deepcopy(TEST_SCENARIOS["Default"]))
+        self.assertEqual(w.get_demand_calibration(), {})
+
+    def test_reman_forecast_with_reman_disabled_raises(self):
+        self.config["main"]["enable_reman"] = False
+        with self.assertRaises(ValueError):
+            world.World(config=self.config)
+
+    def test_forecast_profile_without_data_raises(self):
+        del self.config["products"]["V"]["demand_profile"]["forecast"]
+        with self.assertRaises(ValueError):
+            world.World(config=self.config)
+
+
+class TestNewCustomerCounting(unittest.TestCase):
+    """The World records how many customers enter the market each day."""
+
+    def setUp(self):
+        self.config = copy.deepcopy(TEST_SCENARIOS["Default"])
+        self.config["products"]["V"]["demand_profile"] = {
+            "type": "deterministic",
+            "amount_per_day": 5,
+        }
+        self.config["products"]["R"]["demand_profile"] = {
+            "type": "deterministic",
+            "amount_per_day": 0,
+        }
+
+    def _world_with_customers(self, n):
+        w = world.World(config=self.config)
+        oem = OEM(id=99, world=w, config=self.config)
+        customers = [
+            Customer(
+                id=i, world=w, oem=oem, config=self.config, customer_type="b2b_customer"
+            )
+            for i in range(n)
+        ]
+        w.add_agents_from_list(customers)
+        w.add_agent(oem)
+        return w
+
+    def test_counts_new_customers(self):
+        w = self._world_with_customers(10)
+        w.generate_demand(np.random.default_rng(42))
+        self.assertEqual(w._new_customers_today, {ProductEnum.V: 5, ProductEnum.R: 0})
+
+    def test_count_resets_when_market_is_used_up(self):
+        # 5 customers and 5 entries per day: day 1 uses everyone, day 2 has none left
+        w = self._world_with_customers(5)
+        rng = np.random.default_rng(42)
+        w.generate_demand(rng)
+        w.generate_demand(rng)
+        self.assertEqual(w._new_customers_today, {ProductEnum.V: 0, ProductEnum.R: 0})
+
+    def test_run_records_new_customers_each_day(self):
+        w = self._world_with_customers(20)
+        results, _ = asyncio.run(w.run(np.random.default_rng(1), simulation_length=6))
+        self.assertEqual(len(results["new_customers_V"]), 6)
+        self.assertEqual(len(results["new_customers_R"]), 6)
+        # 5 a day until the 20 potential customers run out
+        self.assertEqual(results["new_customers_V"], [5, 5, 5, 5, 0, 0])
+        self.assertEqual(sum(results["new_customers_R"]), 0)
+
+
+if __name__ == "__main__":
     unittest.main()

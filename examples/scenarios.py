@@ -75,7 +75,30 @@ dict_no_reman = copy.deepcopy(dict_default)
 dict_no_reman["description"] = "Run with remanufacturing disabled"
 dict_no_reman["main"]["enable_reman"] = False
 
+# Advertising rates calibrated from Simplan forecast files (synthetic OS data).
+# Stores file paths, not loaded data: the files are only opened when this
+# scenario is run, so importing this module (e.g. in the webapp) never needs them.
+dict_forecast = copy.deepcopy(dict_default)
+dict_forecast["description"] = (
+    "Advertising rates calibrated from example Simplan forecasts (synthetic OS data)"
+)
+dict_forecast["main"]["simulation_length"] = 1825  # 5 years
+dict_forecast["main"][
+    "B2B_population"
+] = 1000  # market size the example data was made for
+dict_forecast["main"]["B2C_population"] = 0
+dict_forecast["main"]["starting_customers"] = 200
+dict_forecast["products"]["V"]["demand_profile"] = {
+    "type": "forecast",
+    "forecast": "examples/forecasts/forecast_virgin.json",
+}
+dict_forecast["products"]["R"]["demand_profile"] = {
+    "type": "forecast",
+    "forecast": "examples/forecasts/forecast_reman.json",
+}
+
 SCENARIOS = {
     "Default": dict_default,
     "No Reman": dict_no_reman,
+    "Forecast": dict_forecast,
 }

@@ -42,7 +42,7 @@
     <!-- Dynamic PyScript Configuration with Cache Busting -->
     <script>
       // Use a static version to allow the browser to cache Python files and drastically improve load speed
-      const ts = "1.0.2";
+      const ts = "1.0.3"; // bump whenever any fetched .py file changes
       const pyConfig = document.createElement("py-config");
       pyConfig.innerHTML = JSON.stringify({
         packages: ["numpy", "matplotlib"],
@@ -56,6 +56,7 @@
           { from: `reuman/OEM.py?v=${ts}`, to_file: "reuman/OEM.py" },
           { from: `reuman/product.py?v=${ts}`, to_file: "reuman/product.py" },
           { from: `reuman/world.py?v=${ts}`, to_file: "reuman/world.py" },
+          { from: `reuman/demand_inputs.py?v=${ts}`, to_file: "reuman/demand_inputs.py" },
           { from: `reuman/states.py?v=${ts}`, to_file: "reuman/states.py" },
           { from: `examples/scenarios.py?v=${ts}`, to_file: "scenarios.py" },
           {
@@ -280,6 +281,8 @@
                   </details>
                 </div>
 
+                <div id="col1-calibration" class="hidden"></div>
+
                 <div>
                   <canvas
                     id="col1-StatesChart"
@@ -291,6 +294,25 @@
                     id="col1-SalesChart"
                     style="min-height: 300px; width: 100%"
                   ></canvas>
+                </div>
+
+                <div id="col1-demand-section" class="hidden flex flex-col gap-2">
+                  <div>
+                    <canvas
+                      id="col1-DemandChartV"
+                      style="min-height: 250px; width: 100%"
+                    ></canvas>
+                  </div>
+                  <div>
+                    <canvas
+                      id="col1-DemandChartR"
+                      style="min-height: 250px; width: 100%"
+                    ></canvas>
+                  </div>
+                  <p class="text-xs text-gray-500 dark:text-gray-400 italic">
+                    4-week averages. The model line is one random run: change the
+                    random seed to see how much it varies.
+                  </p>
                 </div>
 
                 <div class="mt-2">
@@ -343,6 +365,8 @@
                   </details>
                 </div>
 
+                <div id="col2-calibration" class="hidden"></div>
+
                 <div>
                   <canvas
                     id="col2-StatesChart"
@@ -354,6 +378,25 @@
                     id="col2-SalesChart"
                     style="min-height: 300px; width: 100%"
                   ></canvas>
+                </div>
+
+                <div id="col2-demand-section" class="hidden flex flex-col gap-2">
+                  <div>
+                    <canvas
+                      id="col2-DemandChartV"
+                      style="min-height: 250px; width: 100%"
+                    ></canvas>
+                  </div>
+                  <div>
+                    <canvas
+                      id="col2-DemandChartR"
+                      style="min-height: 250px; width: 100%"
+                    ></canvas>
+                  </div>
+                  <p class="text-xs text-gray-500 dark:text-gray-400 italic">
+                    4-week averages. The model line is one random run: change the
+                    random seed to see how much it varies.
+                  </p>
                 </div>
 
                 <div class="mt-2">
@@ -409,6 +452,79 @@
         currency: "EUR",
         maximumFractionDigits: 0,
       });
+
+      // Help text shared by both demand profiles (one copy to keep up to date).
+      // Avoid writing a parameter name followed by a colon here: tests/test_webapp_sync.py
+      // searches paramSchema for "name:" patterns and could be fooled.
+      const DEMAND_HELP =
+        "How many new customers enter the market each day. Stochastic rate = the daily chance that each potential customer starts wanting this product. Deterministic qty = a fixed number of customers per day. A CSV array gives one value per day (row 1 = day 1). After the last row, demand drops to 0. Values are new customers, not total orders (repeat orders are made by the model). Not yet reviewed - non-integer CSV values may stop a deterministic run in the webapp.";
+
+      // Help text shown next to the forecast upload when "Forecast (Simplan JSON)" is selected.
+      const FORECAST_HELP =
+        "Upload a Simplan forecast file (.json). Before the run, the model turns it into a fixed daily advertising rate: total new customers in the file divided by total potential-customer days. Real sales are used where the file has them, Simplan's forecast after that. V and R are worked out together because they share one pool of customers, so upload both if you have them. Assumes the file counts NEW customers only (repeat orders make the rate too high). The rate is only valid for the market size (B2B + B2C population) and starting customers set in Main. Day 1 of the simulation is the first date in the file.";
+
+      // Badge styles for the optional "status" key in paramSchema entries.
+      const STATUS_STYLES = {
+        experimental: {
+          text: "Experimental",
+          cls: "bg-amber-100 text-amber-800 dark:bg-amber-900 dark:text-amber-200",
+        },
+        unverified: {
+          text: "Unverified",
+          cls: "bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200",
+        },
+      };
+
+      // Builds a field's label row: label text, optional status badge, optional help tooltip.
+      function makeLabelRow(fieldKey, fieldDef) {
+        const row = document.createElement("div");
+        row.className = "flex items-center gap-1 mb-1";
+
+        const label = document.createElement("label");
+        label.className =
+          "text-xs text-gray-600 dark:text-gray-400 font-semibold capitalize";
+        label.innerText = fieldDef.label || fieldKey.replace(/_/g, " ");
+        row.appendChild(label);
+
+        const badge = makeStatusBadge(fieldDef.status);
+        if (badge) row.appendChild(badge);
+
+        if (fieldDef.help) row.appendChild(makeHelpTip(fieldDef.help));
+        return row;
+      }
+
+      // Small status badge, e.g. "Experimental". Returns null for an unknown status.
+      function makeStatusBadge(statusKey) {
+        const status = STATUS_STYLES[statusKey];
+        if (!status) return null;
+        const badge = document.createElement("span");
+        badge.className = `text-[10px] px-1 rounded ${status.cls}`;
+        badge.innerText = status.text;
+        return badge;
+      }
+
+      // An (i) icon that shows helpText on hover or keyboard focus.
+      function makeHelpTip(helpText) {
+        const tip = document.createElement("span");
+        tip.className = "relative group inline-flex";
+        tip.tabIndex = 0; // keyboard users can focus it
+        tip.setAttribute("aria-label", helpText); // screen readers read it
+
+        const icon = document.createElement("span");
+        icon.className =
+          "text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 cursor-help text-xs";
+        icon.innerText = "\u24D8";
+        tip.appendChild(icon);
+
+        const box = document.createElement("span");
+        box.className =
+          "hidden group-hover:block group-focus:block absolute left-0 top-5 z-50 w-64 p-2 " +
+          "text-xs font-normal normal-case rounded shadow-lg " +
+          "bg-gray-800 text-white dark:bg-gray-100 dark:text-gray-900";
+        box.innerText = helpText;
+        tip.appendChild(box);
+        return tip;
+      }
 
       const paramSchema = {
         main: {
@@ -510,6 +626,8 @@
             step: 0.1,
             label: "Driving Hours per Day",
           },
+          reman_implementation_cost: { type: "number", label: "Reman Implementation Cost (€)" },
+          reman_annual_operating_cost: { type: "number", label: "Reman Annual Operating Cost (€/year)" },
         },
         b2b_customer: {
           patience: { type: "number", label: "Patience (days)" },
@@ -540,11 +658,21 @@
           },
         },
         products_V: {
-          demand_profile: { type: "demand_profile", label: "Demand Profile" },
+          demand_profile: {
+            type: "demand_profile",
+            label: "Demand Profile",
+            status: "unverified",
+            help: DEMAND_HELP,
+          },
           wom_threshold: { type: "number", step: 0.001 },
         },
         products_R: {
-          demand_profile: { type: "demand_profile", label: "Demand Profile" },
+          demand_profile: {
+            type: "demand_profile",
+            label: "Demand Profile",
+            status: "unverified",
+            help: DEMAND_HELP,
+          },
           wom_threshold: { type: "number", step: 0.001 },
           cores_consumed: { type: "number" },
         },
@@ -620,8 +748,22 @@
       Chart.defaults.color = isDarkTheme ? "#9ca3af" : "#666";
       Chart.defaults.scale.grid.color = isDarkTheme ? "#374151" : "#e5e7eb";
 
+      // One-line summary of an uploaded Simplan forecast for the settings panel.
+      function describeForecast(fc) {
+        if (!fc || typeof fc !== "object") return "No forecast uploaded yet.";
+        const sm = fc.summary || {};
+        const nHist = (fc.tables && fc.tables.input && fc.tables.input.length) || 0;
+        const nFut = sm.forecastPeriods ?? "?";
+        const start = (sm.periodStart || "").slice(0, 10) || "?";
+        return `Loaded: ${nHist} days of real data from ${start}, plus ${nFut} forecast days.`;
+      }
+
       function renderForm() {
         const container = document.getElementById("dynamic-form");
+        // Remember which sections were open, so redrawing the form doesn't collapse them
+        const openGroups = new Set(
+          [...container.querySelectorAll("details[open]")].map((d) => d.dataset.group),
+        );
         container.innerHTML = "";
         const activeScen = scenarios.find((s) => s.id == activeScenarioId);
         if (!activeScen) return;
@@ -632,7 +774,8 @@
           const details = document.createElement("details");
           details.className =
             "bg-gray-50 dark:bg-gray-700 p-2 rounded border dark:border-gray-600 mb-2 shadow-sm transition-colors";
-          if (group === "main") details.open = true;
+          details.dataset.group = group;
+          if (openGroups.size ? openGroups.has(group) : group === "main") details.open = true;
 
           const summary = document.createElement("summary");
           summary.className =
@@ -647,11 +790,7 @@
             const val = activeScen.config[group][fieldKey];
             const wrap = document.createElement("div");
 
-            const label = document.createElement("label");
-            label.className =
-              "block text-xs text-gray-600 dark:text-gray-400 font-semibold mb-1 capitalize";
-            label.innerText = fieldDef.label || fieldKey.replace(/_/g, " ");
-            wrap.appendChild(label);
+            wrap.appendChild(makeLabelRow(fieldKey, fieldDef));
 
             if (fieldDef.type === "boolean") {
               const inp = document.createElement("input");
@@ -688,6 +827,11 @@
               };
               wrap.appendChild(inp);
             } else if (fieldDef.type === "demand_profile") {
+              // The profile keeps numbers / CSV arrays in "value" and an uploaded
+              // Simplan forecast in "forecast", so switching type never loses either.
+              const dp = activeScen.config[group][fieldKey];
+              const isForecast = val.type === "forecast";
+
               const wrapBox = document.createElement("div");
               wrapBox.className =
                 "flex flex-col gap-2 bg-white dark:bg-gray-800 p-2 border border-gray-200 dark:border-gray-600 rounded mt-1 shadow-inner";
@@ -695,60 +839,102 @@
               const typeSel = document.createElement("select");
               typeSel.className =
                 "w-full border dark:border-gray-600 p-1 rounded text-sm bg-gray-50 dark:bg-gray-700 dark:text-white";
-              const optS = document.createElement("option");
-              optS.value = "stochastic";
-              optS.innerText = "Stochastic Rate";
-              const optD = document.createElement("option");
-              optD.value = "deterministic";
-              optD.innerText = "Deterministic Qty";
-              if (val.type === "deterministic") optD.selected = true;
-              else optS.selected = true;
-              typeSel.appendChild(optS);
-              typeSel.appendChild(optD);
-
-              const valInp = document.createElement("input");
-              valInp.type = "text";
-              valInp.className =
-                "w-full border dark:border-gray-600 p-1 rounded text-sm bg-gray-50 dark:bg-gray-700 dark:text-white";
-              valInp.value = Array.isArray(val.value)
-                ? `[CSV Data: ${val.value.length} days]`
-                : val.value;
-              valInp.placeholder = "Daily amount or rate...";
-
-              const fileLbl = document.createElement("label");
-              fileLbl.className =
-                "text-xs text-center bg-gray-200 dark:bg-gray-700 px-2 py-1 rounded cursor-pointer hover:bg-gray-300 dark:hover:bg-gray-600 dark:text-gray-200 font-semibold transition";
-              fileLbl.innerHTML = "📁 Load CSV Array";
-              const fileInp = document.createElement("input");
-              fileInp.type = "file";
-              fileInp.accept = ".csv";
-              fileInp.className = "hidden";
-              fileLbl.appendChild(fileInp);
-
+              for (const [optValue, optText] of [
+                ["stochastic", "Stochastic Rate"],
+                ["deterministic", "Deterministic Qty"],
+                ["forecast", "Forecast (Simplan JSON)"],
+              ]) {
+                const opt = document.createElement("option");
+                opt.value = optValue;
+                opt.innerText = optText;
+                if (val.type === optValue) opt.selected = true;
+                typeSel.appendChild(opt);
+              }
               typeSel.onchange = (e) => {
-                activeScen.config[group][fieldKey].type = e.target.value;
-              };
-              valInp.onchange = (e) => {
-                let v = e.target.value;
-                if (!isNaN(v) && v !== "") v = Number(v);
-                activeScen.config[group][fieldKey].value = v;
-              };
-              fileInp.onchange = async (e) => {
-                if (e.target.files.length > 0) {
-                  const text = await e.target.files[0].text();
-                  const arr = text
-                    .split(/\r?\n/)
-                    .map((l) => parseFloat(l.split(",")[0]))
-                    .filter((n) => !isNaN(n));
-                  if (arr.length > 0) {
-                    activeScen.config[group][fieldKey].value = arr;
-                    valInp.value = `[CSV Data: ${arr.length} days]`;
-                  } else alert("No valid numbers found in CSV.");
-                }
+                dp.type = e.target.value;
+                renderForm(); // redraw so the right inputs show for the new type
               };
               wrapBox.appendChild(typeSel);
-              wrapBox.appendChild(valInp);
-              wrapBox.appendChild(fileLbl);
+
+              if (isForecast) {
+                // Label row: "Forecast" + Experimental badge + (i) tooltip
+                const fcRow = document.createElement("div");
+                fcRow.className = "flex items-center gap-1";
+                const fcLabel = document.createElement("span");
+                fcLabel.className = "text-xs text-gray-600 dark:text-gray-400 font-semibold";
+                fcLabel.innerText = "Forecast";
+                fcRow.appendChild(fcLabel);
+                fcRow.appendChild(makeStatusBadge("experimental"));
+                fcRow.appendChild(makeHelpTip(FORECAST_HELP));
+                wrapBox.appendChild(fcRow);
+
+                // Read-only summary of what has been uploaded
+                const fcInfo = document.createElement("div");
+                fcInfo.className = "text-xs text-gray-700 dark:text-gray-300";
+                fcInfo.innerText = describeForecast(dp.forecast);
+                wrapBox.appendChild(fcInfo);
+
+                const fileLbl = document.createElement("label");
+                fileLbl.className =
+                  "text-xs text-center bg-gray-200 dark:bg-gray-700 px-2 py-1 rounded cursor-pointer hover:bg-gray-300 dark:hover:bg-gray-600 dark:text-gray-200 font-semibold transition";
+                fileLbl.innerHTML = "📁 Load Simplan Forecast (.json)";
+                const fileInp = document.createElement("input");
+                fileInp.type = "file";
+                fileInp.accept = ".json,application/json";
+                fileInp.className = "hidden";
+                fileInp.onchange = async (e) => {
+                  if (e.target.files.length === 0) return;
+                  try {
+                    // Only parse here; the format is checked in Python
+                    // (reuman/demand_inputs.py) so there is one set of rules.
+                    dp.forecast = JSON.parse(await e.target.files[0].text());
+                    fcInfo.innerText = describeForecast(dp.forecast);
+                  } catch (err) {
+                    alert("This file is not valid JSON: " + err.message);
+                  }
+                };
+                fileLbl.appendChild(fileInp);
+                wrapBox.appendChild(fileLbl);
+              } else {
+                const valInp = document.createElement("input");
+                valInp.type = "text";
+                valInp.className =
+                  "w-full border dark:border-gray-600 p-1 rounded text-sm bg-gray-50 dark:bg-gray-700 dark:text-white";
+                valInp.value = Array.isArray(val.value)
+                  ? `[CSV Data: ${val.value.length} days]`
+                  : (val.value ?? "");
+                valInp.placeholder = "Daily amount or rate...";
+                valInp.onchange = (e) => {
+                  let v = e.target.value;
+                  if (!isNaN(v) && v !== "") v = Number(v);
+                  dp.value = v;
+                };
+
+                const fileLbl = document.createElement("label");
+                fileLbl.className =
+                  "text-xs text-center bg-gray-200 dark:bg-gray-700 px-2 py-1 rounded cursor-pointer hover:bg-gray-300 dark:hover:bg-gray-600 dark:text-gray-200 font-semibold transition";
+                fileLbl.innerHTML = "📁 Load CSV Array";
+                const fileInp = document.createElement("input");
+                fileInp.type = "file";
+                fileInp.accept = ".csv";
+                fileInp.className = "hidden";
+                fileLbl.appendChild(fileInp);
+                fileInp.onchange = async (e) => {
+                  if (e.target.files.length > 0) {
+                    const text = await e.target.files[0].text();
+                    const arr = text
+                      .split(/\r?\n/)
+                      .map((l) => parseFloat(l.split(",")[0]))
+                      .filter((n) => !isNaN(n));
+                    if (arr.length > 0) {
+                      dp.value = arr;
+                      valInp.value = `[CSV Data: ${arr.length} days]`;
+                    } else alert("No valid numbers found in CSV.");
+                  }
+                };
+                wrapBox.appendChild(valInp);
+                wrapBox.appendChild(fileLbl);
+              }
               wrap.appendChild(wrapBox);
             } else {
               const inp = document.createElement("input");
@@ -1083,6 +1269,8 @@
           false,
         );
 
+        drawDemandCalibration(colIndex, res, rep["Demand Calibration"] || {});
+
         const mapInstance = initMap(colIndex);
         mapMarkers[colIndex].forEach((m) => mapInstance.removeLayer(m));
         mapMarkers[colIndex] = [];
@@ -1109,6 +1297,100 @@
           }
         }
       };
+
+      // Trailing moving average (first values average over the days available so far).
+      // 28 days = 4 whole weeks, so weekday patterns cancel and the small daily
+      // counts (often 0 or 1) are smooth enough to compare by eye.
+      const DEMAND_SMOOTHING_DAYS = 28;
+      function rollingMean(values, window = DEMAND_SMOOTHING_DAYS) {
+        return values.map((v, i) => {
+          if (v === null) return null;
+          const slice = values.slice(Math.max(0, i - window + 1), i + 1).filter((x) => x !== null);
+          return slice.reduce((a, b) => a + b, 0) / slice.length;
+        });
+      }
+
+      // Forecast data (real history, then Simplan forecast) against the model's daily
+      // new customers, for one product. Hidden when that product had no forecast.
+      function buildDemandChart(canvasId, res, cal, productKey, colour) {
+        const canvas = document.getElementById(canvasId);
+        if (charts[canvasId]) charts[canvasId].destroy();
+        if (!cal) {
+          canvas.parentElement.classList.add("hidden");
+          return;
+        }
+        canvas.parentElement.classList.remove("hidden");
+
+        const n = res.day.length;
+        const data = cal.daily_values;
+        const smoothData = rollingMean(data);
+        // Split the data line where the real history ends, so the two parts can be styled
+        const history = res.day.map((_, i) => (i < cal.history_days ? smoothData[i] : null));
+        const forecast = res.day.map((_, i) =>
+          i >= cal.history_days - 1 && i < data.length ? smoothData[i] : null,
+        );
+        const model = rollingMean(res[`new_customers_${productKey}`].slice(0, n));
+        const name = productKey === "V" ? "Virgin" : "Reman";
+
+        charts[canvasId] = new Chart(canvas.getContext("2d"), {
+          type: "line",
+          data: {
+            labels: res.day,
+            datasets: [
+              { label: "Real sales (data)", data: history, borderColor: "#111827", borderWidth: 2, pointRadius: 0, spanGaps: false },
+              { label: "Simplan forecast", data: forecast, borderColor: "#111827", borderDash: [6, 4], borderWidth: 2, pointRadius: 0, spanGaps: false },
+              { label: "Model new customers", data: model, borderColor: colour, borderWidth: 1.5, pointRadius: 0 },
+            ],
+          },
+          options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            interaction: { mode: "index", intersect: false },
+            plugins: {
+              title: { display: true, text: `${name}: forecast data vs model (rate ${cal.rate.toExponential(3)}/day)` },
+            },
+            scales: {
+              x: { title: { display: true, text: "Day" } },
+              y: { min: 0, title: { display: true, text: "New customers per day" } },
+            },
+          },
+        });
+      }
+
+      // Summary box and charts for forecast-calibrated advertising rates.
+      function drawDemandCalibration(colIndex, res, calibration) {
+        const box = document.getElementById(`col${colIndex}-calibration`);
+        const section = document.getElementById(`col${colIndex}-demand-section`);
+        const keys = Object.keys(calibration);
+        if (keys.length === 0) {
+          box.classList.add("hidden");
+          section.classList.add("hidden");
+          for (const p of ["V", "R"]) {
+            const id = `col${colIndex}-DemandChart${p}`;
+            if (charts[id]) charts[id].destroy();
+          }
+          return;
+        }
+
+        let html = '<div class="bg-white dark:bg-gray-800 p-3 rounded border dark:border-gray-700 text-sm shadow-inner dark:text-gray-200">';
+        html += '<div class="font-bold mb-1">Advertising rates from forecast</div><ul class="space-y-1">';
+        for (const k of keys) {
+          const c = calibration[k];
+          const nForecast = c.daily_values.length - c.history_days;
+          html += `<li class="flex justify-between border-b dark:border-gray-600 pb-1 last:border-0">
+                     <span>${k === "V" ? "Virgin" : "Reman"}: ${c.start_date} to ${c.end_date}
+                       (${c.history_days} real + ${nForecast} forecast days)</span>
+                     <span class="font-mono">${c.rate.toExponential(3)}/day</span>
+                   </li>`;
+        }
+        html += "</ul></div>";
+        box.innerHTML = html;
+        box.classList.remove("hidden");
+        section.classList.remove("hidden");
+
+        buildDemandChart(`col${colIndex}-DemandChartV`, res, calibration.V, "V", "#d91c1f");
+        buildDemandChart(`col${colIndex}-DemandChartR`, res, calibration.R, "R", "#33a02c");
+      }
 
       // 3. Receive results from Python and plot them using Chart.js
       window.plotMultipleResults = function (resStr, repStr, scStr) {
@@ -1189,7 +1471,7 @@
         if (!activeScen) return;
         const config = JSON.parse(JSON.stringify(activeScen.config));
 
-        let pyString = `import copy\n\n`;
+        let pyString = `import copy\nimport json\n\n`;
         pyString += `config = {\n`;
         pyString += `    "description": "${activeScen.name}",\n`;
 
@@ -1200,16 +1482,25 @@
             .replace(/false/g, "False")
             .replace(/\n/g, "\n    ");
 
-        // Transform the generic demand profile layout back to the Python specific keys
+        // Transform the generic demand profile layout back to the Python specific keys.
+        // Forecast data is swapped for a placeholder here and written out as
+        // json.loads(...) below, so the JSON keeps its own true/false/null.
         const mapped_V = JSON.parse(JSON.stringify(config.products_V));
         const mapped_R = JSON.parse(JSON.stringify(config.products_R));
-        for (const p of [mapped_V, mapped_R]) {
-          if (p.demand_profile.type === "stochastic") {
-            p.demand_profile.rate = p.demand_profile.value;
-          } else {
-            p.demand_profile.amount_per_day = p.demand_profile.value;
+        const forecastBlocks = {};
+        for (const [key, p] of [["V", mapped_V], ["R", mapped_R]]) {
+          const dp = p.demand_profile;
+          if (dp.type === "stochastic") {
+            dp.rate = dp.value;
+          } else if (dp.type === "deterministic") {
+            dp.amount_per_day = dp.value;
+          } else if (dp.type === "forecast") {
+            const placeholder = `__FORECAST_${key}__`;
+            forecastBlocks[placeholder] = JSON.stringify(dp.forecast ?? null);
+            dp.forecast = placeholder;
           }
-          delete p.demand_profile.value;
+          if (dp.type !== "forecast") delete dp.forecast;
+          delete dp.value;
         }
 
         const products = {
@@ -1221,7 +1512,11 @@
         pyString += `    "oem": ${formatDict(config.oem).trim()},\n`;
         pyString += `    "b2b_customer": ${formatDict(config.b2b_customer).trim()},\n`;
         pyString += `    "b2c_customer": ${formatDict(config.b2c_customer).trim()},\n`;
-        pyString += `    "products": ${formatDict(products).trim()}\n`;
+        let productsStr = formatDict(products).trim();
+        for (const [placeholder, jsonText] of Object.entries(forecastBlocks)) {
+          productsStr = productsStr.replace(`"${placeholder}"`, `json.loads(r"""${jsonText}""")`);
+        }
+        pyString += `    "products": ${productsStr}\n`;
         pyString += `}\n\n`;
         pyString += `SCENARIOS = {\n    "Custom": config\n}\n`;
 
@@ -1249,22 +1544,38 @@
       import main_OS
       import copy
 
+      def config_to_ui(cfg):
+          """
+          Map a Python config's 'products' to the UI's 'products_V' / 'products_R'.
+          Numbers and CSV arrays go into 'value'; forecast data stays in 'forecast'.
+          Returns a list of warnings to show the user.
+          """
+          warnings = []
+          products = cfg.pop("products", {})
+          for p_type in ["V", "R"]:
+              if p_type in products:
+                  ui_key = f"products_{p_type}"
+                  cfg[ui_key] = products[p_type]
+                  dp = cfg[ui_key].get("demand_profile", {})
+                  if dp.get("type") == "forecast":
+                      if isinstance(dp.get("forecast"), str):
+                          warnings.append(
+                              f"The {p_type} forecast refers to a file path ({dp['forecast']}). "
+                              f"The webapp can't open files by path: please upload the forecast "
+                              f"JSON again in the products {p_type} tab."
+                          )
+                          dp["forecast"] = None
+                      dp["value"] = ""
+                  else:
+                      # Extract the rate or amount_per_day into 'value'
+                      dp["value"] = dp.pop("rate", dp.pop("amount_per_day", 0))
+          return warnings
+
       def load_default_config():
           try:
               import scenarios
               cfg = copy.deepcopy(scenarios.SCENARIOS["Default"])
-
-              # Map 'products' back to 'products_V' and 'products_R' for the UI
-              products = cfg.pop("products", {})
-              for p_type in ["V", "R"]:
-                  if p_type in products:
-                      ui_key = f"products_{p_type}"
-                      cfg[ui_key] = products[p_type]
-                      dp = cfg[ui_key].get("demand_profile", {})
-                      # Extract the rate or amount_per_day into 'value'
-                      val = dp.pop("rate", dp.pop("amount_per_day", 0))
-                      dp["value"] = val
-
+              config_to_ui(cfg)
               window.setDefaultConfig(json.dumps(cfg))
           except Exception as e:
               window.console.error(f"Error loading scenarios.py: {e}")
@@ -1286,16 +1597,10 @@
                   return
 
               cfg = copy.deepcopy(cfg)
-              products = cfg.pop("products", {})
-              for p_type in ["V", "R"]:
-                  if p_type in products:
-                      ui_key = f"products_{p_type}"
-                      cfg[ui_key] = products[p_type]
-                      dp = cfg[ui_key].get("demand_profile", {})
-                      val = dp.pop("rate", dp.pop("amount_per_day", 0))
-                      dp["value"] = val
-
+              warnings = config_to_ui(cfg)
               window.applyImportedConfig(json.dumps(cfg))
+              for w in warnings:
+                  window.alert(w)
           except Exception as e:
               window.alert(f"Error parsing uploaded file: {str(e)}")
 
@@ -1332,11 +1637,19 @@
                   if "products_V" in config and "products_R" in config:
                       for p_key in ["products_V", "products_R"]:
                           dp = config[p_key]["demand_profile"]
-                          val = dp.pop("value")
-                          if dp["type"] == "stochastic":
-                              dp["rate"] = val
+                          val = dp.pop("value", None)
+                          if dp["type"] == "forecast":
+                              if not isinstance(dp.get("forecast"), dict):
+                                  raise ValueError(
+                                      f"{sc['name']}: please upload a Simplan forecast file "
+                                      f"in the {p_key.replace('_', ' ')} tab."
+                                  )
                           else:
-                              dp["amount_per_day"] = val
+                              dp.pop("forecast", None)
+                              if dp["type"] == "stochastic":
+                                  dp["rate"] = val
+                              else:
+                                  dp["amount_per_day"] = val
 
                       config["products"] = {
                           "V": config.pop("products_V"),
