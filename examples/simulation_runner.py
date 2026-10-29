@@ -101,6 +101,9 @@ async def run_simulation(config, seed=None, progress_callback=None):
     # Delegate execution to the World agent
     results, report = await world.run(rng, simulation_length, progress_callback)
 
+    # Record where any forecast-based advertising rates came from (empty if none were used)
+    report["Demand Calibration"] = world.get_demand_calibration()
+
     # Package the geographic data into the report for the webapp overlay
     report["Geographic Distribution"] = {
         "OEM Location": config["oem"]["location"],
