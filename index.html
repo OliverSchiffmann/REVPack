@@ -410,6 +410,67 @@
         maximumFractionDigits: 0,
       });
 
+      // Help text shared by both demand profiles (one copy to keep up to date).
+      // Avoid writing a parameter name followed by a colon here: tests/test_webapp_sync.py
+      // searches paramSchema for "name:" patterns and could be fooled.
+      const DEMAND_HELP =
+        "How many new customers enter the market each day. Stochastic rate = the daily chance that each potential customer starts wanting this product. Deterministic qty = a fixed number of customers per day. A CSV array gives one value per day (row 1 = day 1). After the last row, demand drops to 0. Values are new customers, not total orders (repeat orders are made by the model). Not yet reviewed - non-integer CSV values may stop a deterministic run in the webapp.";
+
+      // Badge styles for the optional "status" key in paramSchema entries.
+      const STATUS_STYLES = {
+        experimental: {
+          text: "Experimental",
+          cls: "bg-amber-100 text-amber-800 dark:bg-amber-900 dark:text-amber-200",
+        },
+        unverified: {
+          text: "Unverified",
+          cls: "bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200",
+        },
+      };
+
+      // Builds a field's label row: label text, optional status badge, optional help tooltip.
+      function makeLabelRow(fieldKey, fieldDef) {
+        const row = document.createElement("div");
+        row.className = "flex items-center gap-1 mb-1";
+
+        const label = document.createElement("label");
+        label.className =
+          "text-xs text-gray-600 dark:text-gray-400 font-semibold capitalize";
+        label.innerText = fieldDef.label || fieldKey.replace(/_/g, " ");
+        row.appendChild(label);
+
+        const status = STATUS_STYLES[fieldDef.status];
+        if (status) {
+          const badge = document.createElement("span");
+          badge.className = `text-[10px] px-1 rounded ${status.cls}`;
+          badge.innerText = status.text;
+          row.appendChild(badge);
+        }
+
+        if (fieldDef.help) {
+          const tip = document.createElement("span");
+          tip.className = "relative group inline-flex";
+          tip.tabIndex = 0; // keyboard users can focus it
+          tip.setAttribute("aria-label", fieldDef.help); // screen readers read it
+
+          const icon = document.createElement("span");
+          icon.className =
+            "text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 cursor-help text-xs";
+          icon.innerText = "\u24D8";
+          tip.appendChild(icon);
+
+          const box = document.createElement("span");
+          box.className =
+            "hidden group-hover:block group-focus:block absolute left-0 top-5 z-50 w-64 p-2 " +
+            "text-xs font-normal normal-case rounded shadow-lg " +
+            "bg-gray-800 text-white dark:bg-gray-100 dark:text-gray-900";
+          box.innerText = fieldDef.help;
+          tip.appendChild(box);
+          row.appendChild(tip);
+        }
+        return row;
+      }
+
       const paramSchema = {
         main: {
           simulation_length: {
@@ -510,6 +571,8 @@
             step: 0.1,
             label: "Driving Hours per Day",
           },
+          reman_implementation_cost: { type: "number", label: "Reman Implementation Cost (€)" },
+          reman_annual_operating_cost: { type: "number", label: "Reman Annual Operating Cost (€/year)" },
         },
         b2b_customer: {
           patience: { type: "number", label: "Patience (days)" },
@@ -540,11 +603,21 @@
           },
         },
         products_V: {
-          demand_profile: { type: "demand_profile", label: "Demand Profile" },
+          demand_profile: {
+            type: "demand_profile",
+            label: "Demand Profile",
+            status: "unverified",
+            help: DEMAND_HELP,
+          },
           wom_threshold: { type: "number", step: 0.001 },
         },
         products_R: {
-          demand_profile: { type: "demand_profile", label: "Demand Profile" },
+          demand_profile: {
+            type: "demand_profile",
+            label: "Demand Profile",
+            status: "unverified",
+            help: DEMAND_HELP,
+          },
           wom_threshold: { type: "number", step: 0.001 },
           cores_consumed: { type: "number" },
         },
@@ -647,11 +720,7 @@
             const val = activeScen.config[group][fieldKey];
             const wrap = document.createElement("div");
 
-            const label = document.createElement("label");
-            label.className =
-              "block text-xs text-gray-600 dark:text-gray-400 font-semibold mb-1 capitalize";
-            label.innerText = fieldDef.label || fieldKey.replace(/_/g, " ");
-            wrap.appendChild(label);
+            wrap.appendChild(makeLabelRow(fieldKey, fieldDef));
 
             if (fieldDef.type === "boolean") {
               const inp = document.createElement("input");

@@ -10,6 +10,8 @@ from .message import Message
 import asyncio
 from . import customer
 from .product import ProductEnum
+import copy
+from . import demand_inputs
 
 if TYPE_CHECKING:
     from .customer import Customer, CustomerStatesEnum
@@ -34,6 +36,8 @@ class World:
     _message_queue: list[Message]
     _active_products: list[ProductEnum]
     _config: dict
+    _demand_profiles: dict
+    _demand_calibration: dict
 
     def __init__(self, config: dict) -> None:
         """
@@ -56,10 +60,17 @@ class World:
         if config["main"]["enable_reman"]:
             self._active_products.append(ProductEnum.R)
 
-        # Preload any demand CSV files so they aren't processed during the simulation ticks
-        for _, product_data in self._config["products"].items():
-            profile = product_data["demand_profile"]
+        # Work on a copy of the demand profiles so the caller's config is never changed
+        self._demand_profiles = {
+            key: copy.deepcopy(product_data["demand_profile"])
+            for key, product_data in config["products"].items()
+        }
 
+        # Turn any forecast profiles into stochastic rates (runs once, before the simulation)
+        self._demand_calibration = self._resolve_forecast_profiles()
+
+        # Preload any demand CSV files so they aren't processed during the simulation ticks
+        for profile in self._demand_profiles.values():
             if profile["type"] == "deterministic":
                 val = profile["amount_per_day"]
                 key = "amount_per_day"
@@ -87,6 +98,74 @@ class World:
                     profile[key] = loaded_vals
                 except Exception as e:
                     raise RuntimeError(f"Failed to load demand CSV '{val}': {e}") from e
+
+    # leading underscore (_) infront of function is used to indicate it is only to be called in __init__
+    def _resolve_forecast_profiles(self) -> dict:
+        """
+        Replace every demand profile of type "forecast" with a stochastic rate
+        estimated from the forecast data. V and R are estimated together because
+        they share one pool of potential customers.
+
+        Returns:
+            dict: Calibration details per product ("V"/"R"), empty if no forecasts.
+        """
+        forecast_keys = [
+            key
+            for key, profile in self._demand_profiles.items()
+            if profile["type"] == "forecast"
+        ]
+        if not forecast_keys:
+            return {}
+
+        if "R" in forecast_keys and not self._config["main"]["enable_reman"]:
+            raise ValueError(
+                "A reman forecast was supplied but remanufacturing is disabled. "
+                "Enable remanufacturing or remove the R forecast."
+            )
+
+        series = {}
+        for key in forecast_keys:
+            data = self._demand_profiles[key].get("forecast")
+            if data is None:
+                raise ValueError(
+                    f"Product {key} has a forecast demand profile but no forecast data."
+                )
+            if isinstance(data, str):  # a file path (Python scripts)
+                data = demand_inputs.load_forecast_file(data)
+            else:  # already-parsed data (webapp)
+                demand_inputs.validate_forecast(data)
+            series[key] = demand_inputs.build_daily_series(data)
+
+        main = self._config["main"]
+        rates = demand_inputs.estimate_ad_rates(
+            series.get("V"),
+            series.get("R"),
+            market_size=main["B2B_population"] + main["B2C_population"],
+            starting_customers=main["starting_customers"],
+        )
+
+        calibration = {}
+        for key, rate in rates.items():
+            s = series[key]
+            self._demand_profiles[key] = {"type": "stochastic", "rate": rate}
+            calibration[key] = {
+                "rate": rate,
+                "start_date": s.dates[0].isoformat(),
+                "end_date": s.dates[-1].isoformat(),
+                "history_days": s.history_days,
+                "clipped_days": s.clipped_days,
+                "daily_values": list(s.values),
+            }
+        return calibration
+
+    def get_demand_calibration(self) -> dict:
+        """
+        Returns a copy of the forecast calibration details (empty if no forecasts were used).
+
+        Returns:
+            dict: Per product: rate, start/end dates, history days, clipped days, daily values.
+        """
+        return copy.deepcopy(self._demand_calibration)
 
     def tick(self) -> None:
         """
@@ -167,7 +246,7 @@ class World:
         rng.shuffle(products_to_consider)
 
         for product in products_to_consider:
-            profile = self._config["products"][product.name]["demand_profile"]
+            profile = self._demand_profiles[product.name]
             profile_type = profile["type"]
 
             if profile_type == "stochastic":
