@@ -296,24 +296,6 @@
                   ></canvas>
                 </div>
 
-                <div id="col1-demand-section" class="hidden flex flex-col gap-2">
-                  <div>
-                    <canvas
-                      id="col1-DemandChartV"
-                      style="min-height: 250px; width: 100%"
-                    ></canvas>
-                  </div>
-                  <div>
-                    <canvas
-                      id="col1-DemandChartR"
-                      style="min-height: 250px; width: 100%"
-                    ></canvas>
-                  </div>
-                  <p class="text-xs text-gray-500 dark:text-gray-400 italic">
-                    4-week averages. The model line is one random run: change the
-                    random seed to see how much it varies.
-                  </p>
-                </div>
 
                 <div class="mt-2">
                   <details>
@@ -380,24 +362,6 @@
                   ></canvas>
                 </div>
 
-                <div id="col2-demand-section" class="hidden flex flex-col gap-2">
-                  <div>
-                    <canvas
-                      id="col2-DemandChartV"
-                      style="min-height: 250px; width: 100%"
-                    ></canvas>
-                  </div>
-                  <div>
-                    <canvas
-                      id="col2-DemandChartR"
-                      style="min-height: 250px; width: 100%"
-                    ></canvas>
-                  </div>
-                  <p class="text-xs text-gray-500 dark:text-gray-400 italic">
-                    4-week averages. The model line is one random run: change the
-                    random seed to see how much it varies.
-                  </p>
-                </div>
 
                 <div class="mt-2">
                   <details>
@@ -1247,29 +1211,46 @@
           true,
         );
 
+        // Dashed lines: cumulative customers from the uploaded forecast files (if any)
+        const calibration = rep["Demand Calibration"] || {};
+        const salesDatasets = [
+          {
+            label: "Virgin Sold",
+            data: res.virgin_sold,
+            borderColor: "#d91c1f",
+            pointRadius: 0,
+          },
+          {
+            label: "Reman Sold",
+            data: res.reman_sold,
+            borderColor: "#33a02c",
+            pointRadius: 0,
+          },
+        ];
+        for (const [key, label, colour] of [
+          ["V", "Virgin (forecast data)", "#d91c1f"],
+          ["R", "Reman (forecast data)", "#33a02c"],
+        ]) {
+          if (!calibration[key]) continue;
+          salesDatasets.push({
+            label: label,
+            data: forecastCumulative(calibration[key], res.day.length),
+            borderColor: colour,
+            borderDash: [6, 4],
+            pointRadius: 0,
+            spanGaps: false,
+          });
+        }
         buildGenericChart(
           `col${colIndex}-SalesChart`,
           res,
-          [
-            {
-              label: "Virgin Sold",
-              data: res.virgin_sold,
-              borderColor: "#d91c1f",
-              pointRadius: 0,
-            },
-            {
-              label: "Reman Sold",
-              data: res.reman_sold,
-              borderColor: "#33a02c",
-              pointRadius: 0,
-            },
-          ],
+          salesDatasets,
           "Sales (Virgin vs Reman)",
           "Units",
           false,
         );
 
-        drawDemandCalibration(colIndex, res, rep["Demand Calibration"] || {});
+        drawDemandCalibration(colIndex, rep["Demand Calibration"] || {});
 
         const mapInstance = initMap(colIndex);
         mapMarkers[colIndex].forEach((m) => mapInstance.removeLayer(m));
@@ -1298,77 +1279,32 @@
         }
       };
 
-      // Trailing moving average (first values average over the days available so far).
-      // 28 days = 4 whole weeks, so weekday patterns cancel and the small daily
-      // counts (often 0 or 1) are smooth enough to compare by eye.
-      const DEMAND_SMOOTHING_DAYS = 28;
-      function rollingMean(values, window = DEMAND_SMOOTHING_DAYS) {
-        return values.map((v, i) => {
-          if (v === null) return null;
-          const slice = values.slice(Math.max(0, i - window + 1), i + 1).filter((x) => x !== null);
-          return slice.reduce((a, b) => a + b, 0) / slice.length;
-        });
-      }
-
-      // Forecast data (real history, then Simplan forecast) against the model's daily
-      // new customers, for one product. Hidden when that product had no forecast.
-      function buildDemandChart(canvasId, res, cal, productKey, colour) {
-        const canvas = document.getElementById(canvasId);
-        if (charts[canvasId]) charts[canvasId].destroy();
-        if (!cal) {
-          canvas.parentElement.classList.add("hidden");
-          return;
+      // Cumulative forecast customers, lined up with the model's "sold" results.
+      // results.virgin_sold / reman_sold are recorded at the START of each day, so
+      // entry i holds everything sold up to the end of the previous day. Entry i of
+      // this line therefore holds the forecast total for the first i days.
+      // Days after the forecast file ends are null, so the dashed line stops there.
+      function forecastCumulative(cal, nDays) {
+        if (!cal) return null;
+        const out = [];
+        let total = 0;
+        for (let i = 0; i < nDays; i++) {
+          if (i > cal.daily_values.length) {
+            out.push(null);
+            continue;
+          }
+          out.push(total);
+          if (i < cal.daily_values.length) total += cal.daily_values[i];
         }
-        canvas.parentElement.classList.remove("hidden");
-
-        const n = res.day.length;
-        const data = cal.daily_values;
-        const smoothData = rollingMean(data);
-        // Split the data line where the real history ends, so the two parts can be styled
-        const history = res.day.map((_, i) => (i < cal.history_days ? smoothData[i] : null));
-        const forecast = res.day.map((_, i) =>
-          i >= cal.history_days - 1 && i < data.length ? smoothData[i] : null,
-        );
-        const model = rollingMean(res[`new_customers_${productKey}`].slice(0, n));
-        const name = productKey === "V" ? "Virgin" : "Reman";
-
-        charts[canvasId] = new Chart(canvas.getContext("2d"), {
-          type: "line",
-          data: {
-            labels: res.day,
-            datasets: [
-              { label: "Real sales (data)", data: history, borderColor: "#111827", borderWidth: 2, pointRadius: 0, spanGaps: false },
-              { label: "Simplan forecast", data: forecast, borderColor: "#111827", borderDash: [6, 4], borderWidth: 2, pointRadius: 0, spanGaps: false },
-              { label: "Model new customers", data: model, borderColor: colour, borderWidth: 1.5, pointRadius: 0 },
-            ],
-          },
-          options: {
-            responsive: true,
-            maintainAspectRatio: false,
-            interaction: { mode: "index", intersect: false },
-            plugins: {
-              title: { display: true, text: `${name}: forecast data vs model (rate ${cal.rate.toExponential(3)}/day)` },
-            },
-            scales: {
-              x: { title: { display: true, text: "Day" } },
-              y: { min: 0, title: { display: true, text: "New customers per day" } },
-            },
-          },
-        });
+        return out;
       }
 
-      // Summary box and charts for forecast-calibrated advertising rates.
-      function drawDemandCalibration(colIndex, res, calibration) {
+      // Summary box of forecast-calibrated advertising rates (hidden if none were used).
+      function drawDemandCalibration(colIndex, calibration) {
         const box = document.getElementById(`col${colIndex}-calibration`);
-        const section = document.getElementById(`col${colIndex}-demand-section`);
         const keys = Object.keys(calibration);
         if (keys.length === 0) {
           box.classList.add("hidden");
-          section.classList.add("hidden");
-          for (const p of ["V", "R"]) {
-            const id = `col${colIndex}-DemandChart${p}`;
-            if (charts[id]) charts[id].destroy();
-          }
           return;
         }
 
@@ -1386,10 +1322,6 @@
         html += "</ul></div>";
         box.innerHTML = html;
         box.classList.remove("hidden");
-        section.classList.remove("hidden");
-
-        buildDemandChart(`col${colIndex}-DemandChartV`, res, calibration.V, "V", "#d91c1f");
-        buildDemandChart(`col${colIndex}-DemandChartR`, res, calibration.R, "R", "#33a02c");
       }
 
       // 3. Receive results from Python and plot them using Chart.js
