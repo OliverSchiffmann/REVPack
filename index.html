@@ -42,7 +42,7 @@
     <!-- Dynamic PyScript Configuration with Cache Busting -->
     <script>
       // Use a static version to allow the browser to cache Python files and drastically improve load speed
-      const ts = "1.0.3"; // bump whenever any fetched .py file changes
+      const ts = "1.0.5"; // bump whenever any fetched .py file changes
       const pyConfig = document.createElement("py-config");
       pyConfig.innerHTML = JSON.stringify({
         packages: ["numpy", "matplotlib"],
@@ -425,7 +425,7 @@
 
       // Help text shown next to the forecast upload when "Forecast (Simplan JSON)" is selected.
       const FORECAST_HELP =
-        "Upload a Simplan forecast file (.json). Before the run, the model turns it into a fixed daily advertising rate: total new customers in the file divided by total potential-customer days. Real sales are used where the file has them, Simplan's forecast after that. V and R are worked out together because they share one pool of customers, so upload both if you have them. Assumes the file counts NEW customers only (repeat orders make the rate too high). The rate is only valid for the market size (B2B + B2C population) and starting customers set in Main. Day 1 of the simulation is the first date in the file.";
+        "Upload a Simplan forecast file (.json). Before the run, the model turns it into a fixed daily advertising rate: total new customers in the file divided by total potential-customer days. Real sales are used where the file has them, Simplan's forecast after that. V and R are worked out together because they share one pool of customers, so upload both if you have them. Assumes the file counts NEW customers only (repeat orders make the rate too high). The rate is only valid for the market size (B2B population) and starting customers set in Main. Day 1 of the simulation is the first date in the file.";
 
       // Badge styles for the optional "status" key in paramSchema entries.
       const STATUS_STYLES = {
@@ -497,7 +497,6 @@
             label: "Simulation Length (Days)",
           },
           B2B_population: { type: "number", label: "B2B Population" },
-          B2C_population: { type: "number", label: "B2C Population" },
           seed: { type: "number", label: "Random Seed" },
           starting_customers: {
             type: "number",
@@ -574,40 +573,10 @@
             step: 0.1,
             label: "Inspection Cost (€)",
           },
-          local_delivery_cost: {
-            type: "number",
-            step: 0.1,
-            label: "Local Delivery Cost (€)",
-          },
-          shipping_cost_per_km: {
-            type: "number",
-            step: 0.01,
-            label: "Shipping Cost per km (€)",
-          },
-          ferry_fee: { type: "number", step: 0.1, label: "Ferry Fee (€)" },
-          driving_hours_per_day: {
-            type: "number",
-            step: 0.1,
-            label: "Driving Hours per Day",
-          },
           reman_implementation_cost: { type: "number", label: "Reman Implementation Cost (€)" },
           reman_annual_operating_cost: { type: "number", label: "Reman Annual Operating Cost (€/year)" },
         },
         b2b_customer: {
-          patience: { type: "number", label: "Patience (days)" },
-          mean_lifetime: { type: "number", label: "Mean Lifetime (days)" },
-          lifetime_method: {
-            type: "select",
-            options: ["triangular", "uniform", "weibull"],
-          },
-          lifetime_range: { type: "number", label: "Lifetime Range (days)" },
-          core_return_rate: {
-            type: "number",
-            step: 0.01,
-            label: "Core Return Rate",
-          },
-        },
-        b2c_customer: {
           patience: { type: "number", label: "Patience (days)" },
           mean_lifetime: { type: "number", label: "Mean Lifetime (days)" },
           lifetime_method: {

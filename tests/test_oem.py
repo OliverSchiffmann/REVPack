@@ -110,23 +110,56 @@ class TestOEM(unittest.TestCase):
         self.assertAlmostEqual(self.oem._factory_stock[ProductEnum.R], 6.25)  # 5 + 1.25
         self.assertAlmostEqual(self.oem._core_stock, 8.75)  # 10 - 1.25
 
-    def test_get_shipping_delay(self):
-        """Test shipping delay calculation with and without distance matrix."""
-        # Baseline no matrix (returns delivery_delay)
-        self.assertEqual(self.oem.get_shipping_delay("Rome"), 1)
-
-        # Add a distance matrix mapping
-        self.oem._distance_matrix = {
+    def _make_routing_oem(self, routing_on: bool) -> OEM:
+        """Build an OEM with a known distance matrix and routing switched on or off."""
+        config = copy.deepcopy(TEST_SCENARIOS["Default"])
+        config["oem"]["location"] = "Brescia"
+        # Chosen so that no routing result coincides with these flat values
+        config["oem"]["delivery_delay"] = 7
+        config["oem"]["core_collection_cost"] = 20.0
+        config["oem"]["routing_heuristics"] = routing_on
+        if routing_on:
+            config["oem"]["local_delivery_cost"] = 10.0
+            config["oem"]["shipping_cost_per_km"] = 0.01
+            config["oem"]["ferry_fee"] = 10.0
+            config["oem"]["driving_hours_per_day"] = 8.0
+        config["oem"]["distance_matrix"] = {
             "Brescia": {
-                "Rome": {"driving_hours": 16.0, "has_ferry": False},
-                "Palermo": {"driving_hours": 20.0, "has_ferry": True},
+                "Rome": {
+                    "driving_hours": 16.0,
+                    "distance_km": 500.0,
+                    "has_ferry": False,
+                },
+                "Palermo": {
+                    "driving_hours": 20.0,
+                    "distance_km": 1200.0,
+                    "has_ferry": True,
+                },
             }
         }
-        self.assertEqual(self.oem.get_shipping_delay("Rome"), 3)  # 1 day + (16//8) = 3
-        self.assertEqual(
-            self.oem.get_shipping_delay("Palermo"), 4
-        )  # 1 day + (20//8) + 1 (ferry) = 4
-        self.assertEqual(self.oem.get_shipping_delay("Brescia"), 1)  # Same location
+        return OEM(id=-1, world=World(config=config), config=config)
+
+    def test_routing_off_ignores_distance_matrix(self):
+        """With routing off, a distance matrix must not change delivery delay or collection cost."""
+        oem = self._make_routing_oem(routing_on=False)
+
+        for destination in ["Rome", "Palermo", "Brescia", "Unknown City"]:
+            with self.subTest(destination=destination):
+                self.assertEqual(oem.get_shipping_delay(destination), 7)
+                self.assertEqual(oem.get_core_collection_cost(destination, 20.0), 20.0)
+
+    def test_routing_on_uses_distance_matrix(self):
+        """Control for the test above: the same matrix DOES change results when routing is on."""
+        oem = self._make_routing_oem(routing_on=True)
+
+        self.assertEqual(oem.get_shipping_delay("Rome"), 3)  # 1 + 16 // 8
+        self.assertEqual(oem.get_shipping_delay("Palermo"), 4)  # 1 + 20 // 8 + 1 ferry
+        self.assertAlmostEqual(
+            oem.get_core_collection_cost("Rome", 20.0), 5.0
+        )  # 500 * 0.01
+        self.assertAlmostEqual(
+            oem.get_core_collection_cost("Palermo", 20.0), 22.0
+        )  # 1200 * 0.01 + 10
 
     def test_schedule_core_return(self):
         """Test that scheduling a core return adds to the incoming cores list."""

@@ -57,6 +57,7 @@ class OEM(BaseAgent):
     _reman_annual_operating_cost: float
     _total_reman_operating_cost: float
     _reman_enabled: bool
+    _routing_enabled: bool
 
     def __init__(self, id: int, world: World, config: dict) -> None:
         """
@@ -126,12 +127,18 @@ class OEM(BaseAgent):
         self._total_inspection_costs = 0.0
         self._incoming_cores = []
 
-        self._logistic_heuristics = {
-            "local_delivery_cost": oem_config["local_delivery_cost"],
-            "shipping_cost_per_km": oem_config["shipping_cost_per_km"],
-            "ferry_fee": oem_config["ferry_fee"],
-            "driving_hours_per_day": oem_config["driving_hours_per_day"],
-        }
+        self._routing_enabled = oem_config.get("routing_heuristics", False)
+        self._logistic_heuristics = {}
+        if self._routing_enabled:
+            self._logistic_heuristics = {
+                k: oem_config[k]
+                for k in (
+                    "local_delivery_cost",
+                    "shipping_cost_per_km",
+                    "ferry_fee",
+                    "driving_hours_per_day",
+                )
+            }
 
         self._reman_implementation_cost = oem_config["reman_implementation_cost"]
         self._reman_annual_operating_cost = oem_config["reman_annual_operating_cost"]
@@ -147,6 +154,9 @@ class OEM(BaseAgent):
         1 day base + 1 day per 8 hours driving, +1 if ferry. Not sure of the validity or worth of this. Could be standard 2 days.
         """
         # Checks that there is a distance matrix and that the location being looked for is in that matrix
+        # First check that intelligent logistics isnt disabled
+        if not self._routing_enabled:
+            return self._delivery_delay
         if self._distance_matrix and self._location in self._distance_matrix:
             # Checks if you are sending it to the same place you are
             if self._location == destination:
@@ -167,6 +177,8 @@ class OEM(BaseAgent):
         Calculates shipping cost based on distance and route properties.
         Heuristic: €? per km + €? flat rate if ferry is involved. Again not sure if this is needed, really depends on the logistics method.
         """
+        if not self._routing_enabled:
+            return default_cost
         if self._distance_matrix and self._location in self._distance_matrix:
             if self._location == destination:
                 return self._logistic_heuristics["local_delivery_cost"]

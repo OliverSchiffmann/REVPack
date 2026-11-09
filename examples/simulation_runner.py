@@ -41,9 +41,10 @@ async def run_simulation(config, seed=None, progress_callback=None):
         probabilities[-1] = 1.0 - sum(
             probabilities[:-1]
         )  # To avoid precision float errors summing > 1.0
-
-    with open("examples/locations/italy_100x100_matrix.json", "r") as f:
-        distance_matrix = json.load(f)
+    distance_matrix = None
+    if config["oem"].get("routing_heuristics", False):
+        with open("examples/locations/italy_100x100_matrix.json", "r") as f:
+            distance_matrix = json.load(f)
 
     config["oem"]["location"] = "Brescia"
     config["oem"]["distance_matrix"] = distance_matrix

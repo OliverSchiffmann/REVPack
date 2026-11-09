@@ -3,6 +3,14 @@ import os
 import re
 import warnings
 
+# Parameters that exist in scenarios.py but are deliberately NOT shown in the
+# web app (dormant features). The model still reads them; users just can't edit them.
+HIDDEN_CATEGORIES = {"b2c_customer"}  # whole groups hidden
+HIDDEN_PARAMS = {  # individual parameters hidden
+    "main": {"B2C_population"},
+    "oem": {"routing_heuristics"},
+}
+
 
 class TestWebappSync(unittest.TestCase):
     """
@@ -52,8 +60,12 @@ class TestWebappSync(unittest.TestCase):
         categories = ["main", "oem", "b2b_customer", "b2c_customer"]
 
         for category in categories:
+            if category in HIDDEN_CATEGORIES:
+                continue
             if category in self.default_scenario:
                 for param in self.default_scenario[category]:
+                    if param in HIDDEN_PARAMS.get(category, set()):
+                        continue
                     # Regex to look for the parameter key in the JS object (e.g., "simulation_length:")
                     pattern = rf"\b{param}\s*:"
                     if not re.search(pattern, schema_block):

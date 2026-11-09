@@ -37,10 +37,7 @@ dict_default = {
         "core_storage_cost": 2,
         "inspection_cost": 20,
         # Heuristic Routing Logistics
-        "local_delivery_cost": 10.0,
-        "shipping_cost_per_km": 0.01,
-        "ferry_fee": 10.0,
-        "driving_hours_per_day": 8.0,
+        "routing_heuristics": False,  # True also needs local_delivery_cost, shipping_cost_per_km, ferry_fee, driving_hours_per_day
     },
     "b2b_customer": {
         "patience": 10,
