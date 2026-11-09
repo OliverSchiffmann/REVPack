@@ -13,21 +13,8 @@
       };
     </script>
 
-    <style>
-      /* Invert Leaflet map tiles for an automatic dark mode map */
-      .dark .leaflet-layer {
-        filter: invert(100%) hue-rotate(180deg) brightness(95%) contrast(90%);
-      }
-    </style>
     <!-- Chart.js for visualization -->
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-
-    <!-- Leaflet.js for mapping -->
-    <link
-      rel="stylesheet"
-      href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
-    />
-    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 
     <!-- PyScript for running Python in the browser -->
     <link
@@ -281,8 +268,6 @@
                   </details>
                 </div>
 
-                <div id="col1-calibration" class="hidden"></div>
-
                 <div>
                   <canvas
                     id="col1-StatesChart"
@@ -295,21 +280,14 @@
                     style="min-height: 300px; width: 100%"
                   ></canvas>
                 </div>
-
-
-                <div class="mt-2">
-                  <details>
-                    <summary
-                      class="font-bold text-gray-600 dark:text-gray-300 mb-2"
-                    >
-                      Geographic Distribution
-                    </summary>
-                    <div
-                      id="map-1"
-                      class="w-full h-[300px] rounded-lg border border-gray-300 dark:border-gray-700 z-0"
-                    ></div>
-                  </details>
+                <!-- Zoomed sales chart covering only the forecast file's period (hidden if no forecast) -->
+                <div id="col1-ForecastSalesWrap" class="hidden">
+                  <canvas
+                    id="col1-ForecastSalesChart"
+                    style="min-height: 300px; width: 100%"
+                  ></canvas>
                 </div>
+
               </div>
 
               <!-- Column 2 -->
@@ -347,8 +325,6 @@
                   </details>
                 </div>
 
-                <div id="col2-calibration" class="hidden"></div>
-
                 <div>
                   <canvas
                     id="col2-StatesChart"
@@ -361,21 +337,14 @@
                     style="min-height: 300px; width: 100%"
                   ></canvas>
                 </div>
-
-
-                <div class="mt-2">
-                  <details>
-                    <summary
-                      class="font-bold text-gray-600 dark:text-gray-300 mb-2"
-                    >
-                      Geographic Distribution
-                    </summary>
-                    <div
-                      id="map-2"
-                      class="w-full h-[300px] rounded-lg border border-gray-300 dark:border-gray-700 z-0"
-                    ></div>
-                  </details>
+                <!-- Zoomed sales chart covering only the forecast file's period (hidden if no forecast) -->
+                <div id="col2-ForecastSalesWrap" class="hidden">
+                  <canvas
+                    id="col2-ForecastSalesChart"
+                    style="min-height: 300px; width: 100%"
+                  ></canvas>
                 </div>
+
               </div>
             </div>
           </div>
@@ -407,8 +376,6 @@
     <!-- Javascript Logic for handling the UI and drawing Charts -->
     <script>
       const charts = {};
-      let maps = { 1: null, 2: null };
-      let mapMarkers = { 1: [], 2: [] };
 
       // 2. Format numbers as currency
       const formatter = new Intl.NumberFormat("en-IE", {
@@ -506,7 +473,6 @@
         },
         oem: {
           balance: { type: "number", label: "Balance (€)" },
-          location: { type: "text", label: "Location" },
           virgin_stock: { type: "number", label: "Virgin Stock (units)" },
           reman_stock: { type: "number", label: "Reman Stock (units)" },
           core_stock: { type: "number", label: "Core Stock (units)" },
@@ -659,7 +625,7 @@
           results.classList.add("lg:col-span-2");
         }
 
-        // Force charts and maps to resize slightly after DOM transition
+        // Force charts to resize slightly after DOM transition
         setTimeout(() => window.dispatchEvent(new Event("resize")), 200);
       }
 
@@ -1086,25 +1052,6 @@
         );
       }
 
-      function initMap(colIndex) {
-        if (maps[colIndex]) {
-          maps[colIndex].invalidateSize();
-          return maps[colIndex];
-        }
-        maps[colIndex] = L.map(`map-${colIndex}`, {
-          scrollWheelZoom: false,
-        }).setView([41.8719, 12.5674], 5);
-        L.tileLayer(
-          "https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png",
-          {
-            attribution: "&copy; OpenStreetMap contributors &copy; CARTO",
-            subdomains: "abcd",
-            maxZoom: 20,
-          },
-        ).addTo(maps[colIndex]);
-        return maps[colIndex];
-      }
-
       window.updateCol = function (colIndex, scId) {
         if (!window.lastResults) return;
         const res = window.lastResults[scId];
@@ -1219,34 +1166,45 @@
           false,
         );
 
-        drawDemandCalibration(colIndex, rep["Demand Calibration"] || {});
+        drawForecastWindowChart(colIndex, res, salesDatasets, calibration);
 
-        const mapInstance = initMap(colIndex);
-        mapMarkers[colIndex].forEach((m) => mapInstance.removeLayer(m));
-        mapMarkers[colIndex] = [];
-        const geoData = rep["Geographic Distribution"]["City Data"];
-
-        for (const [cityName, data] of Object.entries(geoData)) {
-          if (data.customers > 0 || data.is_oem) {
-            let iconHtml = "";
-            if (data.is_oem)
-              iconHtml += `<div style="font-size: 26px; text-align: center; line-height: 1; filter: drop-shadow(0px 2px 2px rgba(0,0,0,0.3));">🏭</div>`;
-            if (data.customers > 0)
-              iconHtml += `<div class="bg-white dark:bg-gray-800 text-gray-800 dark:text-gray-100 border border-gray-300 dark:border-gray-600" style="border-radius: 12px; padding: 2px 6px; font-size: 12px; font-weight: bold; text-align: center; box-shadow: 0 1px 3px rgba(0,0,0,0.2); margin-top: ${data.is_oem ? "-5px" : "0"};">👤 ${data.customers}x</div>`;
-
-            const customIcon = L.divIcon({
-              html: `<div style="display: flex; flex-direction: column; align-items: center; justify-content: center;">${iconHtml}</div>`,
-              className: "",
-              iconSize: [40, 40],
-              iconAnchor: [20, 20],
-            });
-            const marker = L.marker([data.lat, data.lng], { icon: customIcon })
-              .bindTooltip(cityName)
-              .addTo(mapInstance);
-            mapMarkers[colIndex].push(marker);
-          }
-        }
       };
+
+      // Same sales lines as the main chart, cut to the period the forecast file covers,
+      // so model and forecast can be compared by eye. Hidden when no forecast was used.
+      function drawForecastWindowChart(colIndex, res, salesDatasets, calibration) {
+        const wrap = document.getElementById(`col${colIndex}-ForecastSalesWrap`);
+        const cals = Object.values(calibration);
+        if (cals.length === 0) {
+          wrap.classList.add("hidden");
+          if (charts[`col${colIndex}-ForecastSalesChart`]) {
+            charts[`col${colIndex}-ForecastSalesChart`].destroy();
+            delete charts[`col${colIndex}-ForecastSalesChart`];
+          }
+          return;
+        }
+        wrap.classList.remove("hidden");
+
+        // +1 because forecastCumulative's last value sits one entry after the final forecast day
+        const forecastDays = Math.max(...cals.map((c) => c.daily_values.length));
+        const nDays = Math.min(res.day.length, forecastDays + 1);
+        const windowRes = { day: res.day.slice(0, nDays) };
+        const windowDatasets = salesDatasets.map((ds) => ({
+          ...ds,
+          data: ds.data.slice(0, nDays),
+        }));
+        const start = cals.map((c) => c.start_date).sort()[0];
+        const end = cals.map((c) => c.end_date).sort().slice(-1)[0];
+
+        buildGenericChart(
+          `col${colIndex}-ForecastSalesChart`,
+          windowRes,
+          windowDatasets,
+          `Sales during forecast period (${start} to ${end})`,
+          "Units",
+          false,
+        );
+      }
 
       // Cumulative forecast customers, lined up with the model's "sold" results.
       // results.virgin_sold / reman_sold are recorded at the START of each day, so
@@ -1266,31 +1224,6 @@
           if (i < cal.daily_values.length) total += cal.daily_values[i];
         }
         return out;
-      }
-
-      // Summary box of forecast-calibrated advertising rates (hidden if none were used).
-      function drawDemandCalibration(colIndex, calibration) {
-        const box = document.getElementById(`col${colIndex}-calibration`);
-        const keys = Object.keys(calibration);
-        if (keys.length === 0) {
-          box.classList.add("hidden");
-          return;
-        }
-
-        let html = '<div class="bg-white dark:bg-gray-800 p-3 rounded border dark:border-gray-700 text-sm shadow-inner dark:text-gray-200">';
-        html += '<div class="font-bold mb-1">Advertising rates from forecast</div><ul class="space-y-1">';
-        for (const k of keys) {
-          const c = calibration[k];
-          const nForecast = c.daily_values.length - c.history_days;
-          html += `<li class="flex justify-between border-b dark:border-gray-600 pb-1 last:border-0">
-                     <span>${k === "V" ? "Virgin" : "Reman"}: ${c.start_date} to ${c.end_date}
-                       (${c.history_days} real + ${nForecast} forecast days)</span>
-                     <span class="font-mono">${c.rate.toExponential(3)}/day</span>
-                   </li>`;
-        }
-        html += "</ul></div>";
-        box.innerHTML = html;
-        box.classList.remove("hidden");
       }
 
       // 3. Receive results from Python and plot them using Chart.js

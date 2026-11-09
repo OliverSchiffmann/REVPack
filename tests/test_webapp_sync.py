@@ -8,7 +8,7 @@ import warnings
 HIDDEN_CATEGORIES = {"b2c_customer"}  # whole groups hidden
 HIDDEN_PARAMS = {  # individual parameters hidden
     "main": {"B2C_population"},
-    "oem": {"routing_heuristics"},
+    "oem": {"routing_heuristics", "location"},
 }
 
 
