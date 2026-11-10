@@ -1462,10 +1462,10 @@
                       update_progress(bar_id, text_id, current, total)
                   return cb
 
+              from reuman.model_time_converter import ModelTimeConverter
               for sc in scenarios_list:
                   sc_id = str(sc["id"])
                   config = sc["config"]
-                  from reuman.model_time_converter import ModelTimeConverter
                   sim_length = ModelTimeConverter.from_config(config).years_to_steps(
                       config["main"]["simulation_years"]
                   )

@@ -6,7 +6,6 @@ import tempfile
 from reuman import demand_inputs
 from tests.test_demand_inputs import make_forecast
 import numpy as np
-import test
 from reuman import world, customer
 from reuman import world
 from reuman._agent import BaseAgent, AgentEnum

@@ -428,7 +428,7 @@ class World:
 
             # Record states
             results["step"].append(self.now())
-            results["day"].append(self.now())
+            results["day"].append(self._time_converter.step_to_day(self.now()))
             results["potential_users"].append(self._num_potential_users)
             results["wants_virgin"].append(self._num_wants[ProductEnum.V])
             results["uses_virgin"].append(self._num_uses[ProductEnum.V])

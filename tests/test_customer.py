@@ -30,14 +30,14 @@ class TestCustomer(unittest.TestCase):
         """Test that the Customer correctly maps its ID, state, and patience."""
         self.assertEqual(self.customer.id(), 2)
         self.assertEqual(self.customer.state(), CustomerStatesEnum.POTENTIAL_USER)
-        self.assertEqual(self.customer._patience, 10)
+        self.assertEqual(self.customer._patience_steps, 10)
 
     def test_become_user(self):
         """Test transition to become a user, and check that a lifespan is assigned."""
         self.customer.become_user(self.rng, ProductEnum.V)
         self.assertEqual(self.customer.state(), CustomerStatesEnum.USES_VIRGIN)
         self.assertEqual(self.customer._active_product, ProductEnum.V)
-        self.assertNotEqual(self.customer._end_of_life_day, -1)
+        self.assertNotEqual(self.customer._end_of_life_step, -1)
 
     def test_try_buy_with_stock(self):
         """Test purchasing when the OEM has stock and zero delivery delay, means we don't have to do a 'next()' call."""
@@ -60,16 +60,23 @@ class TestCustomer(unittest.TestCase):
 
         self.assertEqual(self.customer.state(), CustomerStatesEnum.WANTS_VIRGIN)
         self.assertNotEqual(
-            self.customer._end_of_patience_day, -1
+            self.customer._end_of_patience_step, -1
         )  # Patience timeout should be scheduled
+
+    def test_patience_is_at_least_one_step(self):
+        """Patience shorter than a step still lets the customer retry once after production."""
+        config = copy.deepcopy(self.config)
+        config["b2b_customer"]["patience"] = 0
+        customer = B2B_Customer(id=5, world=self.world, oem=self.oem, config=config)
+        self.assertEqual(customer._patience_steps, 1)
 
     def test_uniform_lifetime(self):
         """Test that the uniform lifetime generator operates within expected boundaries."""
         self.customer._lifetime_method = "uniform"
         lifetime = self.customer.get_uniform_lifetime(self.rng)
 
-        mean = self.customer._mean_lifetime
-        variation = self.customer._lifetime_range
+        mean = self.customer._mean_lifetime_days
+        variation = self.customer._lifetime_range_days
         self.assertTrue(mean - variation <= lifetime < mean + variation)
 
     def test_triangular_lifetime(self):
@@ -77,8 +84,8 @@ class TestCustomer(unittest.TestCase):
         self.customer._lifetime_method = "triangular"
         lifetime = self.customer.get_triangular_lifetime(self.rng)
 
-        mean = self.customer._mean_lifetime
-        variation = self.customer._lifetime_range
+        mean = self.customer._mean_lifetime_days
+        variation = self.customer._lifetime_range_days
         self.assertTrue(mean - variation <= lifetime <= mean + variation)
 
     # Weibull doesn't behave like the others so is basically impossible to test simply.
@@ -86,14 +93,14 @@ class TestCustomer(unittest.TestCase):
     def test_handle_active_user_end_of_life(self):
         """Test that reaching end-of-life shifts state to WANTS_REMAN for the retained active product."""
         self.customer.become_user(self.rng, ProductEnum.R)
-        self.customer._end_of_life_day = (
+        self.customer._end_of_life_step = (
             self.world.now()
         )  # Force product end-of-life on current tick
 
         self.customer._handle_active_user(self.rng)
         self.assertEqual(self.customer.state(), CustomerStatesEnum.WANTS_ANY)
-        self.assertEqual(self.customer._delivery_day, -1)
-        self.assertEqual(self.customer._end_of_life_day, -1)
+        self.assertEqual(self.customer._delivery_step, -1)
+        self.assertEqual(self.customer._end_of_life_step, -1)
 
     def test_force_market_entry(self):
         """Test that a potential user transitions correctly when forcefully entered into the market."""
@@ -108,19 +115,19 @@ class TestCustomer(unittest.TestCase):
         """Test that a waiting customer receives their delivery on the delivery day."""
         self.customer._state = CustomerStatesEnum.WAITING_FOR_DELIVERY
         self.customer._active_product = ProductEnum.V
-        self.customer._delivery_day = self.world.now()  # Delivery arrives today
+        self.customer._delivery_step = self.world.now()  # Delivery arrives today
 
         self.customer._handle_waiting_customer(self.rng)
 
         self.assertEqual(self.customer.state(), CustomerStatesEnum.USES_VIRGIN)
-        self.assertEqual(self.customer._delivery_day, -1)
+        self.assertEqual(self.customer._delivery_step, -1)
 
     def test_handle_waiting_customer_patience_expires(self):
         """Test that a waiting customer changes state to WANTS_ANY when patience runs out."""
         self.customer._state = CustomerStatesEnum.WANTS_VIRGIN
         self.customer._active_product = ProductEnum.V
-        self.customer._delivery_day = -1
-        self.customer._end_of_patience_day = self.world.now()  # Patience expires today
+        self.customer._delivery_step = -1
+        self.customer._end_of_patience_step = self.world.now()  # Patience expires today
 
         self.customer._handle_waiting_customer(self.rng)
 
@@ -132,22 +139,22 @@ class TestCustomer(unittest.TestCase):
 
         self.assertEqual(self.customer.state(), CustomerStatesEnum.USES_REMAN)
         self.assertEqual(self.customer._active_product, ProductEnum.R)
-        self.assertTrue(self.customer._end_of_life_day > self.world.now())
+        self.assertTrue(self.customer._end_of_life_step > self.world.now())
 
     def test_b2b_b2c_subclasses(self):
         """Test that B2B and B2C customers correctly load their specific configurations."""
         b2b = B2B_Customer(id=3, world=self.world, oem=self.oem, config=self.config)
         self.assertEqual(b2b._customer_config["mean_lifetime"], 200)
-        self.assertEqual(b2b._patience, 10)
+        self.assertEqual(b2b._patience_steps, 10)
 
         b2c = B2C_Customer(id=4, world=self.world, oem=self.oem, config=self.config)
         self.assertEqual(b2c._customer_config["mean_lifetime"], 50)
-        self.assertEqual(b2c._patience, -1)
+        self.assertEqual(b2c._patience_steps, -1)
 
     def test_handle_active_user_core_return(self):
         """Test that reaching end-of-life for a product triggers a core return scheduling."""
         self.customer.become_user(self.rng, ProductEnum.R)
-        self.customer._end_of_life_day = self.world.now()
+        self.customer._end_of_life_step = self.world.now()
         self.customer._core_return_rate = 1.0  # Guarantee return
 
         initial_incoming = len(self.oem._incoming_cores)
@@ -159,7 +166,7 @@ class TestCustomer(unittest.TestCase):
     def test_handle_active_user_core_not_returned(self):
         """Test that reaching end-of-life and not returning a core records it with the OEM."""
         self.customer.become_user(self.rng, ProductEnum.R)
-        self.customer._end_of_life_day = self.world.now()
+        self.customer._end_of_life_step = self.world.now()
         self.customer._core_return_rate = 0.0  # Guarantee NO return
 
         initial_not_collected = self.oem._total_cores_not_collected
