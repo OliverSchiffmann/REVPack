@@ -42,7 +42,7 @@ class TestCustomer(unittest.TestCase):
     def test_try_buy_with_stock(self):
         """Test purchasing when the OEM has stock and zero delivery delay, means we don't have to do a 'next()' call."""
         # The OEM is set up with 10 units of Virgin stock in setUp
-        self.oem._delivery_delay = 0
+        self.oem._delivery_delay_steps = 0
         self.customer.try_and_buy(self.rng, ProductEnum.V)
 
         self.assertEqual(self.customer.state(), CustomerStatesEnum.USES_VIRGIN)
@@ -104,7 +104,9 @@ class TestCustomer(unittest.TestCase):
 
     def test_force_market_entry(self):
         """Test that a potential user transitions correctly when forcefully entered into the market."""
-        self.oem._delivery_delay = 0  # Instant delivery to jump straight to USES_VIRGIN
+        self.oem._delivery_delay_steps = (
+            0  # Instant delivery to jump straight to USES_VIRGIN
+        )
 
         self.customer.force_market_entry(self.rng, ProductEnum.V)
 

@@ -50,9 +50,9 @@ class TestOEM(unittest.TestCase):
         """Test that the OEM correctly maps its parameters."""
         self.assertEqual(self.oem.id(), -1)
         self.assertEqual(self.oem.state(), OEMStatesEnum.OPERATIONAL)
-        self.assertEqual(self.oem._delivery_delay, 1)
-        self.assertEqual(self.oem._manufacture_delay, 5)
-        self.assertEqual(self.oem._remanufacture_delay, 4)
+        self.assertEqual(self.oem._delivery_delay_steps, 1)
+        self.assertEqual(self.oem._manufacture_delay_steps, 5)
+        self.assertEqual(self.oem._remanufacture_delay_steps, 4)
         self.assertEqual(self.oem._factory_stock[ProductEnum.V], 10)
         self.assertEqual(self.oem._factory_stock[ProductEnum.R], 0)
         self.assertEqual(self.oem._core_stock, 0)
@@ -161,13 +161,23 @@ class TestOEM(unittest.TestCase):
             oem.get_core_collection_cost("Palermo", 20.0), 22.0
         )  # 1200 * 0.01 + 10
 
+    def test_reman_operating_cost_sums_to_annual_cost(self):
+        """Over one model year, the per-step operating cost adds up to the annual figure."""
+        steps_per_year = self.world.time_converter().steps_per_year
+        for _ in range(steps_per_year):
+            self.oem.next(self.rng)
+        self.assertAlmostEqual(
+            self.oem._total_reman_operating_cost,
+            self.oem._config["oem"]["reman_annual_operating_cost"],
+        )
+
     def test_schedule_core_return(self):
         """Test that scheduling a core return adds to the incoming cores list."""
         current_time = self.world.now()
         self.oem.schedule_core_return("Rome")
 
         self.assertEqual(len(self.oem._incoming_cores), 1)
-        expected_arrival = current_time + self.oem._delivery_delay
+        expected_arrival = current_time + self.oem._delivery_delay_steps
         self.assertEqual(self.oem._incoming_cores[0], (expected_arrival, "Rome"))
 
     def test_process_incoming_cores(self):

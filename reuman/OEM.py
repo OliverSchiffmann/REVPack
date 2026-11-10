@@ -24,9 +24,9 @@ class OEM(BaseAgent):
 
     _state: OEMStatesEnum
     _balance: float
-    _delivery_delay: int
-    _manufacture_delay: int  # Sort of the time it takes to meet the demand (must be >=1 as you cant divide by 0)
-    _remanufacture_delay: int
+    _delivery_delay_steps: int  # 0 means delivered within the step
+    _manufacture_delay_steps: int  # >= 1: production divides by it
+    _remanufacture_delay_steps: int  # >= 1: production divides by it
     _factory_stock: dict[ProductEnum, float]  # stock of products
     _production_rate: dict[ProductEnum, float]
     _products_sold: dict[ProductEnum, int]
@@ -42,7 +42,7 @@ class OEM(BaseAgent):
     _unit_production_cost_R: float
     _core_collection_cost: float
     _core_disposal_cost: float
-    _core_storage_cost: float
+    _core_storage_cost_per_step: float
     _total_core_storage_cost: float
     _core_storage_limit: int
     _bounties_returned: int
@@ -54,7 +54,7 @@ class OEM(BaseAgent):
     _incoming_cores: list[tuple[int, str | None]]
     _config: dict
     _reman_implementation_cost: float
-    _reman_annual_operating_cost: float
+    _reman_operating_cost_per_step: float
     _total_reman_operating_cost: float
     _reman_enabled: bool
     _routing_enabled: bool
@@ -69,18 +69,18 @@ class OEM(BaseAgent):
             config (dict): Configuration dictionary containing the OEM's parameters.
 
         Raises:
-            ValueError: If manufacture_delay or remanufacture_delay is less than 1.
+            ValueError: If manufacture_delay or remanufacture_delay is less than 1 day.
             ValueError: if cores consumed is not a positive number greater than 0.
         """
         self._config = config
         oem_config = config["oem"]
         if oem_config["manufacture_delay"] < 1:
             raise ValueError(
-                f"manufacture_delay must be >=1. Received: {oem_config['manufacture_delay']}"
+                f"manufacture_delay must be >=1 day. Received: {oem_config['manufacture_delay']}"
             )
         if oem_config["remanufacture_delay"] < 1:
             raise ValueError(
-                f"remanufacture_delay must be >=1. Received: {oem_config['remanufacture_delay']}"
+                f"remanufacture_delay must be >=1 day. Received: {oem_config['remanufacture_delay']}"
             )
         cores_consumed = config["products"]["R"]["cores_consumed"]
         if cores_consumed <= 0:
@@ -94,9 +94,19 @@ class OEM(BaseAgent):
         self._location = oem_config["location"]
         self._distance_matrix = oem_config["distance_matrix"]
         self._total_shipping_cost = 0.0
-        self._delivery_delay = oem_config["delivery_delay"]
-        self._manufacture_delay = oem_config["manufacture_delay"]
-        self._remanufacture_delay = oem_config["remanufacture_delay"]
+        # Delays are given in days and converted to steps once, here.
+        time_converter = world.time_converter()
+        self._delivery_delay_steps = time_converter.days_to_steps(
+            oem_config["delivery_delay"]
+        )
+        # Production spreads the units still needed over the delay. A delay under one
+        # step means "make it all this step", so the divisor is at least 1.
+        self._manufacture_delay_steps = max(
+            1, time_converter.days_to_steps(oem_config["manufacture_delay"])
+        )
+        self._remanufacture_delay_steps = max(
+            1, time_converter.days_to_steps(oem_config["remanufacture_delay"])
+        )
         self._factory_stock = {
             ProductEnum.V: oem_config["virgin_stock"],
             ProductEnum.R: oem_config["reman_stock"],
@@ -116,7 +126,10 @@ class OEM(BaseAgent):
         self._unit_production_cost_R = oem_config["unit_production_cost_R"]
         self._core_collection_cost = oem_config["core_collection_cost"]
         self._core_disposal_cost = oem_config["core_disposal_cost"]
-        self._core_storage_cost = oem_config["core_storage_cost"]
+        # Given in € per core per day; charged once per step
+        self._core_storage_cost_per_step = time_converter.per_day_to_per_step(
+            oem_config["core_storage_cost"]
+        )
         self._total_core_storage_cost = 0.0
         self._core_storage_limit = oem_config["core_storage_limit"]
         self._bounties_returned = 0
@@ -141,7 +154,10 @@ class OEM(BaseAgent):
             }
 
         self._reman_implementation_cost = oem_config["reman_implementation_cost"]
-        self._reman_annual_operating_cost = oem_config["reman_annual_operating_cost"]
+        # Given in € per year; charged once per step
+        self._reman_operating_cost_per_step = time_converter.per_year_to_per_step(
+            oem_config["reman_annual_operating_cost"]
+        )
         self._total_reman_operating_cost = 0.0
         self._reman_enabled = ProductEnum.R in self._world.get_active_products()
 
@@ -156,11 +172,13 @@ class OEM(BaseAgent):
         # Checks that there is a distance matrix and that the location being looked for is in that matrix
         # First check that intelligent logistics isnt disabled
         if not self._routing_enabled:
-            return self._delivery_delay
+            return self._delivery_delay_steps
         if self._distance_matrix and self._location in self._distance_matrix:
             # Checks if you are sending it to the same place you are
+            # The heuristics below work in days, so convert the result to steps
+            time_converter = self._world.time_converter()
             if self._location == destination:
-                return 1
+                return time_converter.days_to_steps(1)
             route = self._distance_matrix[self._location].get(destination)
             if route:
                 hours = route["driving_hours"]
@@ -169,8 +187,8 @@ class OEM(BaseAgent):
                 )
                 if route.get("has_ferry"):
                     days += 1
-                return days
-        return self._delivery_delay
+                return time_converter.days_to_steps(days)
+        return self._delivery_delay_steps
 
     def get_shipping_cost(self, destination: str, default_cost: float) -> float:
         """
@@ -209,14 +227,14 @@ class OEM(BaseAgent):
         self.process_incoming_cores(rng)
         self.update_manufacturing_counts()
         self.update_production()
-        self._total_core_storage_cost += self._core_stock * self._core_storage_cost
-        self._balance -= self._core_stock * self._core_storage_cost
+        storage_cost = self._core_stock * self._core_storage_cost_per_step
+        self._total_core_storage_cost += storage_cost
+        self._balance -= storage_cost
 
-        # Deduct reman annual operating cost proportionally per day
+        # Deduct the reman operating cost for this step (a share of the annual cost)
         if self._reman_enabled:
-            daily_op_cost = self._reman_annual_operating_cost / 365.0
-            self._balance -= daily_op_cost
-            self._total_reman_operating_cost += daily_op_cost
+            self._balance -= self._reman_operating_cost_per_step
+            self._total_reman_operating_cost += self._reman_operating_cost_per_step
 
     def get_tracking_metrics(self) -> dict:
         """
@@ -283,10 +301,10 @@ class OEM(BaseAgent):
         delay = (
             self.get_shipping_delay(customer_location)
             if customer_location
-            else self._delivery_delay
+            else self._delivery_delay_steps
         )  # Works depending on whether the customer location logic is used
-        arrival_day = self._world.now() + delay
-        self._incoming_cores.append((arrival_day, customer_location))
+        arrival_step = self._world.now() + delay
+        self._incoming_cores.append((arrival_step, customer_location))
 
     def process_incoming_cores(self, rng):
         """
@@ -379,7 +397,7 @@ class OEM(BaseAgent):
             match product:
                 case ProductEnum.V:
                     self._production_rate[product] = (
-                        still_needed / self._manufacture_delay
+                        still_needed / self._manufacture_delay_steps
                     )
                     # if self._production_rate[product] > 3: # Could set a maximum production capacity
                     #     self._production_rate[product] = 3
@@ -394,7 +412,9 @@ class OEM(BaseAgent):
 
                 case ProductEnum.R:
                     if self._reman_enabled:
-                        desired_production = still_needed / self._remanufacture_delay
+                        desired_production = (
+                            still_needed / self._remanufacture_delay_steps
+                        )
                         cores_per_unit = self._config["products"]["R"]["cores_consumed"]
 
                         # Production is limited by whichever runs out first: demand or cores
