@@ -4,7 +4,8 @@ import json
 config = {
     "description": "Default",
     "main": {
-        "simulation_length": 5000,
+        "simulation_years": 15,
+        "time_unit": "day",
         "B2B_population": 1000,
         "B2C_population": 0,
         "seed": 1,

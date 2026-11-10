@@ -12,6 +12,7 @@ from . import customer
 from .product import ProductEnum
 import copy
 from . import demand_inputs
+from .model_time_converter import ModelTimeConverter, TimeUnit
 from collections.abc import Sequence
 
 if TYPE_CHECKING:
@@ -40,6 +41,7 @@ class World:
     _demand_profiles: dict
     _demand_calibration: dict
     _new_customers_today: dict[ProductEnum, int]
+    _time_converter: ModelTimeConverter
 
     def __init__(self, config: dict) -> None:
         """
@@ -60,6 +62,15 @@ class World:
         self._message_queue = []
         self._active_products = [ProductEnum.V]
         self._config = config
+
+        # One converter per run: turns real-world units (days, years) into steps
+        self._time_converter = ModelTimeConverter.from_config(config)
+        if self._time_converter.unit != TimeUnit.DAY:
+            raise NotImplementedError(
+                f"time_unit '{self._time_converter.unit.value}' is not supported yet: delays, rates "
+                "and costs are still in days. Use time_unit 'day' for now."
+            )
+
         if config["main"]["enable_reman"]:
             self._active_products.append(ProductEnum.R)
 
@@ -177,6 +188,15 @@ class World:
 
         self._now += 1
         self.update_customer_state_counts()
+
+    def time_converter(self) -> ModelTimeConverter:
+        """
+        Returns the converter between real-world units and model steps for this run.
+
+        Returns:
+            ModelTimeConverter: The run's time converter.
+        """
+        return self._time_converter
 
     def now(self) -> int:
         """
@@ -365,18 +385,22 @@ class World:
                 recipient.handle_message(message, rng)
         self._message_queue.clear()
 
-    async def run(
-        self, rng, simulation_length: int, progress_callback=None
-    ) -> tuple[dict, dict]:
+    async def run(self, rng, n_steps: int, progress_callback=None) -> tuple[dict, dict]:
         """
-        Executes the simulation loop for a specified number of ticks,
+        Executes the simulation loop for a specified number of steps,
         collects time-series results, and generates a final report.
+
+        Args:
+            rng (numpy.random.Generator): Seeded random number generator.
+            n_steps (int): Number of steps to simulate (see ModelTimeConverter.years_to_steps).
+            progress_callback: Optional function called with (step, n_steps) for progress bars.
         """
         # Find the OEM agent for data collection
         oem_id = self._agents_by_type[AgentEnum.OEM][0]
         oemAgent: OEM = self._agents[oem_id]  # type: ignore
 
         results = {
+            "step": [],
             "day": [],
             "potential_users": [],
             "wants_virgin": [],
@@ -399,10 +423,11 @@ class World:
             "new_customers_R": [],
         }
 
-        for i in range(simulation_length):
+        for i in range(n_steps):
             self.tick()
 
             # Record states
+            results["step"].append(self.now())
             results["day"].append(self.now())
             results["potential_users"].append(self._num_potential_users)
             results["wants_virgin"].append(self._num_wants[ProductEnum.V])
@@ -424,9 +449,9 @@ class World:
             self.call_next(rng)
 
             if progress_callback is not None:
-                update_interval = max(1, simulation_length // 100)
+                update_interval = max(1, n_steps // 100)
                 if i % update_interval == 0:
-                    progress_callback(i, simulation_length)
+                    progress_callback(i, n_steps)
                     await asyncio.sleep(0)
 
         report = oemAgent.generate_financial_report()

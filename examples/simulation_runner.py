@@ -18,7 +18,9 @@ async def run_simulation(config, seed=None, progress_callback=None):
 
     B2B_population: int = config["main"]["B2B_population"]
     B2C_population: int = config["main"]["B2C_population"]
-    simulation_length: int = config["main"]["simulation_length"]
+    n_steps: int = world.time_converter().years_to_steps(
+        config["main"]["simulation_years"]
+    )
 
     # Load geographic data
     cities = []
@@ -100,7 +102,7 @@ async def run_simulation(config, seed=None, progress_callback=None):
             customer_agents[idx].initialise_as_active_user(rng, ProductEnum.V)
 
     # Delegate execution to the World agent
-    results, report = await world.run(rng, simulation_length, progress_callback)
+    results, report = await world.run(rng, n_steps, progress_callback)
 
     # Record where any forecast-based advertising rates came from (empty if none were used)
     report["Demand Calibration"] = world.get_demand_calibration()

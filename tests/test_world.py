@@ -275,7 +275,7 @@ class TestNewCustomerCounting(unittest.TestCase):
 
     def test_run_records_new_customers_each_day(self):
         w = self._world_with_customers(20)
-        results, _ = asyncio.run(w.run(np.random.default_rng(1), simulation_length=6))
+        results, _ = asyncio.run(w.run(np.random.default_rng(1), n_steps=6))
         self.assertEqual(len(results["new_customers_V"]), 6)
         self.assertEqual(len(results["new_customers_R"]), 6)
         # 5 a day until the 20 potential customers run out

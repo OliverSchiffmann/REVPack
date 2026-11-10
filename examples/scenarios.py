@@ -3,7 +3,8 @@ import copy
 dict_default = {
     "description": "Standard run with default parameters",
     "main": {
-        "simulation_length": 5000,
+        "simulation_years": 15,
+        "time_unit": "day",  # length of one step: "day", "week" or "month"
         "B2B_population": 1000,
         "B2C_population": 0,
         "seed": 1,
@@ -79,7 +80,10 @@ dict_forecast = copy.deepcopy(dict_default)
 dict_forecast["description"] = (
     "Advertising rates calibrated from example Simplan forecasts (synthetic OS data)"
 )
-dict_forecast["main"]["simulation_length"] = 1825  # 5 years
+dict_forecast["main"]["simulation_years"] = 5
+dict_forecast["main"][
+    "time_unit"
+] = "day"  # must match the forecast files' frequency (daily)
 dict_forecast["main"][
     "B2B_population"
 ] = 1000  # market size the example data was made for

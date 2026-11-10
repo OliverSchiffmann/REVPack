@@ -29,7 +29,7 @@
     <!-- Dynamic PyScript Configuration with Cache Busting -->
     <script>
       // Use a static version to allow the browser to cache Python files and drastically improve load speed
-      const ts = "1.0.5"; // bump whenever any fetched .py file changes
+      const ts = "1.0.6"; // bump whenever any fetched .py file changes
       const pyConfig = document.createElement("py-config");
       pyConfig.innerHTML = JSON.stringify({
         packages: ["numpy", "matplotlib"],
@@ -43,6 +43,7 @@
           { from: `reuman/OEM.py?v=${ts}`, to_file: "reuman/OEM.py" },
           { from: `reuman/product.py?v=${ts}`, to_file: "reuman/product.py" },
           { from: `reuman/world.py?v=${ts}`, to_file: "reuman/world.py" },
+          { from: `reuman/model_time_converter.py?v=${ts}`, to_file: "reuman/model_time_converter.py" },
           { from: `reuman/demand_inputs.py?v=${ts}`, to_file: "reuman/demand_inputs.py" },
           { from: `reuman/states.py?v=${ts}`, to_file: "reuman/states.py" },
           { from: `examples/scenarios.py?v=${ts}`, to_file: "scenarios.py" },
@@ -459,10 +460,8 @@
 
       const paramSchema = {
         main: {
-          simulation_length: {
-            type: "number",
-            label: "Simulation Length (Days)",
-          },
+          simulation_years: { type: "number", label: "Simulation Length (Years)" },
+          time_unit: { type: "select", options: ["day"], label: "Time Step" },
           B2B_population: { type: "number", label: "B2B Population" },
           seed: { type: "number", label: "Random Seed" },
           starting_customers: {
@@ -1466,7 +1465,10 @@
               for sc in scenarios_list:
                   sc_id = str(sc["id"])
                   config = sc["config"]
-                  sim_length = config["main"]["simulation_length"]
+                  from reuman.model_time_converter import ModelTimeConverter
+                  sim_length = ModelTimeConverter.from_config(config).years_to_steps(
+                      config["main"]["simulation_years"]
+                  )
 
                   if "products_V" in config and "products_R" in config:
                       for p_key in ["products_V", "products_R"]:

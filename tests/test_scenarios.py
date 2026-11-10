@@ -1,7 +1,8 @@
 dict_default = {
     "description": "Standard run with default parameters",
     "main": {
-        "simulation_length": 1000,
+        "simulation_years": 3,
+        "time_unit": "day",
         "B2B_population": 1000,
         "B2C_population": 0,
         "seed": 1,
