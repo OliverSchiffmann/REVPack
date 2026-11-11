@@ -190,8 +190,8 @@ class TestWorldForecastProfiles(unittest.TestCase):
         self.assertEqual(set(cal), {"V", "R"})
         self.assertEqual(cal["V"]["start_date"], "2025-01-01")
         self.assertEqual(cal["V"]["end_date"], "2025-01-10")
-        self.assertEqual(cal["V"]["history_days"], 7)
-        self.assertEqual(cal["V"]["daily_values"], [1, 0, 2, 1, 0, 1, 1, 1, 2, 1])
+        self.assertEqual(cal["V"]["history_periods"], 7)
+        self.assertEqual(cal["V"]["values"], [1, 0, 2, 1, 0, 1, 1, 1, 2, 1])
 
     def test_file_path_route(self):
         with tempfile.TemporaryDirectory() as tmp:

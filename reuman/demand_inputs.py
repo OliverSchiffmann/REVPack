@@ -27,7 +27,7 @@ class ForecastFormatError(ValueError):
 
 
 class ForecastSeries(NamedTuple):
-    """One value per day: real data first, then forecast."""
+    """One value per period (day, week or month)”: real data first, then forecast."""
 
     dates: list[date]
     values: list[float]
@@ -44,6 +44,7 @@ def load_forecast_file(path: str, frequency: str = "daily") -> dict:
 
     Args:
         path (str): Path to the forecast .json file.
+        frequency (str): The frequency the forecast must have (the model's step: "daily", "weekly" or "monthly")
 
     Returns:
         dict: The parsed forecast.
@@ -63,6 +64,7 @@ def validate_forecast(data: dict, frequency: str = "daily") -> None:
 
     Args:
         data (dict): A parsed Simplan forecast.
+        frequency (str): The frequency the forecast must have (the model's step: "daily", "weekly" or "monthly")
     """
     if not isinstance(data, dict):
         raise ForecastFormatError("Forecast must be a JSON object.")
@@ -119,15 +121,16 @@ def build_forecast_series(data: dict, frequency: str = "daily") -> ForecastSerie
     Join a forecast's real history and its future forecast into one series,
     with one value per period (day, week or month).
 
-    Real values ('input' table, field 'y') are used for every day they exist.
-    Forecast values ('forecast' table, field 'yhat') are used only for the days
+    Real values ('input' table, field 'y') are used for every period they exist.
+    Forecast values ('forecast' table, field 'yhat') are used only for the periods
     after the history ends. Negative forecast values are set to 0.
 
     Args:
         data (dict): A parsed, validated Simplan forecast.
+        frequency
 
     Returns:
-        DailySeries: The joined series.
+        ForecastSeries: The joined series.
     """
     history = sorted(data["tables"]["input"], key=lambda r: r["date"])
     hist_dates = [_parse_date(r["date"]) for r in history]

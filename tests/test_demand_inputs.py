@@ -59,7 +59,7 @@ def make_forecast(history, future=(), start=START, frequency="daily"):
 
 
 def make_series(values, start=START):
-    """Build a DailySeries directly, for tests of estimate_ad_rates."""
+    """Build a ForecastSeries directly, for tests of estimate_ad_rates."""
     days = [start + timedelta(days=i) for i in range(len(values))]
     return ForecastSeries(days, list(values), len(values), 0)
 

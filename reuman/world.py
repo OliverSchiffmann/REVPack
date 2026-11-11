@@ -97,6 +97,7 @@ class World:
                     profile["amount_per_day"] = loaded_vals
                 except Exception as e:
                     raise RuntimeError(f"Failed to load demand CSV '{val}': {e}") from e
+
         # Hand-entered profiles are per day: convert them to per step
         self._convert_profiles_to_steps()
 
@@ -104,8 +105,6 @@ class World:
         # Must come after the conversion above: forecast rates are estimated per step
         # already, and converting them again would count the step length twice.
         self._demand_calibration = self._resolve_forecast_profiles()
-
-    # leading underscore (_) infront of function is used to indicate it is only to be called in __init__
 
     def _convert_profiles_to_steps(self) -> None:
         """
@@ -190,8 +189,8 @@ class World:
                 "rate": rate,
                 "start_date": s.dates[0].isoformat(),
                 "end_date": s.dates[-1].isoformat(),
-                "history_days": s.history_days,
-                "clipped_days": s.clipped_days,
+                "history_periods": s.history_periods,
+                "clipped_periods": s.clipped_periods,
                 "values": list(s.values),
             }
         return calibration

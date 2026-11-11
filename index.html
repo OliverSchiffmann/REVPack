@@ -29,7 +29,7 @@
     <!-- Dynamic PyScript Configuration with Cache Busting -->
     <script>
       // Use a static version to allow the browser to cache Python files and drastically improve load speed
-      const ts = "1.0.8"; // bump whenever any fetched .py file changes
+      const ts = "1.0.9"; // bump whenever any fetched .py file changes
       const pyConfig = document.createElement("py-config");
       pyConfig.innerHTML = JSON.stringify({
         packages: ["numpy", "matplotlib"],
@@ -1185,7 +1185,7 @@
         wrap.classList.remove("hidden");
 
         // +1 because forecastCumulative's last value sits one entry after the final forecast day
-        const forecastDays = Math.max(...cals.map((c) => c.daily_values.length));
+        const forecastDays = Math.max(...cals.map((c) => c.values.length));
         const nDays = Math.min(res.day.length, forecastDays + 1);
         const windowRes = { day: res.day.slice(0, nDays) };
         const windowDatasets = salesDatasets.map((ds) => ({
@@ -1215,12 +1215,12 @@
         const out = [];
         let total = 0;
         for (let i = 0; i < nDays; i++) {
-          if (i > cal.daily_values.length) {
+          if (i > cal.values.length) {
             out.push(null);
             continue;
           }
           out.push(total);
-          if (i < cal.daily_values.length) total += cal.daily_values[i];
+          if (i < cal.values.length) total += cal.values[i];
         }
         return out;
       }
