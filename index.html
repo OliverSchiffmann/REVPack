@@ -938,7 +938,7 @@
               <div>
                 <div class="flex justify-between text-sm text-gray-600 dark:text-gray-300 mb-1">
                   <span class="font-bold">${sc.name}</span>
-                  <span id="prog-text-${sc.id}">0 / 0 Days</span>
+                  <span id="prog-text-${sc.id}">Waiting…</span>
                 </div>
                 <div class="w-full bg-gray-200 dark:bg-gray-600 rounded-full h-2.5 mb-1">
                   <div id="prog-bar-${sc.id}" class="bg-blue-600 h-2.5 rounded-full transition-all duration-100" style="width: 0%"></div>
@@ -997,58 +997,37 @@
         "#f97316",
       ];
 
+      // Compare scenarios on a shared day axis. Each point is {x: day, y: value}, so
+      // scenarios with different time steps (day / week / month) line up by day
+      // rather than by position in their results arrays.
       function drawComparisonCharts(allResults, scenarioList) {
-        const labels = allResults[scenarioList[0].id].day;
+        const byDay = (res, key) => res.day.map((day, i) => ({ x: day, y: res[key][i] }));
 
-        const balDatasets = scenarioList.map((sc, i) => ({
-          label: sc.name,
-          data: allResults[sc.id].oem_balance,
-          borderColor: chartColors[i % chartColors.length],
-          pointRadius: 0,
-          fill: false,
-        }));
-
-        if (charts["compBalanceChart"]) charts["compBalanceChart"].destroy();
-        charts["compBalanceChart"] = new Chart(
-          document.getElementById("compBalanceChart"),
-          {
+        const comparisonChart = (canvasId, key, titleText) => {
+          const datasets = scenarioList.map((sc, i) => ({
+            label: sc.name,
+            data: byDay(allResults[sc.id], key),
+            borderColor: chartColors[i % chartColors.length],
+            pointRadius: 0,
+            fill: false,
+          }));
+          if (charts[canvasId]) charts[canvasId].destroy();
+          charts[canvasId] = new Chart(document.getElementById(canvasId), {
             type: "line",
-            data: { labels: labels, datasets: balDatasets },
+            data: { datasets: datasets },
             options: {
               responsive: true,
               maintainAspectRatio: false,
-              interaction: { mode: "index", intersect: false },
-              plugins: {
-                title: { display: true, text: "Bank Balance Comparison (€)" },
-              },
+              // "index" would pair the 100th day with the 100th week; pick the nearest day instead
+              interaction: { mode: "nearest", axis: "x", intersect: false },
+              plugins: { title: { display: true, text: titleText } },
+              scales: { x: { type: "linear", title: { display: true, text: "Day" } } },
             },
-          },
-        );
+          });
+        };
 
-        const coreDatasets = scenarioList.map((sc, i) => ({
-          label: sc.name,
-          data: allResults[sc.id].core_stock,
-          borderColor: chartColors[i % chartColors.length],
-          pointRadius: 0,
-          fill: false,
-        }));
-
-        if (charts["compStockChart"]) charts["compStockChart"].destroy();
-        charts["compStockChart"] = new Chart(
-          document.getElementById("compStockChart"),
-          {
-            type: "line",
-            data: { labels: labels, datasets: coreDatasets },
-            options: {
-              responsive: true,
-              maintainAspectRatio: false,
-              interaction: { mode: "index", intersect: false },
-              plugins: {
-                title: { display: true, text: "Core Stock Comparison" },
-              },
-            },
-          },
-        );
+        comparisonChart("compBalanceChart", "oem_balance", "Bank Balance Comparison (€)");
+        comparisonChart("compStockChart", "core_stock", "Core Stock Comparison");
       }
 
       window.updateCol = function (colIndex, scId) {
@@ -1444,10 +1423,10 @@
 
       window.handle_py_import = handle_py_import
 
-      def update_progress(bar_id, text_id, current, total):
+      def update_progress(bar_id, text_id, current, total, step_label):
           percentage = (current / total) * 100 if total > 0 else 0
           document.getElementById(bar_id).style.width = f"{percentage}%"
-          document.getElementById(text_id).innerText = f"{current} / {total} Days"
+          document.getElementById(text_id).innerText = f"{current} / {total} {step_label}"
 
       async def run_sim_from_web(event):
           btn = document.getElementById('run-btn')
@@ -1462,18 +1441,18 @@
               all_results = {}
               all_reports = {}
 
-              def make_progress_callback(bar_id, text_id):
+              def make_progress_callback(bar_id, text_id, step_label):
                   def cb(current, total):
-                      update_progress(bar_id, text_id, current, total)
+                      update_progress(bar_id, text_id, current, total, step_label)
                   return cb
 
               from reuman.model_time_converter import ModelTimeConverter
               for sc in scenarios_list:
                   sc_id = str(sc["id"])
                   config = sc["config"]
-                  sim_length = ModelTimeConverter.from_config(config).years_to_steps(
-                      config["main"]["simulation_years"]
-                  )
+                  time_converter = ModelTimeConverter.from_config(config)
+                  sim_length = time_converter.years_to_steps(config["main"]["simulation_years"])
+                  step_label = f"{time_converter.unit.value.capitalize()}s"  # Days / Weeks / Months
 
                   if "products_V" in config and "products_R" in config:
                       for p_key in ["products_V", "products_R"]:
@@ -1497,10 +1476,10 @@
                           "R": config.pop("products_R")
                       }
 
-                  cb = make_progress_callback(f"prog-bar-{sc_id}", f"prog-text-{sc_id}")
+                  cb = make_progress_callback(f"prog-bar-{sc_id}", f"prog-text-{sc_id}", step_label)
 
                   res, rep = await main_OS.run_simulation(config, seed=config["main"].get("seed", 1), progress_callback=cb)
-                  update_progress(f"prog-bar-{sc_id}", f"prog-text-{sc_id}", sim_length, sim_length)
+                  update_progress(f"prog-bar-{sc_id}", f"prog-text-{sc_id}", sim_length, sim_length, step_label)
 
                   all_results[sc_id] = res
                   all_reports[sc_id] = rep

@@ -208,7 +208,6 @@ def estimate_ad_rates(
         raise ForecastFormatError(
             f"V and R forecasts must have the same frequency, got {frequencies}."
         )
-    # Both series must cover the same days, otherwise the shared pool is undefined
     date_ranges = {k: (s.dates[0], s.dates[-1]) for k, s in given.items()}
     if len(set(date_ranges.values())) > 1:
         raise ForecastFormatError(

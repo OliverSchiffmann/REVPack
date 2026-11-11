@@ -166,8 +166,6 @@ class World:
                 raise ValueError(
                     f"Product {key} has a forecast demand profile but no forecast data."
                 )
-            # The forecast must have one value per model step (e.g. weekly for weekly steps)
-            frequency = self._time_converter.frequency
             if isinstance(data, str):  # a file path (Python scripts)
                 data = demand_inputs.load_forecast_file(data)
             else:  # already-parsed data (webapp)
