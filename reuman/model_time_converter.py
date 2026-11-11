@@ -14,6 +14,7 @@ from __future__ import annotations
 import math
 from dataclasses import dataclass
 from enum import Enum
+from collections.abc import Sequence
 
 DAYS_PER_WEEK = 7
 WEEKS_PER_MONTH = 4
@@ -33,6 +34,13 @@ DAYS_PER_STEP = {
     TimeUnit.DAY: 1,
     TimeUnit.WEEK: DAYS_PER_WEEK,
     TimeUnit.MONTH: DAYS_PER_WEEK * WEEKS_PER_MONTH,
+}
+
+# How each step length is named in Simplan forecast files ("frequency" parameter)
+FREQUENCY_NAMES = {
+    TimeUnit.DAY: "daily",
+    TimeUnit.WEEK: "weekly",
+    TimeUnit.MONTH: "monthly",
 }
 
 
@@ -72,6 +80,11 @@ class ModelTimeConverter:
     def days_per_step(self) -> int:
         """Number of model days in one step (1, 7 or 28)."""
         return DAYS_PER_STEP[self.unit]
+
+    @property
+    def frequency(self) -> str:
+        """Name of the step length as used in Simplan forecasts ("daily", "weekly" or "monthly")."""
+        return FREQUENCY_NAMES[self.unit]
 
     @property
     def steps_per_year(self) -> int:
@@ -116,7 +129,8 @@ class ModelTimeConverter:
         """
         Convert a probability per day into the probability of it happening at least once in a step.
 
-        Uses 1 - (1 - p)^n
+        Same as 1 - (1 - p)^n, but calculated with log1p/expm1 to keep full precision
+        for small p (plain 1 - (1 - p) turns 0.0003 into 0.00029999999999996696).
 
         Raises:
             ValueError: If p_daily is not between 0 and 1.
@@ -125,7 +139,18 @@ class ModelTimeConverter:
             raise ValueError(
                 f"A probability must be between 0 and 1. Received: {p_daily}"
             )
-        return 1.0 - (1.0 - p_daily) ** self.days_per_step
+        if p_daily == 1.0:  # certain every day, so certain in the step
+            return 1.0
+        return -math.expm1(self.days_per_step * math.log1p(-p_daily))
+
+    def daily_amounts_to_step_amounts(self, daily_amounts: Sequence[int]) -> list[int]:
+        """
+        Add up a list of per-day amounts (one per day) into one total per step.
+
+        A final, shorter group of days is added up as it is.
+        """
+        d = self.days_per_step
+        return [sum(daily_amounts[i : i + d]) for i in range(0, len(daily_amounts), d)]
 
     def per_day_to_per_step(self, value_per_day: float) -> float:
         """Convert an amount per day (e.g. € per core per day, units per day) into an amount per step."""

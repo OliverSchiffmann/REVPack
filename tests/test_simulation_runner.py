@@ -19,11 +19,14 @@ class TestSimulationRunner(unittest.TestCase):
         self.assertEqual(results["day"][-1], 336)
         self.assertIn("Total Cost", report)
 
-    def test_unsupported_time_unit_is_rejected(self):
-        """Until delays, rates and costs are converted, only daily steps may run."""
-        self.config["main"]["time_unit"] = "week"
-        with self.assertRaises(NotImplementedError):
-            asyncio.run(run_simulation(self.config))
+    def test_runs_at_every_time_unit(self):
+        """One year is 336 days whatever the step length."""
+        for unit, n_steps in [("day", 336), ("week", 48), ("month", 12)]:
+            with self.subTest(unit=unit):
+                self.config["main"]["time_unit"] = unit
+                results, _ = asyncio.run(run_simulation(self.config))
+                self.assertEqual(len(results["step"]), n_steps)
+                self.assertEqual(results["day"][-1], 336)
 
 
 if __name__ == "__main__":

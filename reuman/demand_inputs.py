@@ -13,7 +13,6 @@ from typing import NamedTuple
 import math
 
 EXPECTED_RESULT_TYPE = "timeseries.forecast"
-EXPECTED_FREQUENCY = "daily"
 EXPECTED_AGGREGATION = "sum"
 
 # The fields each row of each table must have
@@ -27,16 +26,16 @@ class ForecastFormatError(ValueError):
     """Raised when a forecast is not in the expected Simplan format."""
 
 
-class DailySeries(NamedTuple):
+class ForecastSeries(NamedTuple):
     """One value per day: real data first, then forecast."""
 
     dates: list[date]
     values: list[float]
-    history_days: int  # how many of the values are real data
-    clipped_days: int  # how many negative forecast values were set to 0
+    history_periods: int  # how many of the values are real data
+    clipped_periods: int  # how many negative forecast values were set to 0
 
 
-def load_forecast_file(path: str) -> dict:
+def load_forecast_file(path: str, frequency: str = "daily") -> dict:
     """
     Read a Simplan forecast JSON file from disk and check its format.
 
@@ -51,11 +50,11 @@ def load_forecast_file(path: str) -> dict:
     """
     with open(path, "r", encoding="utf-8") as f:
         data = json.load(f)
-    validate_forecast(data)
+    validate_forecast(data, frequency)
     return data
 
 
-def validate_forecast(data: dict) -> None:
+def validate_forecast(data: dict, frequency: str = "daily") -> None:
     """
     Check that a parsed forecast has the structure this module relies on.
 
@@ -75,13 +74,14 @@ def validate_forecast(data: dict) -> None:
         )
 
     params = data.get("parameters", {})
-    if params.get("frequency") != EXPECTED_FREQUENCY:
+    if params.get("frequency") != frequency:
         raise ForecastFormatError(
-            f"Forecast must be daily, got frequency '{params.get('frequency')}'."
+            f"Forecast frequency is '{params.get('frequency')}' but the model steps "
+            f"are '{frequency}'. Change time_unit or export the forecast at that frequency."
         )
     if params.get("aggregation") != EXPECTED_AGGREGATION:
         raise ForecastFormatError(
-            "Forecast values must be daily totals (aggregation 'sum'), "
+            "Forecast values must be totals per period (aggregation 'sum'), "
             f"got '{params.get('aggregation')}'."
         )
 
@@ -103,9 +103,21 @@ def _parse_date(text: str) -> date:
     return date.fromisoformat(text[:10])
 
 
-def build_daily_series(data: dict) -> DailySeries:
+def _is_next_period(previous: date, current: date, frequency: str) -> bool:
+    """True if `current` is the period straight after `previous` at this frequency."""
+    if frequency == "daily":
+        return current - previous == timedelta(days=1)
+    if frequency == "weekly":
+        return current - previous == timedelta(days=7)
+    # Monthly: Simplan labels each calendar month by a date in it, so compare months
+    months = lambda d: d.year * 12 + d.month
+    return months(current) - months(previous) == 1
+
+
+def build_forecast_series(data: dict, frequency: str = "daily") -> ForecastSeries:
     """
-    Join a forecast's real history and its future forecast into one daily series.
+    Join a forecast's real history and its future forecast into one series,
+    with one value per period (day, week or month).
 
     Real values ('input' table, field 'y') are used for every day they exist.
     Forecast values ('forecast' table, field 'yhat') are used only for the days
@@ -136,17 +148,18 @@ def build_daily_series(data: dict) -> DailySeries:
     dates = hist_dates + fut_dates
     values = hist_values + fut_values
 
-    # Every day must follow the previous one exactly: no gaps, no repeats
+    # Every period must follow the previous one exactly: no gaps, no repeats
     for previous, current in zip(dates, dates[1:]):
-        if current - previous != timedelta(days=1):
+        if not _is_next_period(previous, current, frequency):
             raise ForecastFormatError(
-                f"Dates are not consecutive days: {previous} is followed by {current}."
+                f"Dates are not consecutive {frequency} periods: "
+                f"{previous} is followed by {current}."
             )
 
     if any(v < 0 for v in hist_values):
         raise ForecastFormatError("The real (input) data contains negative values.")
 
-    return DailySeries(dates, values, len(hist_values), clipped)
+    return ForecastSeries(dates, values, len(hist_values), clipped)
 
 
 def round_sig(x: float, sig: int = 4) -> float:
@@ -157,8 +170,8 @@ def round_sig(x: float, sig: int = 4) -> float:
 
 
 def estimate_ad_rates(
-    series_v: DailySeries | None,
-    series_r: DailySeries | None,
+    series_v: ForecastSeries | None,
+    series_r: ForecastSeries | None,
     market_size: int,
     starting_customers: int = 0,
 ) -> dict[str, float]:

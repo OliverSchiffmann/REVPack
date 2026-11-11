@@ -9,9 +9,9 @@ import numpy as np
 
 from reuman import demand_inputs
 from reuman.demand_inputs import (
-    DailySeries,
+    ForecastSeries,
     ForecastFormatError,
-    build_daily_series,
+    build_forecast_series,
     estimate_ad_rates,
     load_forecast_file,
     round_sig,
@@ -21,20 +21,30 @@ from reuman.demand_inputs import (
 START = date(2025, 1, 1)
 
 
-def make_forecast(history, future=(), start=START):
+def period_dates(start, n, frequency="daily"):
+    """n consecutive period dates: every day, every 7 days, or the 1st of each month."""
+    if frequency == "daily":
+        return [start + timedelta(days=i) for i in range(n)]
+    if frequency == "weekly":
+        return [start + timedelta(days=7 * i) for i in range(n)]
+    months = [start.month - 1 + i for i in range(n)]
+    return [date(start.year + m // 12, m % 12 + 1, 1) for m in months]
+
+
+def make_forecast(history, future=(), start=START, frequency="daily"):
     """
     Build a minimal Simplan-style forecast dict.
 
-    history: real daily values (the 'input' table).
-    future: forecast values for the days after the history.
-    The 'forecast' table covers history + future days, like Simplan's output,
-    with yhat set to 999 on history days so tests can tell if it is wrongly used.
+    history: real values per period (the 'input' table).
+    future: forecast values for the periods after the history.
+    The 'forecast' table covers history + future periods, like Simplan's output,
+    with yhat set to 999 on history periods so tests can tell if it is wrongly used.
     """
-    days = [start + timedelta(days=i) for i in range(len(history) + len(future))]
+    days = period_dates(start, len(history) + len(future), frequency)
     stamp = lambda d: d.isoformat() + "T00:00:00Z"
     return {
         "resultType": "timeseries.forecast",
-        "parameters": {"frequency": "daily", "aggregation": "sum"},
+        "parameters": {"frequency": frequency, "aggregation": "sum"},
         "tables": {
             "input": [{"date": stamp(d), "y": y} for d, y in zip(days, history)],
             "forecast": [
@@ -51,7 +61,7 @@ def make_forecast(history, future=(), start=START):
 def make_series(values, start=START):
     """Build a DailySeries directly, for tests of estimate_ad_rates."""
     days = [start + timedelta(days=i) for i in range(len(values))]
-    return DailySeries(days, list(values), len(values), 0)
+    return ForecastSeries(days, list(values), len(values), 0)
 
 
 class TestValidateForecast(unittest.TestCase):
@@ -73,6 +83,16 @@ class TestValidateForecast(unittest.TestCase):
         bad["parameters"]["frequency"] = "weekly"
         with self.assertRaises(ForecastFormatError):
             validate_forecast(bad)
+
+    def test_accepts_frequency_matching_the_model_step(self):
+        validate_forecast(make_forecast([1, 2], frequency="weekly"), "weekly")
+        validate_forecast(make_forecast([1, 2], frequency="monthly"), "monthly")
+
+    def test_rejects_frequency_different_from_the_model_step(self):
+        with self.assertRaises(ForecastFormatError):
+            validate_forecast(make_forecast([1, 2], frequency="daily"), "weekly")
+        with self.assertRaises(ForecastFormatError):
+            validate_forecast(make_forecast([1, 2], frequency="monthly"), "weekly")
 
     def test_rejects_non_sum_aggregation(self):
         bad = copy.deepcopy(self.good)
@@ -104,35 +124,54 @@ class TestValidateForecast(unittest.TestCase):
             self.assertEqual(load_forecast_file(path), self.good)
 
 
-class TestBuildDailySeries(unittest.TestCase):
+class TestBuildForecacstSeries(unittest.TestCase):
 
     def test_uses_real_history_then_forecast(self):
-        s = build_daily_series(make_forecast([1, 2, 3], [4, 5]))
+        s = build_forecast_series(make_forecast([1, 2, 3], [4, 5]))
         # 999 would mean yhat was used on a history day
         self.assertEqual(s.values, [1, 2, 3, 4, 5])
-        self.assertEqual(s.history_days, 3)
+        self.assertEqual(s.history_periods, 3)
         self.assertEqual(s.dates[0], START)
         self.assertEqual(s.dates[-1], START + timedelta(days=4))
 
     def test_clips_negative_forecast_values(self):
-        s = build_daily_series(make_forecast([1, 2], [-3, 4]))
+        s = build_forecast_series(make_forecast([1, 2], [-3, 4]))
         self.assertEqual(s.values, [1, 2, 0.0, 4])
-        self.assertEqual(s.clipped_days, 1)
+        self.assertEqual(s.clipped_periods, 1)
 
     def test_rejects_negative_history(self):
         with self.assertRaises(ForecastFormatError):
-            build_daily_series(make_forecast([1, -2, 3]))
+            build_forecast_series(make_forecast([1, -2, 3]))
 
     def test_rejects_gap_in_dates(self):
         data = make_forecast([1, 2, 3, 4])
         del data["tables"]["input"][2]  # remove one day
         with self.assertRaises(ForecastFormatError):
-            build_daily_series(data)
+            build_forecast_series(data)
+
+    def test_weekly_and_monthly_dates_are_consecutive(self):
+        weekly = build_forecast_series(
+            make_forecast([1, 2], [3], frequency="weekly"), "weekly"
+        )
+        self.assertEqual(weekly.values, [1, 2, 3])
+        # Monthly crosses a year end and months of different lengths
+        monthly = make_forecast(
+            [1, 2, 3], [4], start=date(2024, 11, 1), frequency="monthly"
+        )
+        self.assertEqual(build_forecast_series(monthly, "monthly").values, [1, 2, 3, 4])
+
+    def test_rejects_gap_in_weekly_and_monthly_dates(self):
+        for frequency in ["weekly", "monthly"]:
+            with self.subTest(frequency=frequency):
+                data = make_forecast([1, 2, 3, 4], frequency=frequency)
+                del data["tables"]["input"][2]  # remove one period
+                with self.assertRaises(ForecastFormatError):
+                    build_forecast_series(data, frequency)
 
     def test_sorts_rows_that_are_out_of_order(self):
         data = make_forecast([1, 2, 3])
         data["tables"]["input"].reverse()
-        self.assertEqual(build_daily_series(data).values, [1, 2, 3])
+        self.assertEqual(build_forecast_series(data).values, [1, 2, 3])
 
 
 class TestRoundSig(unittest.TestCase):

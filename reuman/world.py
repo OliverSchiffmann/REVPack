@@ -12,7 +12,7 @@ from . import customer
 from .product import ProductEnum
 import copy
 from . import demand_inputs
-from .model_time_converter import ModelTimeConverter, TimeUnit
+from .model_time_converter import ModelTimeConverter
 from collections.abc import Sequence
 
 if TYPE_CHECKING:
@@ -65,11 +65,6 @@ class World:
 
         # One converter per run: turns real-world units (days, years) into steps
         self._time_converter = ModelTimeConverter.from_config(config)
-        if self._time_converter.unit != TimeUnit.DAY:
-            raise NotImplementedError(
-                f"time_unit '{self._time_converter.unit.value}' is not supported yet: delays, rates "
-                "and costs are still in days. Use time_unit 'day' for now."
-            )
 
         if config["main"]["enable_reman"]:
             self._active_products.append(ProductEnum.R)
@@ -80,21 +75,11 @@ class World:
             for key, product_data in config["products"].items()
         }
 
-        # Turn any forecast profiles into stochastic rates (runs once, before the simulation)
-        self._demand_calibration = self._resolve_forecast_profiles()
-
-        # Preload any demand CSV files so they aren't processed during the simulation ticks
+        # Preload a deterministic demand CSV (new customers per day) so it isn't read during the run
         for profile in self._demand_profiles.values():
-            if profile["type"] == "deterministic":
-                val = profile["amount_per_day"]
-                key = "amount_per_day"
-                cast_func = lambda x: int(float(x))
-            elif profile["type"] == "stochastic":
-                val = profile["rate"]
-                key = "rate"
-                cast_func = float
-            else:
+            if profile["type"] != "deterministic":
                 continue
+            val = profile["amount_per_day"]
 
             if isinstance(val, str):
                 try:
@@ -106,14 +91,51 @@ class World:
                         for row in reader:
                             if row:
                                 try:
-                                    loaded_vals.append(cast_func(row[0]))
+                                    loaded_vals.append(int(float(row[0])))
                                 except ValueError:
                                     pass  # Skip headers or non-numeric rows
-                    profile[key] = loaded_vals
+                    profile["amount_per_day"] = loaded_vals
                 except Exception as e:
                     raise RuntimeError(f"Failed to load demand CSV '{val}': {e}") from e
+        # Hand-entered profiles are per day: convert them to per step
+        self._convert_profiles_to_steps()
+
+        # Turn any forecast profiles into stochastic rates (runs once, before the simulation).
+        # Must come after the conversion above: forecast rates are estimated per step
+        # already, and converting them again would count the step length twice.
+        self._demand_calibration = self._resolve_forecast_profiles()
 
     # leading underscore (_) infront of function is used to indicate it is only to be called in __init__
+
+    def _convert_profiles_to_steps(self) -> None:
+        """
+        Convert hand-entered demand profiles from per-day values to per-step values.
+
+        Stochastic rates (probability per day) become probabilities per step.
+        Deterministic amounts (customers per day) become customers per step and
+        are stored under "amount_per_step"; a list (e.g. from a daily sales CSV)
+        holds one value per day and is added up per step. Forecast profiles are
+        left alone.
+        """
+        tc = self._time_converter
+        for profile in self._demand_profiles.values():
+            if profile["type"] == "stochastic":
+                rate = profile["rate"]
+                if not isinstance(rate, (int, float)):
+                    raise ValueError(
+                        "A stochastic demand rate must be a single number (probability per day). "
+                        f"Received: {rate!r}. For daily sales data use a deterministic profile."
+                    )
+                profile["rate"] = tc.daily_prob_to_step_prob(rate)
+            elif profile["type"] == "deterministic":
+                amount = profile.pop("amount_per_day")
+                if isinstance(amount, list):
+                    profile["amount_per_step"] = tc.daily_amounts_to_step_amounts(
+                        amount
+                    )
+                else:
+                    profile["amount_per_step"] = tc.per_day_to_per_step(amount)
+
     def _resolve_forecast_profiles(self) -> dict:
         """
         Replace every demand profile of type "forecast" with a stochastic rate
@@ -144,11 +166,13 @@ class World:
                 raise ValueError(
                     f"Product {key} has a forecast demand profile but no forecast data."
                 )
+            # The forecast must have one value per model step (e.g. weekly for weekly steps)
+            frequency = self._time_converter.frequency
             if isinstance(data, str):  # a file path (Python scripts)
-                data = demand_inputs.load_forecast_file(data)
+                data = demand_inputs.load_forecast_file(data, frequency)
             else:  # already-parsed data (webapp)
-                demand_inputs.validate_forecast(data)
-            series[key] = demand_inputs.build_daily_series(data)
+                demand_inputs.validate_forecast(data, frequency)
+            series[key] = demand_inputs.build_forecast_series(data, frequency)
 
         main = self._config["main"]
         rates = demand_inputs.estimate_ad_rates(
@@ -168,7 +192,7 @@ class World:
                 "end_date": s.dates[-1].isoformat(),
                 "history_days": s.history_days,
                 "clipped_days": s.clipped_days,
-                "daily_values": list(s.values),
+                "values": list(s.values),
             }
         return calibration
 
@@ -250,7 +274,7 @@ class World:
 
     def generate_demand(self, rng):
         """
-        Calculates daily demand based on global product configurations and
+        Calculates this step's demand based on global product configurations and
         forcefully transitions selected POTENTIAL_USERs into the market.
         """
         from .customer import CustomerStatesEnum
@@ -275,22 +299,12 @@ class World:
             profile_type = profile["type"]
 
             if profile_type == "stochastic":
-                rate = profile["rate"]
-                if isinstance(rate, list):
-                    idx = self._now - 1
-                    if 0 <= idx < len(rate):
-                        current_rate = rate[idx]
-                    else:
-                        current_rate = 0.0
-                else:
-                    current_rate = rate
-
-                num_to_enter = rng.binomial(len(potential_users), current_rate)
+                num_to_enter = rng.binomial(len(potential_users), profile["rate"])
             elif profile_type == "deterministic":
-                amount = profile["amount_per_day"]
+                amount = profile["amount_per_step"]
 
                 if isinstance(amount, list):
-                    # _now is 1 on the first simulated day, so we subtract 1 for the 0-based list index
+                    # _now is 1 on the first simulated step, so we subtract 1 for the 0-based list index
                     idx = self._now - 1
                     if 0 <= idx < len(amount):
                         num_to_enter = amount[idx]

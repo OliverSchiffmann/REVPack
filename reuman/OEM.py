@@ -311,11 +311,11 @@ class OEM(BaseAgent):
         Process cores that have arrived after their return transit delay.
         """
         remaining_cores = []
-        for arrival_day, location in self._incoming_cores:
-            if self._world.now() >= arrival_day:
+        for arrival_step, location in self._incoming_cores:
+            if self._world.now() >= arrival_step:
                 self.return_product(rng, location)
             else:
-                remaining_cores.append((arrival_day, location))
+                remaining_cores.append((arrival_step, location))
         self._incoming_cores = remaining_cores
 
     def return_product(self, rng, customer_location: str | None = None) -> None:

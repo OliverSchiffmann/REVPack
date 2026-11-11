@@ -78,6 +78,21 @@ class TestModelTimeConverter(unittest.TestCase):
                 with self.assertRaises(ValueError):
                     WEEK.daily_prob_to_step_prob(bad)
 
+    def test_frequency_names_match_simplan(self):
+        self.assertEqual(DAY.frequency, "daily")
+        self.assertEqual(WEEK.frequency, "weekly")
+        self.assertEqual(MONTH.frequency, "monthly")
+
+    def test_daily_prob_keeps_full_precision(self):
+        """In daily steps the rate must come back unchanged, not 0.00029999999999996696."""
+        self.assertEqual(DAY.daily_prob_to_step_prob(0.0003), 0.0003)
+
+    def test_daily_amounts_to_step_amounts(self):
+        """A list of daily amounts is added up per step; a short last group is kept."""
+        self.assertEqual(WEEK.daily_amounts_to_step_amounts([1] * 10), [7, 3])
+        self.assertEqual(MONTH.daily_amounts_to_step_amounts([2] * 28), [56])
+        self.assertEqual(DAY.daily_amounts_to_step_amounts([4, 5]), [4, 5])
+
     def test_per_day_and_per_year_conversions_agree(self):
         """€X per day for a year costs the same in total at every resolution."""
         for conv in [DAY, WEEK, MONTH]:

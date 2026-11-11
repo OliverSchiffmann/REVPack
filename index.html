@@ -29,7 +29,7 @@
     <!-- Dynamic PyScript Configuration with Cache Busting -->
     <script>
       // Use a static version to allow the browser to cache Python files and drastically improve load speed
-      const ts = "1.0.7"; // bump whenever any fetched .py file changes
+      const ts = "1.0.8"; // bump whenever any fetched .py file changes
       const pyConfig = document.createElement("py-config");
       pyConfig.innerHTML = JSON.stringify({
         packages: ["numpy", "matplotlib"],
@@ -389,7 +389,7 @@
       // Avoid writing a parameter name followed by a colon here: tests/test_webapp_sync.py
       // searches paramSchema for "name:" patterns and could be fooled.
       const DEMAND_HELP =
-        "How many new customers enter the market each day. Stochastic rate = the daily chance that each potential customer starts wanting this product. Deterministic qty = a fixed number of customers per day. A CSV array gives one value per day (row 1 = day 1). After the last row, demand drops to 0. Values are new customers, not total orders (repeat orders are made by the model). Not yet reviewed - non-integer CSV values may stop a deterministic run in the webapp.";
+        "How many new customers enter the market each day. Stochastic rate = the daily chance that each potential customer starts wanting this product. Deterministic qty = a fixed number of customers per day. For Deterministic qty, a CSV gives new customers per day (row 1 = day 1). After the last row, demand drops to 0. Values are new customers, not total orders (repeat orders are made by the model). Not yet reviewed - non-integer CSV values may stop a deterministic run in the webapp.";
 
       // Help text shown next to the forecast upload when "Forecast (Simplan JSON)" is selected.
       const FORECAST_HELP =
@@ -461,7 +461,7 @@
       const paramSchema = {
         main: {
           simulation_years: { type: "number", label: "Simulation Length (Years)" },
-          time_unit: { type: "select", options: ["day"], label: "Time Step" },
+          time_unit: { type: "select", options: ["day", "week", "month"], label: "Time Step" },
           B2B_population: { type: "number", label: "B2B Population" },
           seed: { type: "number", label: "Random Seed" },
           starting_customers: {
@@ -831,7 +831,7 @@
                   }
                 };
                 wrapBox.appendChild(valInp);
-                wrapBox.appendChild(fileLbl);
+                if (dp.type === "deterministic") wrapBox.appendChild(fileLbl); // CSV = daily sales
               }
               wrap.appendChild(wrapBox);
             } else {
