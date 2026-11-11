@@ -29,7 +29,7 @@
     <!-- Dynamic PyScript Configuration with Cache Busting -->
     <script>
       // Use a static version to allow the browser to cache Python files and drastically improve load speed
-      const ts = "1.0.9"; // bump whenever any fetched .py file changes
+      const ts = "1.0.10"; // bump whenever any fetched .py file changes
       const pyConfig = document.createElement("py-config");
       pyConfig.innerHTML = JSON.stringify({
         packages: ["numpy", "matplotlib"],
@@ -393,7 +393,7 @@
 
       // Help text shown next to the forecast upload when "Forecast (Simplan JSON)" is selected.
       const FORECAST_HELP =
-        "Upload a Simplan forecast file (.json). Before the run, the model turns it into a fixed daily advertising rate: total new customers in the file divided by total potential-customer days. Real sales are used where the file has them, Simplan's forecast after that. V and R are worked out together because they share one pool of customers, so upload both if you have them. Assumes the file counts NEW customers only (repeat orders make the rate too high). The rate is only valid for the market size (B2B population) and starting customers set in Main. Day 1 of the simulation is the first date in the file.";
+        "Upload a Simplan forecast file (.json). The file can be daily, weekly or monthly, whatever the Time Step. Before the run, the model turns it into a fixed advertising rate per period of the file (total new customers divided by total potential-customer periods), then converts that rate to the Time Step. A forecast month counts as a model month (28 days). Real sales are used where the file has them, Simplan's forecast after that. V and R are worked out together because they share one pool of customers, so upload both if you have them. Assumes the file counts NEW customers only (repeat orders make the rate too high). The rate is only valid for the market size (B2B population) and starting customers set in Main. The start of the simulation is the first date in the file.";
 
       // Badge styles for the optional "status" key in paramSchema entries.
       const STATUS_STYLES = {
@@ -1149,7 +1149,7 @@
           if (!calibration[key]) continue;
           salesDatasets.push({
             label: label,
-            data: forecastCumulative(calibration[key], res.day.length),
+            data: forecastCumulative(calibration[key], res),
             borderColor: colour,
             borderDash: [6, 4],
             pointRadius: 0,
@@ -1184,13 +1184,15 @@
         }
         wrap.classList.remove("hidden");
 
-        // +1 because forecastCumulative's last value sits one entry after the final forecast day
-        const forecastDays = Math.max(...cals.map((c) => c.values.length));
-        const nDays = Math.min(res.day.length, forecastDays + 1);
-        const windowRes = { day: res.day.slice(0, nDays) };
+        // Number of results entries that cover the forecast. +1 because entry i holds
+        // the first i steps (see forecastCumulative), so the last one sits after the end.
+        const daysPerStep = res.day[0];
+        const forecastEndDay = Math.max(...cals.map((c) => c.values.length * c.days_per_period));
+        const nEntries = Math.min(res.day.length, Math.ceil(forecastEndDay / daysPerStep) + 1);
+        const windowRes = { day: res.day.slice(0, nEntries) };
         const windowDatasets = salesDatasets.map((ds) => ({
           ...ds,
-          data: ds.data.slice(0, nDays),
+          data: ds.data.slice(0, nEntries),
         }));
         const start = cals.map((c) => c.start_date).sort()[0];
         const end = cals.map((c) => c.end_date).sort().slice(-1)[0];
@@ -1205,24 +1207,27 @@
         );
       }
 
-      // Cumulative forecast customers, lined up with the model's "sold" results.
-      // results.virgin_sold / reman_sold are recorded at the START of each day, so
-      // entry i holds everything sold up to the end of the previous day. Entry i of
-      // this line therefore holds the forecast total for the first i days.
-      // Days after the forecast file ends are null, so the dashed line stops there.
-      function forecastCumulative(cal, nDays) {
+      // Cumulative forecast customers, lined up with the model's "sold" results on the
+      // same day axis. Results are recorded at the START of each step, so entry i holds
+      // everything sold in the first i steps, i.e. up to day i × (days per step).
+      // Each forecast period is spread evenly over its days, so any forecast frequency
+      // can be drawn against any step length. Null after the forecast ends.
+      function forecastCumulative(cal, res) {
         if (!cal) return null;
-        const out = [];
-        let total = 0;
-        for (let i = 0; i < nDays; i++) {
-          if (i > cal.values.length) {
-            out.push(null);
-            continue;
+        const daysPerStep = res.day[0];
+        const periodDays = cal.days_per_period;
+        const forecastEndDay = cal.values.length * periodDays;
+        return res.day.map((_, i) => {
+          const day = i * daysPerStep;
+          if (day > forecastEndDay) return null;
+          const fullPeriods = Math.floor(day / periodDays);
+          let total = 0;
+          for (let k = 0; k < fullPeriods; k++) total += cal.values[k];
+          if (fullPeriods < cal.values.length) {
+            total += (cal.values[fullPeriods] * (day % periodDays)) / periodDays;
           }
-          out.push(total);
-          if (i < cal.values.length) total += cal.values[i];
-        }
-        return out;
+          return total;
+        });
       }
 
       // 3. Receive results from Python and plot them using Chart.js

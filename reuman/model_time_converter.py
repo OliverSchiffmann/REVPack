@@ -44,6 +44,23 @@ FREQUENCY_NAMES = {
 }
 
 
+def unit_for_frequency(frequency: str) -> TimeUnit:
+    """
+    The TimeUnit matching a Simplan frequency name ("daily" -> TimeUnit.DAY).
+
+    A forecast month is treated as a model month (28 days), the same
+    simplification the model's calendar makes.
+
+    Raises:
+        ValueError: If the frequency is not "daily", "weekly" or "monthly".
+    """
+    for unit, name in FREQUENCY_NAMES.items():
+        if name == frequency:
+            return unit
+    allowed = ", ".join(f'"{n}"' for n in FREQUENCY_NAMES.values())
+    raise ValueError(f"Frequency must be one of {allowed}. Received: {frequency!r}")
+
+
 @dataclass(frozen=True)
 class ModelTimeConverter:
     """
@@ -125,23 +142,37 @@ class ModelTimeConverter:
         # Not round(): Python rounds halves to the nearest EVEN number (round(2.5) == 2)
         return math.floor(steps + 0.5)
 
+    def period_prob_to_step_prob(self, p_period: float, period_unit: TimeUnit) -> float:
+        """
+        Convert a probability per period (per day, week or month) into a probability per step.
+
+        Uses 1 - (1 - p)^(days per step / days per period), which works in both
+        directions: a weekly rate into monthly steps, or a monthly rate into
+        daily steps. Calculated with log1p/expm1 to keep full precision for small p
+        (plain 1 - (1 - p) turns 0.0003 into 0.00029999999999996696).
+
+        Raises:
+            ValueError: If p_period is not between 0 and 1.
+        """
+        if not 0.0 <= p_period <= 1.0:
+            raise ValueError(
+                f"A probability must be between 0 and 1. Received: {p_period}"
+            )
+        if period_unit == self.unit:  # same length: nothing to convert
+            return p_period
+        if p_period == 1.0:  # certain every period, so certain in any step
+            return 1.0
+        exponent = self.days_per_step / DAYS_PER_STEP[period_unit]
+        return -math.expm1(exponent * math.log1p(-p_period))
+
     def daily_prob_to_step_prob(self, p_daily: float) -> float:
         """
         Convert a probability per day into the probability of it happening at least once in a step.
 
-        Same as 1 - (1 - p)^n, but calculated with log1p/expm1 to keep full precision
-        for small p (plain 1 - (1 - p) turns 0.0003 into 0.00029999999999996696).
-
         Raises:
             ValueError: If p_daily is not between 0 and 1.
         """
-        if not 0.0 <= p_daily <= 1.0:
-            raise ValueError(
-                f"A probability must be between 0 and 1. Received: {p_daily}"
-            )
-        if p_daily == 1.0:  # certain every day, so certain in the step
-            return 1.0
-        return -math.expm1(self.days_per_step * math.log1p(-p_daily))
+        return self.period_prob_to_step_prob(p_daily, TimeUnit.DAY)
 
     def daily_amounts_to_step_amounts(self, daily_amounts: Sequence[int]) -> list[int]:
         """

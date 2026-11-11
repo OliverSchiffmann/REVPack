@@ -78,21 +78,20 @@ class TestValidateForecast(unittest.TestCase):
         with self.assertRaises(ForecastFormatError):
             validate_forecast(bad)
 
-    def test_rejects_non_daily_frequency(self):
-        bad = copy.deepcopy(self.good)
-        bad["parameters"]["frequency"] = "weekly"
-        with self.assertRaises(ForecastFormatError):
-            validate_forecast(bad)
+    def test_accepts_daily_weekly_and_monthly(self):
+        """Any supported frequency is fine, whatever the model's time step."""
+        for frequency in ["daily", "weekly", "monthly"]:
+            with self.subTest(frequency=frequency):
+                validate_forecast(make_forecast([1, 2], frequency=frequency))
 
-    def test_accepts_frequency_matching_the_model_step(self):
-        validate_forecast(make_forecast([1, 2], frequency="weekly"), "weekly")
-        validate_forecast(make_forecast([1, 2], frequency="monthly"), "monthly")
-
-    def test_rejects_frequency_different_from_the_model_step(self):
-        with self.assertRaises(ForecastFormatError):
-            validate_forecast(make_forecast([1, 2], frequency="daily"), "weekly")
-        with self.assertRaises(ForecastFormatError):
-            validate_forecast(make_forecast([1, 2], frequency="monthly"), "weekly")
+    def test_rejects_unsupported_frequency(self):
+        """Simplan can also export hourly and yearly; the model cannot use those."""
+        for frequency in ["hourly", "yearly"]:
+            with self.subTest(frequency=frequency):
+                bad = copy.deepcopy(self.good)
+                bad["parameters"]["frequency"] = frequency
+                with self.assertRaises(ForecastFormatError):
+                    validate_forecast(bad)
 
     def test_rejects_non_sum_aggregation(self):
         bad = copy.deepcopy(self.good)
@@ -150,15 +149,14 @@ class TestBuildForecacstSeries(unittest.TestCase):
             build_forecast_series(data)
 
     def test_weekly_and_monthly_dates_are_consecutive(self):
-        weekly = build_forecast_series(
-            make_forecast([1, 2], [3], frequency="weekly"), "weekly"
-        )
+        weekly = build_forecast_series(make_forecast([1, 2], [3], frequency="weekly"))
         self.assertEqual(weekly.values, [1, 2, 3])
+        self.assertEqual(weekly.frequency, "weekly")
         # Monthly crosses a year end and months of different lengths
         monthly = make_forecast(
             [1, 2, 3], [4], start=date(2024, 11, 1), frequency="monthly"
         )
-        self.assertEqual(build_forecast_series(monthly, "monthly").values, [1, 2, 3, 4])
+        self.assertEqual(build_forecast_series(monthly).values, [1, 2, 3, 4])
 
     def test_rejects_gap_in_weekly_and_monthly_dates(self):
         for frequency in ["weekly", "monthly"]:
@@ -166,7 +164,7 @@ class TestBuildForecacstSeries(unittest.TestCase):
                 data = make_forecast([1, 2, 3, 4], frequency=frequency)
                 del data["tables"]["input"][2]  # remove one period
                 with self.assertRaises(ForecastFormatError):
-                    build_forecast_series(data, frequency)
+                    build_forecast_series(data)
 
     def test_sorts_rows_that_are_out_of_order(self):
         data = make_forecast([1, 2, 3])
@@ -231,6 +229,13 @@ class TestEstimateAdRates(unittest.TestCase):
     def test_rejects_no_series(self):
         with self.assertRaises(ValueError):
             estimate_ad_rates(None, None, market_size=10)
+
+    def test_rejects_mismatched_frequencies(self):
+        """V and R share one pool, so they must be counted over the same periods."""
+        v = build_forecast_series(make_forecast([1, 2], frequency="weekly"))
+        r = build_forecast_series(make_forecast([1, 2], frequency="daily"))
+        with self.assertRaises(ForecastFormatError):
+            estimate_ad_rates(v, r, market_size=100)
 
     def test_rejects_mismatched_dates(self):
         v = make_series([1, 1])

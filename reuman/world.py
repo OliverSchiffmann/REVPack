@@ -12,7 +12,7 @@ from . import customer
 from .product import ProductEnum
 import copy
 from . import demand_inputs
-from .model_time_converter import ModelTimeConverter
+from .model_time_converter import DAYS_PER_STEP, ModelTimeConverter, unit_for_frequency
 from collections.abc import Sequence
 
 if TYPE_CHECKING:
@@ -102,8 +102,9 @@ class World:
         self._convert_profiles_to_steps()
 
         # Turn any forecast profiles into stochastic rates (runs once, before the simulation).
-        # Must come after the conversion above: forecast rates are estimated per step
-        # already, and converting them again would count the step length twice.
+        # Must come after the conversion above: forecast rates are converted from the
+        # forecast's own frequency inside this method, and converting them again as if
+        # per day would count the step length twice.
         self._demand_calibration = self._resolve_forecast_profiles()
 
     def _convert_profiles_to_steps(self) -> None:
@@ -168,10 +169,10 @@ class World:
             # The forecast must have one value per model step (e.g. weekly for weekly steps)
             frequency = self._time_converter.frequency
             if isinstance(data, str):  # a file path (Python scripts)
-                data = demand_inputs.load_forecast_file(data, frequency)
+                data = demand_inputs.load_forecast_file(data)
             else:  # already-parsed data (webapp)
-                demand_inputs.validate_forecast(data, frequency)
-            series[key] = demand_inputs.build_forecast_series(data, frequency)
+                demand_inputs.validate_forecast(data)
+            series[key] = demand_inputs.build_forecast_series(data)
 
         main = self._config["main"]
         rates = demand_inputs.estimate_ad_rates(
@@ -184,9 +185,15 @@ class World:
         calibration = {}
         for key, rate in rates.items():
             s = series[key]
-            self._demand_profiles[key] = {"type": "stochastic", "rate": rate}
+            # The rate is per forecast period (day, week or month): convert it to per step
+            period_unit = unit_for_frequency(s.frequency)
+            step_rate = self._time_converter.period_prob_to_step_prob(rate, period_unit)
+            self._demand_profiles[key] = {"type": "stochastic", "rate": step_rate}
             calibration[key] = {
-                "rate": rate,
+                "rate": rate,  # per forecast period
+                "rate_per_step": step_rate,
+                "frequency": s.frequency,
+                "days_per_period": DAYS_PER_STEP[period_unit],
                 "start_date": s.dates[0].isoformat(),
                 "end_date": s.dates[-1].isoformat(),
                 "history_periods": s.history_periods,

@@ -11,10 +11,11 @@ import json
 from datetime import date, timedelta
 from typing import NamedTuple
 import math
+from .model_time_converter import FREQUENCY_NAMES
 
 EXPECTED_RESULT_TYPE = "timeseries.forecast"
 EXPECTED_AGGREGATION = "sum"
-
+ALLOWED_FREQUENCIES = tuple(FREQUENCY_NAMES.values())  # "daily", "weekly", "monthly"
 # The fields each row of each table must have
 REQUIRED_FIELDS = {
     "input": ("date", "y"),  # real (historic) data
@@ -27,15 +28,16 @@ class ForecastFormatError(ValueError):
 
 
 class ForecastSeries(NamedTuple):
-    """One value per period (day, week or month)”: real data first, then forecast."""
+    """One value per period (day, week or month): real data first, then forecast."""
 
     dates: list[date]
     values: list[float]
     history_periods: int  # how many of the values are real data
     clipped_periods: int  # how many negative forecast values were set to 0
+    frequency: str = "daily"  # "daily", "weekly" or "monthly", from the forecast file
 
 
-def load_forecast_file(path: str, frequency: str = "daily") -> dict:
+def load_forecast_file(path: str) -> dict:
     """
     Read a Simplan forecast JSON file from disk and check its format.
 
@@ -44,18 +46,17 @@ def load_forecast_file(path: str, frequency: str = "daily") -> dict:
 
     Args:
         path (str): Path to the forecast .json file.
-        frequency (str): The frequency the forecast must have (the model's step: "daily", "weekly" or "monthly")
 
     Returns:
         dict: The parsed forecast.
     """
     with open(path, "r", encoding="utf-8") as f:
         data = json.load(f)
-    validate_forecast(data, frequency)
+    validate_forecast(data)
     return data
 
 
-def validate_forecast(data: dict, frequency: str = "daily") -> None:
+def validate_forecast(data: dict) -> None:
     """
     Check that a parsed forecast has the structure this module relies on.
 
@@ -63,8 +64,8 @@ def validate_forecast(data: dict, frequency: str = "daily") -> None:
     Returns nothing if the forecast is fine.
 
     Args:
-        data (dict): A parsed Simplan forecast.
-        frequency (str): The frequency the forecast must have (the model's step: "daily", "weekly" or "monthly")
+        data (dict): A parsed Simplan forecast. Its frequency can be "daily",
+            "weekly" or "monthly", independent of the model's time step.
     """
     if not isinstance(data, dict):
         raise ForecastFormatError("Forecast must be a JSON object.")
@@ -76,10 +77,10 @@ def validate_forecast(data: dict, frequency: str = "daily") -> None:
         )
 
     params = data.get("parameters", {})
-    if params.get("frequency") != frequency:
+    if params.get("frequency") not in ALLOWED_FREQUENCIES:
         raise ForecastFormatError(
-            f"Forecast frequency is '{params.get('frequency')}' but the model steps "
-            f"are '{frequency}'. Change time_unit or export the forecast at that frequency."
+            f"Forecast frequency must be one of {', '.join(ALLOWED_FREQUENCIES)}, "
+            f"got '{params.get('frequency')}'."
         )
     if params.get("aggregation") != EXPECTED_AGGREGATION:
         raise ForecastFormatError(
@@ -116,7 +117,7 @@ def _is_next_period(previous: date, current: date, frequency: str) -> bool:
     return months(current) - months(previous) == 1
 
 
-def build_forecast_series(data: dict, frequency: str = "daily") -> ForecastSeries:
+def build_forecast_series(data: dict) -> ForecastSeries:
     """
     Join a forecast's real history and its future forecast into one series,
     with one value per period (day, week or month).
@@ -126,12 +127,12 @@ def build_forecast_series(data: dict, frequency: str = "daily") -> ForecastSerie
     after the history ends. Negative forecast values are set to 0.
 
     Args:
-        data (dict): A parsed, validated Simplan forecast.
-        frequency
-
+        data (dict): A parsed, validated Simplan forecast. The frequency is read
+            from the forecast itself and stored in the returned series.
     Returns:
         ForecastSeries: The joined series.
     """
+    frequency = data["parameters"]["frequency"]
     history = sorted(data["tables"]["input"], key=lambda r: r["date"])
     hist_dates = [_parse_date(r["date"]) for r in history]
     hist_values = [float(r["y"]) for r in history]
@@ -162,7 +163,7 @@ def build_forecast_series(data: dict, frequency: str = "daily") -> ForecastSerie
     if any(v < 0 for v in hist_values):
         raise ForecastFormatError("The real (input) data contains negative values.")
 
-    return ForecastSeries(dates, values, len(hist_values), clipped)
+    return ForecastSeries(dates, values, len(hist_values), clipped, frequency)
 
 
 def round_sig(x: float, sig: int = 4) -> float:
@@ -179,15 +180,16 @@ def estimate_ad_rates(
     starting_customers: int = 0,
 ) -> dict[str, float]:
     """
-    Estimate a constant daily advertising rate for each product from its series.
+    Estimate a constant advertising rate per period (per day, week or month,
+    matching the series' frequency) for each product from its series.
 
-    Rate = total new customers / total customer-days in the pool, where the pool
-    on each day is the market size, minus starting customers, minus everyone
-    who became a V or R customer on an earlier day (both products share one pool).
+    Rate = total new customers / total customer-periods in the pool, where the pool
+    in each period is the market size, minus starting customers, minus everyone
+    who became a V or R customer in an earlier period (both products share one pool).
 
     Args:
-        series_v: Daily series for virgin products, or None.
-        series_r: Daily series for reman products, or None.
+        series_v: Forecast series for virgin products, or None.
+        series_r: Forecast series for reman products, or None.
         market_size (int): Total possible customers (N).
         starting_customers (int): Customers who already own the product on day 1 (S).
 
@@ -199,6 +201,13 @@ def estimate_ad_rates(
     if not given:
         raise ValueError("At least one forecast series is needed.")
 
+    # Both series must have the same frequency and cover the same dates,
+    # otherwise the shared pool is undefined
+    frequencies = {k: s.frequency for k, s in given.items()}
+    if len(set(frequencies.values())) > 1:
+        raise ForecastFormatError(
+            f"V and R forecasts must have the same frequency, got {frequencies}."
+        )
     # Both series must cover the same days, otherwise the shared pool is undefined
     date_ranges = {k: (s.dates[0], s.dates[-1]) for k, s in given.items()}
     if len(set(date_ranges.values())) > 1:

@@ -229,18 +229,46 @@ class TestWorldForecastProfiles(unittest.TestCase):
         self.config["products"]["V"]["demand_profile"]["forecast"] = v_weekly
         self.config["products"]["R"]["demand_profile"]["forecast"] = r_weekly
         expected = demand_inputs.estimate_ad_rates(
-            demand_inputs.build_forecast_series(v_weekly, "weekly"),
-            demand_inputs.build_forecast_series(r_weekly, "weekly"),
+            demand_inputs.build_forecast_series(v_weekly),
+            demand_inputs.build_forecast_series(r_weekly),
             market_size=1000,
             starting_customers=200,
         )
         w = world.World(config=self.config)
         self.assertEqual(w._demand_profiles["V"]["rate"], expected["V"])
 
-    def test_daily_forecast_with_weekly_steps_raises(self):
+    def test_daily_forecast_is_converted_to_weekly_steps(self):
+        """The rate is estimated per day from the daily file, then converted to per week."""
         self.config["main"]["time_unit"] = "week"
-        with self.assertRaises(demand_inputs.ForecastFormatError):
-            world.World(config=self.config)
+        cal = world.World(config=self.config).get_demand_calibration()["V"]
+        self.assertEqual(cal["frequency"], "daily")
+        self.assertAlmostEqual(cal["rate_per_step"], 1 - (1 - cal["rate"]) ** 7)
+
+    def test_monthly_forecast_is_converted_to_daily_steps(self):
+        """Conversion also works from a longer period to a shorter step."""
+        self.config["products"]["V"]["demand_profile"]["forecast"] = make_forecast(
+            [30, 25], [28], frequency="monthly"
+        )
+        self.config["products"]["R"]["demand_profile"]["forecast"] = make_forecast(
+            [5, 4], [6], frequency="monthly"
+        )
+        w = world.World(config=self.config)
+        cal = w.get_demand_calibration()["V"]
+        self.assertEqual(cal["days_per_period"], 28)
+        self.assertAlmostEqual(cal["rate_per_step"], 1 - (1 - cal["rate"]) ** (1 / 28))
+        self.assertEqual(w._demand_profiles["V"]["rate"], cal["rate_per_step"])
+
+    def test_same_forecast_gives_same_daily_rate_at_every_step(self):
+        """One forecast file, three resolutions: the step rates all imply the same daily rate."""
+        for unit, days_per_step in [("day", 1), ("week", 7), ("month", 28)]:
+            with self.subTest(unit=unit):
+                self.config["main"]["time_unit"] = unit
+                w = world.World(config=self.config)
+                step_rate = w._demand_profiles["V"]["rate"]
+                implied_daily = 1 - (1 - step_rate) ** (1 / days_per_step)
+                self.assertAlmostEqual(
+                    implied_daily, w.get_demand_calibration()["V"]["rate"]
+                )
 
     def test_reman_forecast_with_reman_disabled_raises(self):
         self.config["main"]["enable_reman"] = False

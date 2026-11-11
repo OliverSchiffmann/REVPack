@@ -1,5 +1,10 @@
 import unittest
-from reuman.model_time_converter import ModelTimeConverter, TimeUnit, DAYS_PER_YEAR
+from reuman.model_time_converter import (
+    ModelTimeConverter,
+    TimeUnit,
+    DAYS_PER_YEAR,
+    unit_for_frequency,
+)
 
 DAY = ModelTimeConverter(TimeUnit.DAY)
 WEEK = ModelTimeConverter(TimeUnit.WEEK)
@@ -86,6 +91,37 @@ class TestModelTimeConverter(unittest.TestCase):
     def test_daily_prob_keeps_full_precision(self):
         """In daily steps the rate must come back unchanged, not 0.00029999999999996696."""
         self.assertEqual(DAY.daily_prob_to_step_prob(0.0003), 0.0003)
+
+    def test_unit_for_frequency(self):
+        self.assertEqual(unit_for_frequency("daily"), TimeUnit.DAY)
+        self.assertEqual(unit_for_frequency("weekly"), TimeUnit.WEEK)
+        self.assertEqual(unit_for_frequency("monthly"), TimeUnit.MONTH)
+        for bad in ["hourly", "yearly", "Daily"]:
+            with self.subTest(bad=bad):
+                with self.assertRaises(ValueError):
+                    unit_for_frequency(bad)
+
+    def test_period_prob_same_length_is_unchanged(self):
+        """A weekly rate in weekly steps comes back exactly as it went in."""
+        self.assertEqual(WEEK.period_prob_to_step_prob(0.0042, TimeUnit.WEEK), 0.0042)
+
+    def test_period_prob_longer_step(self):
+        """Weekly rate into monthly steps: 4 weeks per month."""
+        self.assertAlmostEqual(
+            MONTH.period_prob_to_step_prob(0.1, TimeUnit.WEEK), 1 - 0.9**4
+        )
+
+    def test_period_prob_shorter_step(self):
+        """Monthly rate into daily steps: the daily rate that compounds to the monthly one."""
+        p_day = DAY.period_prob_to_step_prob(0.2, TimeUnit.MONTH)
+        self.assertAlmostEqual(1 - (1 - p_day) ** 28, 0.2)
+
+    def test_period_prob_round_trip(self):
+        """Daily -> monthly -> daily gets back to where it started."""
+        p_month = MONTH.period_prob_to_step_prob(0.0006, TimeUnit.DAY)
+        self.assertAlmostEqual(
+            DAY.period_prob_to_step_prob(p_month, TimeUnit.MONTH), 0.0006
+        )
 
     def test_daily_amounts_to_step_amounts(self):
         """A list of daily amounts is added up per step; a short last group is kept."""
