@@ -46,6 +46,14 @@ dict_default = {
                 "bounty_value": 10.0,  # EUR paid per accepted core (assumed)
                 "return_rate_uplift": 0.1,  # added to core_return_rate (assumed)
             },
+            "lease": {
+                "enabled": False,
+                "lease_period": 12,  # model months of 28 days (assumed)
+                "monthly_fee_V": 70.0,  # EUR per month (assumed)
+                "monthly_fee_R": 55.0,  # EUR per month (assumed)
+                "acceptance_uplift": 0.15,  # added to core_acceptance_rate (assumed)
+                "collection_cost_saving": 0.25,  # share of core_collection_cost saved (assumed)
+            },
         },
     },
     "b2b_customer": {
@@ -78,6 +86,12 @@ dict_default = {
 dict_buy_back = copy.deepcopy(dict_default)
 dict_buy_back["description"] = "Buy-back: owners are paid for each accepted core"
 dict_buy_back["oem"]["collection_strategies"]["buy_back"]["enabled"] = True
+
+dict_lease = copy.deepcopy(dict_default)
+dict_lease["description"] = (
+    "Lease: every customer leases, products come back at lease end"
+)
+dict_lease["oem"]["collection_strategies"]["lease"]["enabled"] = True
 
 dict_no_reman = copy.deepcopy(dict_default)
 dict_no_reman["description"] = "Run with remanufacturing disabled"
@@ -112,5 +126,6 @@ SCENARIOS = {
     "Default": dict_default,
     "No Reman": dict_no_reman,
     "Buy-back": dict_buy_back,
+    "Lease": dict_lease,
     "Forecast": dict_forecast,
 }

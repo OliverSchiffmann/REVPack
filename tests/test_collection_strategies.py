@@ -7,6 +7,7 @@ from reuman.collection_strategies import (
     CollectionStrategy,
     Contract,
     ContractKind,
+    Lease,
     build_strategies,
 )
 from reuman.customer import Customer
@@ -140,8 +141,8 @@ class TestOEMWithStrategies(unittest.TestCase):
         _, oem, _ = self._make({})
         oem._factory_stock[ProductEnum.V] = 1
         contract = oem.request_product(ProductEnum.V)
-        self.assertIsNotNone(contract)
-        self.assertEqual(contract.product, ProductEnum.V)  # type: ignore
+        assert contract is not None
+        self.assertEqual(contract.product, ProductEnum.V)
         self.assertIsNone(oem.request_product(ProductEnum.V))  # now out of stock
 
     def test_strategies_applied_in_order(self):
@@ -260,6 +261,144 @@ class TestBuyBack(unittest.TestCase):
         self.config["oem"]["bounty_value"] = 10.0
         with self.assertRaises(ValueError):
             OEM(id=-1, world=World(config=self.config), config=self.config)
+
+
+class TestLease(unittest.TestCase):
+
+    def setUp(self):
+        self.rng = np.random.default_rng(42)
+        self.config = copy.deepcopy(TEST_SCENARIOS["Default"])
+        self.params = {
+            "enabled": True,
+            "lease_period": 12,
+            "monthly_fee_V": 70.0,
+            "monthly_fee_R": 55.0,
+            "acceptance_uplift": 0.15,
+            "collection_cost_saving": 0.25,
+        }
+
+    def _make(self, time_unit: str = "day", strategies: dict | None = None):
+        self.config["main"]["time_unit"] = time_unit
+        self.config["oem"]["collection_strategies"] = (
+            {"lease": self.params} if strategies is None else strategies
+        )
+        world = World(config=self.config)
+        oem = OEM(id=-1, world=world, config=self.config)
+        customer = Customer(id=2, world=world, oem=oem, config=self.config)
+        world.add_agents_from_list([oem, customer])
+        return world, oem, customer
+
+    def test_invalid_params_raise(self):
+        tc = ModelTimeConverter.from_config(self.config)
+        for key, bad in (
+            ("lease_period", 0.5),
+            ("monthly_fee_V", -1.0),
+            ("acceptance_uplift", 1.5),
+            ("collection_cost_saving", -0.1),
+        ):
+            with self.subTest(key=key):
+                with self.assertRaises(ValueError):
+                    Lease(dict(self.params, **{key: bad}), tc)
+
+    def test_cannot_combine_with_buy_back(self):
+        tc = ModelTimeConverter.from_config(self.config)
+        strategies = {
+            "buy_back": {
+                "enabled": True,
+                "bounty_value": 10.0,
+                "return_rate_uplift": 0.1,
+            },
+            "lease": self.params,
+        }
+        with self.assertRaises(ValueError):
+            build_strategies(strategies, AgentEnum.OEM, tc)
+
+    def test_contract_is_leased_with_fee_per_product(self):
+        _, oem, _ = self._make("month")
+        v = oem.contract_for(ProductEnum.V)
+        r = oem.contract_for(ProductEnum.R)
+        self.assertEqual(v.kind, ContractKind.LEASED)
+        self.assertEqual(v.term_steps, 12)
+        self.assertAlmostEqual(v.fee_per_step, 70.0)
+        self.assertAlmostEqual(r.fee_per_step, 55.0)
+
+    def test_no_sale_revenue(self):
+        _, oem, _ = self._make()
+        oem._factory_stock[ProductEnum.V] = 1
+        balance_before = oem._balance
+        self.assertIsNotNone(oem.request_product(ProductEnum.V))
+        self.assertEqual(oem._balance, balance_before)
+        self.assertEqual(oem._sale_revenue[ProductEnum.V], 0.0)
+
+    def test_fees_over_a_lease_add_up_at_every_time_unit(self):
+        """12 months at EUR 70 = EUR 840, whatever the step length."""
+        for unit in ("day", "week", "month"):
+            with self.subTest(unit=unit):
+                world, oem, customer = self._make(unit)
+                customer.become_user(self.rng, ProductEnum.V)
+                contract = customer.contract()
+                assert contract is not None and contract.term_steps is not None
+                term = contract.term_steps
+                self.assertEqual(customer.end_of_life_step(), world.now() + term)
+                for _ in range(term):
+                    world.tick()
+                    customer._handle_active_user(self.rng)
+                self.assertAlmostEqual(oem._total_contract_fees, 12 * 70.0)
+                self.assertIsNone(customer.contract())  # lease ended
+                self.assertEqual(len(oem._incoming_cores), 1)  # core always returned
+
+    def test_leased_core_returned_even_with_zero_return_rate(self):
+        world, oem, customer = self._make()
+        customer._core_return_rate = 0.0
+        customer.become_user(self.rng, ProductEnum.V)
+        customer._end_of_life_step = world.now()
+        customer._handle_active_user(self.rng)
+        self.assertEqual(len(oem._incoming_cores), 1)
+
+    def test_leased_core_acceptance_and_collection_cost(self):
+        _, oem, _ = self._make()
+        leased = oem.contract_for(ProductEnum.V)
+        oem._core_acceptance_rate = 0.7
+        oem._core_collection_cost = 20.0
+        # 0.84 < 0.7 + 0.15 = 0.85, so accepted only thanks to the uplift
+        oem.return_product(_MockRNG(0.84), None, leased)
+        self.assertEqual(oem._total_cores_rejected, 0)
+        self.assertAlmostEqual(oem._total_core_collection_cost, 15.0)
+
+    def test_owned_core_unaffected_by_lease_hooks(self):
+        tc = ModelTimeConverter.from_config(self.config)
+        lease = Lease(self.params, tc)
+        self.assertEqual(lease.acceptance_rate(None, 0.7), 0.7)
+        self.assertEqual(lease.collection_cost(None, 20.0), 20.0)
+        self.assertEqual(lease.return_probability(None, 0.8), 0.8)
+
+    def test_leases_in_use_and_remaining_fees(self):
+        world, oem, customer = self._make("month")
+        customer.become_user(self.rng, ProductEnum.V)
+        for _ in range(4):  # 4 of 12 months paid
+            world.tick()
+            customer._handle_active_user(self.rng)
+        units, remaining = oem.leases_in_use()
+        self.assertEqual(units, 1)
+        self.assertAlmostEqual(remaining, 8 * 70.0)
+        report = oem.generate_financial_report()
+        self.assertAlmostEqual(
+            report["Breakdown"]["Sale of lease contracts (fees)"], 4 * 70.0
+        )
+        self.assertEqual(report["Statistics"]["Units on lease at end"], 1)
+
+    def test_starting_customer_is_a_lessee(self):
+        world, _, customer = self._make("month")
+        customer.initialise_as_active_user(self.rng, ProductEnum.V)
+        contract = customer.contract()
+        assert contract is not None
+        self.assertEqual(contract.kind, ContractKind.LEASED)
+        self.assertLessEqual(customer.end_of_life_step(), world.now() + 12)
+
+    def test_ignored_without_reman(self):
+        self.config["main"]["enable_reman"] = False
+        _, oem, _ = self._make()
+        self.assertEqual(oem.contract_for(ProductEnum.V).kind, ContractKind.OWNED)
 
 
 if __name__ == "__main__":

@@ -184,6 +184,14 @@ class Customer(BaseAgent):
                 else:
                     collector.record_core_not_collected()
 
+    def contract(self) -> Contract | None:
+        """The terms of the product being waited for or used (None if neither)."""
+        return self._contract
+
+    def end_of_life_step(self) -> int:
+        """Step at which the product in use reaches end of life (-1 if not in use)."""
+        return self._end_of_life_step
+
     def try_and_buy(self, rng, product: ProductEnum):
         """
         Attempt to purchase a specified product from the OEM.

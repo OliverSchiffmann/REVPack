@@ -125,6 +125,11 @@ def _is_owned(contract: Contract | None) -> bool:
     return contract is None or contract.kind == ContractKind.OWNED
 
 
+def _is_leased(contract: Contract | None) -> bool:
+    """True if the product was leased."""
+    return contract is not None and contract.kind == ContractKind.LEASED
+
+
 class BuyBack(CollectionStrategy):
     """
     Buy-back (T5.3 strategy 7): the operator pays a fixed amount for each core from
@@ -168,9 +173,99 @@ class BuyBack(CollectionStrategy):
         return cost + self._bounty_value
 
 
+class Lease(CollectionStrategy):
+    """
+    Leasing (T5.3 strategy 4, scenario S1): every customer leases instead of buying.
+    The operator keeps ownership, the customer pays a monthly fee, and the product
+    comes back at the end of a fixed lease period. Planned returns improve core
+    quality and make collection cheaper.
+
+    Simplifications: the lease period replaces the drawn lifetime (in-lease failures
+    are assumed covered by the fee), every leased core comes back, and a lessee
+    takes a new lease when the old one ends.
+
+    Params:
+        lease_period (float): Lease length in model months (28 days), at least 1.
+        monthly_fee_V (float): Fee per month for a virgin product (EUR).
+        monthly_fee_R (float): Fee per month for a reman product (EUR).
+        acceptance_uplift (float): Added to the core acceptance rate for leased
+            cores (0 to 1; the result is capped at 1).
+        collection_cost_saving (float): Share of the core collection cost saved
+            for leased cores (0 to 1).
+    """
+
+    name = "lease"
+    incompatible_with = frozenset({"buy_back"})  # nothing for the lessee to sell
+    required_params = (
+        "lease_period",
+        "monthly_fee_V",
+        "monthly_fee_R",
+        "acceptance_uplift",
+        "collection_cost_saving",
+    )
+
+    def __init__(self, params: dict, time_converter: ModelTimeConverter) -> None:
+        super().__init__(params, time_converter)
+        lease_period = float(params["lease_period"])
+        fees = {
+            ProductEnum.V: float(params["monthly_fee_V"]),
+            ProductEnum.R: float(params["monthly_fee_R"]),
+        }
+        self._acceptance_uplift = float(params["acceptance_uplift"])
+        self._collection_cost_saving = float(params["collection_cost_saving"])
+        if lease_period < 1:
+            raise ValueError(
+                f"lease lease_period must be at least 1 month. Received: {lease_period}"
+            )
+        if any(fee < 0 for fee in fees.values()):
+            raise ValueError(f"lease monthly fees must be >= 0. Received: {fees}")
+        for key in ("acceptance_uplift", "collection_cost_saving"):
+            if not 0 <= float(params[key]) <= 1:
+                raise ValueError(
+                    f"lease {key} must be between 0 and 1. Received: {params[key]}"
+                )
+
+        # Converted to steps once, here, like every other duration in the model
+        self._term_steps = max(1, time_converter.months_to_steps(lease_period))
+        self._fee_per_step = {
+            product: time_converter.per_month_to_per_step(fee)
+            for product, fee in fees.items()
+        }
+
+    def offer_contract(self, contract: Contract) -> Contract:
+        return Contract(
+            kind=ContractKind.LEASED,
+            operator=contract.operator,
+            product=contract.product,
+            term_steps=self._term_steps,
+            fee_per_step=self._fee_per_step[contract.product],
+        )
+
+    def sale_revenue(self, contract: Contract, revenue: float) -> float:
+        # The operator keeps ownership: no sale price, income comes as fees
+        return 0.0 if _is_leased(contract) else revenue
+
+    def return_probability(
+        self, contract: Contract | None, probability: float
+    ) -> float:
+        # A leased product always goes back to its owner
+        return 1.0 if _is_leased(contract) else probability
+
+    def acceptance_rate(self, contract: Contract | None, rate: float) -> float:
+        if not _is_leased(contract):
+            return rate
+        return min(1.0, rate + self._acceptance_uplift)
+
+    def collection_cost(self, contract: Contract | None, cost: float) -> float:
+        if not _is_leased(contract):
+            return cost
+        return cost * (1.0 - self._collection_cost_saving)
+
+
 # Strategy name (as used in the config) -> class.
 STRATEGY_REGISTRY: dict[str, type[CollectionStrategy]] = {
     BuyBack.name: BuyBack,
+    Lease.name: Lease,
 }
 
 

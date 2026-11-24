@@ -141,6 +141,15 @@ class TestModelTimeConverter(unittest.TestCase):
                     conv.per_year_to_per_step(5000.0) * conv.steps_per_year, 5000.0
                 )
 
+    def test_months_and_monthly_amounts(self):
+        """A 12-month lease at 70 per month totals 840 at every step length."""
+        for unit in TimeUnit:
+            with self.subTest(unit=unit):
+                tc = ModelTimeConverter(unit)
+                steps = tc.months_to_steps(12)
+                self.assertEqual(steps * tc.days_per_step, 12 * 28)
+                self.assertAlmostEqual(steps * tc.per_month_to_per_step(70.0), 840.0)
+
     def test_step_to_day(self):
         self.assertEqual(DAY.step_to_day(10), 10)
         self.assertEqual(WEEK.step_to_day(10), 70)

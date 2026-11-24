@@ -8,7 +8,7 @@ from typing import TYPE_CHECKING, NamedTuple
 from ._agent import AgentEnum, BaseAgent
 from .message import Message, MessageType
 from .product import ProductEnum, ProductDetails, product_params
-from .customer import CustomerStatesEnum
+from .customer import Customer, CustomerStatesEnum
 from .states import OEMStatesEnum
 from .collection_strategies import (
     CollectionStrategy,
@@ -44,6 +44,7 @@ class OEM(BaseAgent):
     _factory_stock: dict[ProductEnum, float]  # stock of products
     _production_rate: dict[ProductEnum, float]
     _products_sold: dict[ProductEnum, int]
+    _sale_revenue: dict[ProductEnum, float]  # revenue actually booked at sale
     _total_products_produced: dict[ProductEnum, float]
     _num_to_man: dict[ProductEnum, float]
     _core_stock: float  # initial stock of cores for remanufacturing
@@ -136,6 +137,7 @@ class OEM(BaseAgent):
         }
         self._production_rate = {ProductEnum.V: 0, ProductEnum.R: 0}
         self._products_sold = {ProductEnum.V: 0, ProductEnum.R: 0}
+        self._sale_revenue = {ProductEnum.V: 0.0, ProductEnum.R: 0.0}
         self._total_products_produced = {ProductEnum.V: 0, ProductEnum.R: 0}
         self._num_to_man = {ProductEnum.V: 0, ProductEnum.R: 0}
         self._core_stock = oem_config["core_stock"]
@@ -285,6 +287,7 @@ class OEM(BaseAgent):
             "cores_rejected": self._total_cores_rejected,
             "inspection_cost": self._total_inspection_costs,
             "core_acquisition_cost": self._total_acquisition_cost,
+            "lease_fees": self._total_contract_fees,
             "oem_balance": self._balance,
         }
 
@@ -372,6 +375,7 @@ class OEM(BaseAgent):
             for strategy in self._strategies:
                 revenue = strategy.sale_revenue(contract, revenue)
             self._balance += revenue
+            self._sale_revenue[product] += revenue
             return contract
 
         return None
@@ -465,6 +469,36 @@ class OEM(BaseAgent):
             self._total_cores_rejected += 1
             self._balance -= self._core_disposal_cost
             pass
+
+    def leases_in_use(self) -> tuple[int, float]:
+        """
+        Count the products this OEM currently has out on lease, and the fees still
+        due on them. Used for the end-of-run report: cash totals don't include fees
+        that haven't been paid yet.
+
+        Returns:
+            tuple[int, float]: Units on lease, and remaining contracted fees (EUR).
+        """
+        units = 0
+        remaining_fees = 0.0
+        now = self._world.now()
+        for agent in self._world.get_agents():
+            if not isinstance(agent, Customer):
+                continue
+            contract = agent.contract()
+            in_use = agent.end_of_life_step() >= 0
+            if (
+                contract is None
+                or contract.operator is not self
+                or contract.kind != ContractKind.LEASED
+                or not in_use
+            ):
+                continue
+            units += 1
+            # One fee is paid per step up to and including the end-of-life step
+            remaining_steps = max(0, agent.end_of_life_step() - now)
+            remaining_fees += remaining_steps * contract.fee_per_step
+        return units, remaining_fees
 
     def update_manufacturing_counts(self):
         """
@@ -591,11 +625,14 @@ class OEM(BaseAgent):
             + cost_reman_op
         )
 
-        revenue_V = self._products_sold[ProductEnum.V] * self._retail_price_V
+        # Revenue as actually booked (a leased unit earns no sale price)
+        revenue_V = self._sale_revenue[ProductEnum.V]
+        revenue_R = self._sale_revenue[ProductEnum.R]
+        revenue_lease = self._total_contract_fees
 
-        revenue_R = self._products_sold[ProductEnum.R] * self._retail_price_R
+        revenue_total = revenue_V + revenue_R + revenue_lease
 
-        revenue_total = revenue_V + revenue_R
+        units_on_lease, remaining_lease_fees = self.leases_in_use()
 
         return {
             "Total Cost": cost_to_meet_demand,
@@ -610,6 +647,7 @@ class OEM(BaseAgent):
                 "Storage of cores": cost_storage,
                 "Sale of virgin products": revenue_V,
                 "Sale of reman products": revenue_R,
+                "Sale of lease contracts (fees)": revenue_lease,
                 "Reman implementation cost": cost_reman_impl,
                 "Reman operating cost": cost_reman_op,
             },
@@ -628,5 +666,8 @@ class OEM(BaseAgent):
                     self._total_cores_collected - self._total_cores_rejected
                 ),
                 "Cores rejected": self._total_cores_rejected,
+                # Not in the totals above: fees still to come on leases running at the end
+                "Units on lease at end": units_on_lease,
+                "Remaining contracted lease fees": round(remaining_lease_fees, 2),
             },
         }

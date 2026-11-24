@@ -19,6 +19,7 @@ from collections.abc import Sequence
 DAYS_PER_WEEK = 7
 WEEKS_PER_MONTH = 4
 MONTHS_PER_YEAR = 12
+DAYS_PER_MONTH = DAYS_PER_WEEK * WEEKS_PER_MONTH  # 28
 DAYS_PER_YEAR = DAYS_PER_WEEK * WEEKS_PER_MONTH * MONTHS_PER_YEAR  # 336
 
 
@@ -190,6 +191,14 @@ class ModelTimeConverter:
     def per_year_to_per_step(self, value_per_year: float) -> float:
         """Convert an amount per year (e.g. € per year) into an amount per step."""
         return value_per_year / self.steps_per_year
+
+    def months_to_steps(self, months: float) -> int:
+        """Convert a duration in model months (28 days) into a whole number of steps."""
+        return self.days_to_steps(months * DAYS_PER_MONTH)
+
+    def per_month_to_per_step(self, value_per_month: float) -> float:
+        """Convert an amount per model month (e.g. a monthly fee) into an amount per step."""
+        return value_per_month * self.days_per_step / DAYS_PER_MONTH
 
     def step_to_day(self, step: int) -> int:
         """Model day on which a step ends, for plotting results on a common day axis."""
