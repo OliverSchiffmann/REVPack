@@ -19,7 +19,6 @@ config = {
         "reman_stock": 0,
         "core_stock": 5,
         "core_storage_limit": 100,
-        "bounty_value": 10,
         "unit_production_cost_V": 500,
         "retail_price_V": 1000,
         "retail_price_R": 1000,

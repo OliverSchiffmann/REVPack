@@ -19,7 +19,6 @@ dict_default = {
         "reman_stock": 0,
         "core_stock": 5,
         "core_storage_limit": 100,
-        "bounty_value": 10.0,
         "unit_production_cost_V": 500.0,
         "retail_price_V": 1000,
         "retail_price_R": 1000,
@@ -39,8 +38,15 @@ dict_default = {
         "inspection_cost": 20,
         # Heuristic Routing Logistics
         "routing_heuristics": False,  # True also needs local_delivery_cost, shipping_cost_per_km, ferry_fee, driving_hours_per_day
-        # Core collection strategies (T5.3), keyed by name. Empty = none
-        "collection_strategies": {},
+        # Core collection strategies (T5.3), keyed by name. Values are rough
+        # placeholders until agreed with partners.
+        "collection_strategies": {
+            "buy_back": {
+                "enabled": False,
+                "bounty_value": 10.0,  # EUR paid per accepted core (assumed)
+                "return_rate_uplift": 0.1,  # added to core_return_rate (assumed)
+            },
+        },
     },
     "b2b_customer": {
         "patience": 10,
@@ -68,6 +74,10 @@ dict_default = {
         },
     },
 }
+
+dict_buy_back = copy.deepcopy(dict_default)
+dict_buy_back["description"] = "Buy-back: owners are paid for each accepted core"
+dict_buy_back["oem"]["collection_strategies"]["buy_back"]["enabled"] = True
 
 dict_no_reman = copy.deepcopy(dict_default)
 dict_no_reman["description"] = "Run with remanufacturing disabled"
@@ -101,5 +111,6 @@ dict_forecast["products"]["R"]["demand_profile"] = {
 SCENARIOS = {
     "Default": dict_default,
     "No Reman": dict_no_reman,
+    "Buy-back": dict_buy_back,
     "Forecast": dict_forecast,
 }

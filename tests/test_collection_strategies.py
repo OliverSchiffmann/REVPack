@@ -3,7 +3,9 @@ import numpy as np
 from reuman._agent import AgentEnum
 from reuman.collection_strategies import (
     STRATEGY_REGISTRY,
+    BuyBack,
     CollectionStrategy,
+    Contract,
     ContractKind,
     build_strategies,
 )
@@ -176,6 +178,88 @@ class TestOEMWithStrategies(unittest.TestCase):
         customer._end_of_life_step = world.now()
         customer._handle_active_user(self.rng)
         self.assertIs(oem._incoming_cores[-1].contract, contract)
+
+
+class _MockRNG:
+    """Returns a fixed number, so acceptance (draw < rate) is decided by the test."""
+
+    def __init__(self, val):
+        self.val = val
+
+    def random(self):
+        return self.val
+
+
+class TestBuyBack(unittest.TestCase):
+
+    def setUp(self):
+        self.config = copy.deepcopy(TEST_SCENARIOS["Default"])
+        self.tc = ModelTimeConverter.from_config(self.config)
+        self.params = {"enabled": True, "bounty_value": 10.0, "return_rate_uplift": 0.1}
+
+    def _oem(self, buy_back_params: dict | None):
+        strategies = {} if buy_back_params is None else {"buy_back": buy_back_params}
+        self.config["oem"]["collection_strategies"] = strategies
+        world = World(config=self.config)
+        oem = OEM(id=-1, world=world, config=self.config)
+        oem._core_acceptance_rate = 0.5
+        return oem
+
+    def test_missing_param_raises(self):
+        with self.assertRaises(ValueError):
+            build_strategies(
+                {"buy_back": {"enabled": True, "bounty_value": 10.0}},
+                AgentEnum.OEM,
+                self.tc,
+            )
+
+    def test_invalid_params_raise(self):
+        for key, bad in (("bounty_value", -1.0), ("return_rate_uplift", 1.5)):
+            with self.subTest(key=key):
+                params = dict(self.params, **{key: bad})
+                with self.assertRaises(ValueError):
+                    BuyBack(params, self.tc)
+
+    def test_uplift_added_for_owners_and_capped(self):
+        bb = BuyBack(self.params, self.tc)
+        self.assertAlmostEqual(bb.return_probability(None, 0.8), 0.9)
+        self.assertEqual(bb.return_probability(None, 0.95), 1.0)
+
+    def test_no_uplift_or_payment_for_leased_products(self):
+        bb = BuyBack(self.params, self.tc)
+        oem = self._oem(None)
+        leased = Contract(kind=ContractKind.LEASED, operator=oem, product=ProductEnum.V)
+        self.assertEqual(bb.return_probability(leased, 0.8), 0.8)
+        self.assertEqual(bb.acquisition_cost(leased, 0.0), 0.0)
+
+    def test_bounty_paid_on_accepted_core_only(self):
+        oem = self._oem(self.params)
+        oem.return_product(_MockRNG(0.9))  # rejected (0.9 >= 0.5)
+        self.assertEqual(oem._total_acquisition_cost, 0.0)
+        oem.return_product(_MockRNG(0.1))  # accepted (0.1 < 0.5)
+        self.assertEqual(oem._total_acquisition_cost, 10.0)
+
+    def test_bounty_reduces_balance(self):
+        """Same accepted core with and without buy-back: balances differ by the bounty."""
+        with_bb = self._oem(self.params)
+        without_bb = self._oem(dict(self.params, enabled=False))
+        with_bb.return_product(_MockRNG(0.1))
+        without_bb.return_product(_MockRNG(0.1))
+        self.assertAlmostEqual(without_bb._balance - with_bb._balance, 10.0)
+
+    def test_oem_applies_uplift(self):
+        oem = self._oem(self.params)
+        self.assertAlmostEqual(oem.core_return_probability(None, 0.8), 0.9)
+
+    def test_no_payment_when_disabled(self):
+        oem = self._oem(dict(self.params, enabled=False))
+        oem.return_product(_MockRNG(0.1))
+        self.assertEqual(oem._total_acquisition_cost, 0.0)
+
+    def test_old_bounty_value_key_raises(self):
+        self.config["oem"]["bounty_value"] = 10.0
+        with self.assertRaises(ValueError):
+            OEM(id=-1, world=World(config=self.config), config=self.config)
 
 
 if __name__ == "__main__":

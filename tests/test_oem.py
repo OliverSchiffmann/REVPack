@@ -235,7 +235,7 @@ class TestOEM(unittest.TestCase):
         self.assertIn("Total Revenue", report)
         self.assertIn("Breakdown", report)
         self.assertIn("Statistics", report)
-        self.assertIn("Total bounties paid", report["Breakdown"])
+        self.assertIn("Core acquisition payments", report["Breakdown"])
         self.assertIn("Virgin units sold", report["Statistics"])
 
     def test_init_rejects_non_positive_cores_consumed(self):

@@ -17,7 +17,6 @@ dict_default = {
         "reman_stock": 0,
         "core_stock": 5,
         "core_storage_limit": 100,
-        "bounty_value": 10.0,
         "unit_production_cost_V": 500.0,
         "retail_price_V": 1000,
         "retail_price_R": 1000,

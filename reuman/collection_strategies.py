@@ -76,13 +76,20 @@ class CollectionStrategy:
         name: Key used in the config, e.g. "lease".
         allowed_operators: Agent types that may run this strategy.
         incompatible_with: Names of strategies that cannot be enabled at the same time.
+    required_params: Config keys the strategy needs besides "enabled".
     """
 
     name: ClassVar[str] = ""
     allowed_operators: ClassVar[frozenset[AgentEnum]] = frozenset({AgentEnum.OEM})
     incompatible_with: ClassVar[frozenset[str]] = frozenset()
+    required_params: ClassVar[tuple[str, ...]] = ()
 
     def __init__(self, params: dict, time_converter: ModelTimeConverter) -> None:
+        missing = [key for key in self.required_params if key not in params]
+        if missing:
+            raise ValueError(
+                f"Collection strategy '{self.name}' is missing: {', '.join(missing)}."
+            )
         self._params = params
         self._time_converter = time_converter
 
@@ -108,9 +115,63 @@ class CollectionStrategy:
         """Cost of collecting one core."""
         return cost
 
+    def acquisition_cost(self, contract: Contract | None, cost: float) -> float:
+        """Amount paid to the customer for a core that passes inspection."""
+        return cost
 
-# Strategy name (as used in the config) -> class. Filled in as strategies are added.
-STRATEGY_REGISTRY: dict[str, type[CollectionStrategy]] = {}
+
+def _is_owned(contract: Contract | None) -> bool:
+    """True if the customer owned the product (None is treated as owned)."""
+    return contract is None or contract.kind == ContractKind.OWNED
+
+
+class BuyBack(CollectionStrategy):
+    """
+    Buy-back (T5.3 strategy 7): the operator pays a fixed amount for each core from
+    an owned product that passes inspection. The payment makes owners more likely
+    to return their core.
+
+    Params:
+        bounty_value (float): Amount paid per accepted core (EUR).
+        return_rate_uplift (float): Added to the owner's base return rate
+            (0 to 1; the result is capped at 1).
+    """
+
+    name = "buy_back"
+    incompatible_with = frozenset({"lease"})  # a lessee doesn't own the core to sell
+    required_params = ("bounty_value", "return_rate_uplift")
+
+    def __init__(self, params: dict, time_converter: ModelTimeConverter) -> None:
+        super().__init__(params, time_converter)
+        self._bounty_value = float(params["bounty_value"])
+        self._return_rate_uplift = float(params["return_rate_uplift"])
+        if self._bounty_value < 0:
+            raise ValueError(
+                f"buy_back bounty_value must be >= 0. Received: {self._bounty_value}"
+            )
+        if not 0 <= self._return_rate_uplift <= 1:
+            raise ValueError(
+                "buy_back return_rate_uplift must be between 0 and 1. "
+                f"Received: {self._return_rate_uplift}"
+            )
+
+    def return_probability(
+        self, contract: Contract | None, probability: float
+    ) -> float:
+        if not _is_owned(contract):
+            return probability
+        return min(1.0, probability + self._return_rate_uplift)
+
+    def acquisition_cost(self, contract: Contract | None, cost: float) -> float:
+        if not _is_owned(contract):
+            return cost
+        return cost + self._bounty_value
+
+
+# Strategy name (as used in the config) -> class.
+STRATEGY_REGISTRY: dict[str, type[CollectionStrategy]] = {
+    BuyBack.name: BuyBack,
+}
 
 
 def build_strategies(

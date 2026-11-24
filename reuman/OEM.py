@@ -59,8 +59,7 @@ class OEM(BaseAgent):
     _core_storage_cost_per_step: float
     _total_core_storage_cost: float
     _core_storage_limit: int
-    _bounties_returned: int
-    _bounty_value: float
+    _total_acquisition_cost: float  # paid to customers for accepted cores
     _retail_price_V: float
     _retail_price_R: float
     _inspection_cost: float
@@ -87,6 +86,7 @@ class OEM(BaseAgent):
         Raises:
             ValueError: If manufacture_delay or remanufacture_delay is less than 1 day.
             ValueError: if cores consumed is not a positive number greater than 0.
+            ValueError: if the old oem.bounty_value setting is present.
         """
         self._config = config
         oem_config = config["oem"]
@@ -101,6 +101,13 @@ class OEM(BaseAgent):
         cores_consumed = config["products"]["R"]["cores_consumed"]
         if cores_consumed <= 0:
             raise ValueError(f"cores_consumed must be >0. Received: {cores_consumed}")
+        if "bounty_value" in oem_config:
+            raise ValueError(
+                "oem.bounty_value is no longer used: the bounty is now the 'buy_back' "
+                "collection strategy. Remove bounty_value and set "
+                "oem.collection_strategies.buy_back = {'enabled': True, "
+                "'bounty_value': ..., 'return_rate_uplift': ...}."
+            )
 
         super().__init__(id=id, type=AgentEnum.OEM, world=world)
 
@@ -148,8 +155,7 @@ class OEM(BaseAgent):
         )
         self._total_core_storage_cost = 0.0
         self._core_storage_limit = oem_config["core_storage_limit"]
-        self._bounties_returned = 0
-        self._bounty_value = oem_config["bounty_value"]
+        self._total_acquisition_cost = 0.0
         self._retail_price_V = oem_config["retail_price_V"]
         self._retail_price_R = oem_config["retail_price_R"]
         self._inspection_cost = oem_config["inspection_cost"]
@@ -278,7 +284,7 @@ class OEM(BaseAgent):
             "cores_collected": self._total_cores_collected,
             "cores_rejected": self._total_cores_rejected,
             "inspection_cost": self._total_inspection_costs,
-            "bounty_values_paid": self._bounty_value * self._bounties_returned,
+            "core_acquisition_cost": self._total_acquisition_cost,
             "oem_balance": self._balance,
         }
 
@@ -420,10 +426,6 @@ class OEM(BaseAgent):
         """
         self._total_cores_collected += 1
 
-        # Pay the bounty
-        self._bounties_returned += 1
-        self._balance -= self._bounty_value
-
         if customer_location:
             collection_cost = self.get_core_collection_cost(
                 customer_location, self._core_collection_cost
@@ -445,6 +447,12 @@ class OEM(BaseAgent):
             acceptance_rate = strategy.acceptance_rate(contract, acceptance_rate)
 
         if rng.random() < acceptance_rate:
+            # Pay the customer for the core if a strategy offers it (e.g. buy-back)
+            payment = 0.0
+            for strategy in self._strategies:
+                payment = strategy.acquisition_cost(contract, payment)
+            self._total_acquisition_cost += payment
+            self._balance -= payment
             # Set a limit on how many cores to have in storage
             if self._core_stock < self._core_storage_limit:
                 self._core_stock += 1
@@ -546,8 +554,8 @@ class OEM(BaseAgent):
             self._total_products_produced[ProductEnum.R] * self._unit_production_cost_R
         )
 
-        # Return bounties paid
-        cost_bounty = self._bounties_returned * self._bounty_value
+        # Payments to customers for accepted cores (e.g. buy-back)
+        cost_acquisition = self._total_acquisition_cost
 
         # Reverse logistics costs
         cost_collection = self._total_core_collection_cost
@@ -577,7 +585,7 @@ class OEM(BaseAgent):
             + cost_collection
             + cost_disposal
             + cost_storage
-            + cost_bounty
+            + cost_acquisition
             + cost_inspection
             + cost_reman_impl
             + cost_reman_op
@@ -596,7 +604,7 @@ class OEM(BaseAgent):
                 "Production of virgin products": cost_V,
                 "Production of reman products": cost_R,
                 "Collecting cores": cost_collection,
-                "Total bounties paid": cost_bounty,
+                "Core acquisition payments": cost_acquisition,
                 "Inspection of cores": cost_inspection,
                 "Disposal of unaccepted cores": cost_disposal,
                 "Storage of cores": cost_storage,
@@ -614,7 +622,6 @@ class OEM(BaseAgent):
                 "Virgin units sold": self._products_sold[ProductEnum.V],
                 "Reman units produced": self._total_products_produced[ProductEnum.R],
                 "Reman units sold": self._products_sold[ProductEnum.R],
-                "Bounties returned": self._bounties_returned,
                 "Cores collected": self._total_cores_collected,
                 "Cores not collected": self._total_cores_not_collected,
                 "Cores accepted": (
