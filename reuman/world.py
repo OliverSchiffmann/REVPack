@@ -417,28 +417,23 @@ class World:
         oem_id = self._agents_by_type[AgentEnum.OEM][0]
         oemAgent: OEM = self._agents[oem_id]  # type: ignore
 
-        results = {
-            "step": [],
-            "day": [],
-            "potential_users": [],
-            "wants_virgin": [],
-            "uses_virgin": [],
-            "wants_reman": [],
-            "uses_reman": [],
-            "wants_any": [],
-            "waiting_for_delivery": [],
-            "core_stock": [],
-            "virgin_stock": [],
-            "reman_stock": [],
-            "virgin_sold": [],
-            "reman_sold": [],
-            "cores_collected": [],
-            "cores_rejected": [],
-            "inspection_cost": [],
-            "bounty_values_paid": [],
-            "oem_balance": [],
-            "new_customers_V": [],
-            "new_customers_R": [],
+        world_keys = [
+            "step",
+            "day",
+            "potential_users",
+            "wants_virgin",
+            "uses_virgin",
+            "wants_reman",
+            "uses_reman",
+            "wants_any",
+            "waiting_for_delivery",
+        ]
+        # The OEM's metric names come from the OEM itself, so a new metric only
+        # has to be added in get_tracking_metrics
+        oem_keys = list(oemAgent.get_tracking_metrics())
+        demand_keys = ["new_customers_V", "new_customers_R"]
+        results: dict[str, list] = {
+            key: [] for key in world_keys + oem_keys + demand_keys
         }
 
         for i in range(n_steps):

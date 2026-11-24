@@ -4,15 +4,29 @@ Module for the Original Equipment Manufacturer (OEM) agent.
 
 from __future__ import annotations
 from enum import Enum
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, NamedTuple
 from ._agent import AgentEnum, BaseAgent
 from .message import Message, MessageType
 from .product import ProductEnum, ProductDetails, product_params
 from .customer import CustomerStatesEnum
 from .states import OEMStatesEnum
+from .collection_strategies import (
+    CollectionStrategy,
+    Contract,
+    ContractKind,
+    build_strategies,
+)
 
 if TYPE_CHECKING:
     from .world import World
+
+
+class IncomingCore(NamedTuple):
+    """A core in transit back to the OEM."""
+
+    arrival_step: int
+    location: str | None
+    contract: Contract | None  # the terms the product was held on
 
 
 class OEM(BaseAgent):
@@ -51,13 +65,15 @@ class OEM(BaseAgent):
     _retail_price_R: float
     _inspection_cost: float
     _total_inspection_costs: float
-    _incoming_cores: list[tuple[int, str | None]]
+    _incoming_cores: list[IncomingCore]
     _config: dict
     _reman_implementation_cost: float
     _reman_operating_cost_per_step: float
     _total_reman_operating_cost: float
     _reman_enabled: bool
     _routing_enabled: bool
+    _strategies: list[CollectionStrategy]
+    _total_contract_fees: float
 
     def __init__(self, id: int, world: World, config: dict) -> None:
         """
@@ -163,6 +179,19 @@ class OEM(BaseAgent):
 
         if self._reman_enabled:
             self._balance -= self._reman_implementation_cost
+        # Core collection strategies only run alongside remanufacturing. Their
+        # settings may still be in the config when reman is off: they are ignored.
+        # .get keeps older scenario files (without the block) working.
+        self._strategies = (
+            build_strategies(
+                oem_config.get("collection_strategies", {}),
+                AgentEnum.OEM,
+                time_converter,
+            )
+            if self._reman_enabled
+            else []
+        )
+        self._total_contract_fees = 0.0
 
     def get_shipping_delay(self, destination: str) -> int:
         """
@@ -257,10 +286,55 @@ class OEM(BaseAgent):
         """Records a core that was not collected from a customer."""
         self._total_cores_not_collected += 1
 
+    def contract_for(self, product: ProductEnum) -> Contract:
+        """
+        The terms a customer gets the product on. Owned by default; a strategy
+        such as a lease can replace them.
+
+        Args:
+            product (ProductEnum): The product being acquired.
+
+        Returns:
+            Contract: The contract for this acquisition.
+        """
+        contract = Contract(kind=ContractKind.OWNED, operator=self, product=product)
+        for strategy in self._strategies:
+            contract = strategy.offer_contract(contract)
+        return contract
+
+    def core_return_probability(
+        self, contract: Contract | None, base_probability: float
+    ) -> float:
+        """
+        Probability that a customer's core comes back at end of life, after the
+        active strategies have been applied to the customer's base return rate.
+
+        Args:
+            contract (Contract | None): The terms the product was held on.
+            base_probability (float): The customer's own return rate.
+
+        Returns:
+            float: The return probability to use.
+        """
+        probability = base_probability
+        for strategy in self._strategies:
+            probability = strategy.return_probability(contract, probability)
+        return probability
+
+    def receive_contract_fee(self, amount: float) -> None:
+        """
+        Receive a per-step contract fee (e.g. a lease payment) from a customer.
+
+        Args:
+            amount (float): The fee for this step.
+        """
+        self._balance += amount
+        self._total_contract_fees += amount
+
     # Checks the stock of a given product in storage
     def request_product(
         self, product: ProductEnum, customer_location: str | None = None
-    ) -> bool:
+    ) -> Contract | None:
         """
         Process a customer's request to purchase a product.
 
@@ -269,7 +343,8 @@ class OEM(BaseAgent):
             customer_location (str): The geographical location of the customer.
 
         Returns:
-            bool: True if the product is in stock and successfully purchased, False otherwise.
+            Contract | None: The contract the customer gets the product on if it was
+            in stock, None otherwise.
         """
         currentStock = self._factory_stock[product]
 
@@ -282,21 +357,28 @@ class OEM(BaseAgent):
             #     self._total_shipping_cost += shipping_cost
             #     self._balance -= shipping_cost
 
-            self._balance += (
+            contract = self.contract_for(product)
+            revenue = (
                 self._retail_price_V
                 if product == ProductEnum.V
                 else self._retail_price_R
             )
-            return True
+            for strategy in self._strategies:
+                revenue = strategy.sale_revenue(contract, revenue)
+            self._balance += revenue
+            return contract
 
-        return False
+        return None
 
-    def schedule_core_return(self, customer_location: str | None = None) -> None:
+    def schedule_core_return(
+        self, customer_location: str | None = None, contract: Contract | None = None
+    ) -> None:
         """
         Schedules a core to be returned to the OEM after a shipping delay.
 
         Args:
             customer_location (str): The location of the customer returning the core.
+            contract (Contract | None): The terms the product was held on.
         """
         delay = (
             self.get_shipping_delay(customer_location)
@@ -304,21 +386,28 @@ class OEM(BaseAgent):
             else self._delivery_delay_steps
         )  # Works depending on whether the customer location logic is used
         arrival_step = self._world.now() + delay
-        self._incoming_cores.append((arrival_step, customer_location))
+        self._incoming_cores.append(
+            IncomingCore(arrival_step, customer_location, contract)
+        )
 
     def process_incoming_cores(self, rng):
         """
         Process cores that have arrived after their return transit delay.
         """
         remaining_cores = []
-        for arrival_step, location in self._incoming_cores:
-            if self._world.now() >= arrival_step:
-                self.return_product(rng, location)
+        for core in self._incoming_cores:
+            if self._world.now() >= core.arrival_step:
+                self.return_product(rng, core.location, core.contract)
             else:
-                remaining_cores.append((arrival_step, location))
+                remaining_cores.append(core)
         self._incoming_cores = remaining_cores
 
-    def return_product(self, rng, customer_location: str | None = None) -> None:
+    def return_product(
+        self,
+        rng,
+        customer_location: str | None = None,
+        contract: Contract | None = None,
+    ) -> None:
         """
         Process a returned product (core) from a customer.
 
@@ -327,6 +416,7 @@ class OEM(BaseAgent):
         Args:
             rng (numpy.random.Generator): Seeded random number generator.
             customer_location (str): The geographical location of the customer.
+            contract (Contract | None): The terms the product was held on.
         """
         self._total_cores_collected += 1
 
@@ -340,6 +430,8 @@ class OEM(BaseAgent):
             )
         else:
             collection_cost = self._core_collection_cost
+        for strategy in self._strategies:
+            collection_cost = strategy.collection_cost(contract, collection_cost)
 
         self._total_core_collection_cost += collection_cost
         self._balance -= collection_cost
@@ -348,7 +440,11 @@ class OEM(BaseAgent):
         self._total_inspection_costs += self._inspection_cost
         self._balance -= self._inspection_cost
 
-        if rng.random() < self._core_acceptance_rate:
+        acceptance_rate = self._core_acceptance_rate
+        for strategy in self._strategies:
+            acceptance_rate = strategy.acceptance_rate(contract, acceptance_rate)
+
+        if rng.random() < acceptance_rate:
             # Set a limit on how many cores to have in storage
             if self._core_stock < self._core_storage_limit:
                 self._core_stock += 1

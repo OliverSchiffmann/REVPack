@@ -2,7 +2,7 @@ import unittest, copy
 import numpy as np
 from reuman.customer import Customer
 from reuman.world import World
-from reuman.OEM import OEM, OEMStatesEnum
+from reuman.OEM import OEM, OEMStatesEnum, IncomingCore
 from reuman.product import ProductEnum
 from tests.test_scenarios import TEST_SCENARIOS
 
@@ -178,13 +178,17 @@ class TestOEM(unittest.TestCase):
 
         self.assertEqual(len(self.oem._incoming_cores), 1)
         expected_arrival = current_time + self.oem._delivery_delay_steps
-        self.assertEqual(self.oem._incoming_cores[0], (expected_arrival, "Rome"))
+        self.assertEqual(
+            self.oem._incoming_cores[0], IncomingCore(expected_arrival, "Rome", None)
+        )
 
     def test_process_incoming_cores(self):
         """Test that incoming cores are processed once their arrival day is reached."""
-        self.oem._incoming_cores.append((self.world.now(), "Rome"))  # Arrives today
         self.oem._incoming_cores.append(
-            (self.world.now() + 5, "Milan")
+            IncomingCore(self.world.now(), "Rome", None)
+        )  # Arrives today
+        self.oem._incoming_cores.append(
+            IncomingCore(self.world.now() + 5, "Milan", None)
         )  # Arrives in future
 
         initial_cores = self.oem._core_stock

@@ -11,6 +11,7 @@ from .product import ProductEnum, ProductDetails, product_params
 if TYPE_CHECKING:
     from .world import World
     from .OEM import OEM
+    from .collection_strategies import Contract
 
 
 class Customer(BaseAgent):
@@ -26,6 +27,7 @@ class Customer(BaseAgent):
     _delivery_step: int
     _end_of_life_step: int
     _active_product: ProductEnum | None
+    _contract: Contract | None  # terms of the product being waited for or used
     _oem: OEM
     _patience_steps: int  # -1 means infinite patience
     _product_lifespan: int
@@ -66,6 +68,7 @@ class Customer(BaseAgent):
         self._delivery_step = -1
         self._end_of_life_step = -1
         self._active_product = None
+        self._contract = None
         super().__init__(id=id, type=AgentEnum.CUSTOMER, world=world)
         self._oem = oem
         # Patience is given in days. -1 means "never gives up" and is kept as-is.
@@ -157,6 +160,10 @@ class Customer(BaseAgent):
         """
         Handles logic for customers currently using a product until it reaches end-of-life.
         """
+        contract = self._contract
+        # Pay any per-step fee (e.g. a lease) for every step the product is used
+        if contract is not None and contract.fee_per_step > 0:
+            contract.operator.receive_contract_fee(contract.fee_per_step)
         if self._world.now() >= self._end_of_life_step:
 
             if self._active_product is not None:
@@ -165,11 +172,17 @@ class Customer(BaseAgent):
 
             self._delivery_step = -1
             self._end_of_life_step = -1
+            self._contract = None
             if ProductEnum.R in self._world.get_active_products():
-                if rng.random() < self._core_return_rate:
-                    self._oem.schedule_core_return(self._location)
+                # The core goes back to whoever the contract was with
+                collector = contract.operator if contract is not None else self._oem
+                return_probability = collector.core_return_probability(
+                    contract, self._core_return_rate
+                )
+                if rng.random() < return_probability:
+                    collector.schedule_core_return(self._location, contract)
                 else:
-                    self._oem.record_core_not_collected()
+                    collector.record_core_not_collected()
 
     def try_and_buy(self, rng, product: ProductEnum):
         """
@@ -179,9 +192,10 @@ class Customer(BaseAgent):
             rng (numpy.random.Generator): Random number generator.
             product (ProductEnum): The type of product to attempt to buy.
         """
-        purchaseSuccessful = self._oem.request_product(product, self._location)
+        contract = self._oem.request_product(product, self._location)
 
-        if purchaseSuccessful:
+        if contract is not None:
+            self._contract = contract
             delay = self._oem.get_shipping_delay(self._location)
             if delay == 0:  # checking if delivery is instant
                 self.become_user(rng, product)
@@ -220,19 +234,28 @@ class Customer(BaseAgent):
         self._active_product = product
         self._delivery_step = -1
         self._end_of_patience_step = -1
+        # Users who never went through try_and_buy (e.g. starting customers) still need terms
+        if self._contract is None:
+            self._contract = self._oem.contract_for(product)
 
-        if self._lifetime_method == "uniform":
-            lifespan = self.get_uniform_lifetime(rng)
-        elif self._lifetime_method == "weibull":
-            lifespan = self.get_weibull_lifetime(rng)
-        elif self._lifetime_method == "triangular":
-            lifespan = self.get_triangular_lifetime(rng)
+        if self._contract.term_steps is not None:
+            # A fixed-term contract (e.g. a lease) sets the end of life, not the drawn lifetime
+            lifespan_steps = self._contract.term_steps
         else:
-            raise ValueError(f"Unknown lifetime method: {self._lifetime_method}")
+            if self._lifetime_method == "uniform":
+                lifespan = self.get_uniform_lifetime(rng)
+            elif self._lifetime_method == "weibull":
+                lifespan = self.get_weibull_lifetime(rng)
+            elif self._lifetime_method == "triangular":
+                lifespan = self.get_triangular_lifetime(rng)
+            else:
+                raise ValueError(f"Unknown lifetime method: {self._lifetime_method}")
 
-        # Lifetimes are drawn in days, then converted. At least 1 step: a product
-        # that is bought is always used for some time before it reaches end of life.
-        lifespan_steps = max(1, self._world.time_converter().days_to_steps(lifespan))
+            # Lifetimes are drawn in days, then converted. At least 1 step: a product
+            # that is bought is always used for some time before it reaches end of life.
+            lifespan_steps = max(
+                1, self._world.time_converter().days_to_steps(lifespan)
+            )
         self._product_lifespan = lifespan_steps
         self._end_of_life_step = self._world.now() + lifespan_steps
 
