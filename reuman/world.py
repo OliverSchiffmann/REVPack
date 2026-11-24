@@ -12,6 +12,7 @@ from . import customer
 from .product import ProductEnum
 import copy
 from . import demand_inputs
+from .model_time_converter import DAYS_PER_STEP, ModelTimeConverter, unit_for_frequency
 from collections.abc import Sequence
 
 if TYPE_CHECKING:
@@ -40,6 +41,7 @@ class World:
     _demand_profiles: dict
     _demand_calibration: dict
     _new_customers_today: dict[ProductEnum, int]
+    _time_converter: ModelTimeConverter
 
     def __init__(self, config: dict) -> None:
         """
@@ -60,6 +62,10 @@ class World:
         self._message_queue = []
         self._active_products = [ProductEnum.V]
         self._config = config
+
+        # One converter per run: turns real-world units (days, years) into steps
+        self._time_converter = ModelTimeConverter.from_config(config)
+
         if config["main"]["enable_reman"]:
             self._active_products.append(ProductEnum.R)
 
@@ -69,21 +75,11 @@ class World:
             for key, product_data in config["products"].items()
         }
 
-        # Turn any forecast profiles into stochastic rates (runs once, before the simulation)
-        self._demand_calibration = self._resolve_forecast_profiles()
-
-        # Preload any demand CSV files so they aren't processed during the simulation ticks
+        # Preload a deterministic demand CSV (new customers per day) so it isn't read during the run
         for profile in self._demand_profiles.values():
-            if profile["type"] == "deterministic":
-                val = profile["amount_per_day"]
-                key = "amount_per_day"
-                cast_func = lambda x: int(float(x))
-            elif profile["type"] == "stochastic":
-                val = profile["rate"]
-                key = "rate"
-                cast_func = float
-            else:
+            if profile["type"] != "deterministic":
                 continue
+            val = profile["amount_per_day"]
 
             if isinstance(val, str):
                 try:
@@ -95,14 +91,51 @@ class World:
                         for row in reader:
                             if row:
                                 try:
-                                    loaded_vals.append(cast_func(row[0]))
+                                    loaded_vals.append(int(float(row[0])))
                                 except ValueError:
                                     pass  # Skip headers or non-numeric rows
-                    profile[key] = loaded_vals
+                    profile["amount_per_day"] = loaded_vals
                 except Exception as e:
                     raise RuntimeError(f"Failed to load demand CSV '{val}': {e}") from e
 
-    # leading underscore (_) infront of function is used to indicate it is only to be called in __init__
+        # Hand-entered profiles are per day: convert them to per step
+        self._convert_profiles_to_steps()
+
+        # Turn any forecast profiles into stochastic rates (runs once, before the simulation).
+        # Must come after the conversion above: forecast rates are converted from the
+        # forecast's own frequency inside this method, and converting them again as if
+        # per day would count the step length twice.
+        self._demand_calibration = self._resolve_forecast_profiles()
+
+    def _convert_profiles_to_steps(self) -> None:
+        """
+        Convert hand-entered demand profiles from per-day values to per-step values.
+
+        Stochastic rates (probability per day) become probabilities per step.
+        Deterministic amounts (customers per day) become customers per step and
+        are stored under "amount_per_step"; a list (e.g. from a daily sales CSV)
+        holds one value per day and is added up per step. Forecast profiles are
+        left alone.
+        """
+        tc = self._time_converter
+        for profile in self._demand_profiles.values():
+            if profile["type"] == "stochastic":
+                rate = profile["rate"]
+                if not isinstance(rate, (int, float)):
+                    raise ValueError(
+                        "A stochastic demand rate must be a single number (probability per day). "
+                        f"Received: {rate!r}. For daily sales data use a deterministic profile."
+                    )
+                profile["rate"] = tc.daily_prob_to_step_prob(rate)
+            elif profile["type"] == "deterministic":
+                amount = profile.pop("amount_per_day")
+                if isinstance(amount, list):
+                    profile["amount_per_step"] = tc.daily_amounts_to_step_amounts(
+                        amount
+                    )
+                else:
+                    profile["amount_per_step"] = tc.per_day_to_per_step(amount)
+
     def _resolve_forecast_profiles(self) -> dict:
         """
         Replace every demand profile of type "forecast" with a stochastic rate
@@ -137,7 +170,7 @@ class World:
                 data = demand_inputs.load_forecast_file(data)
             else:  # already-parsed data (webapp)
                 demand_inputs.validate_forecast(data)
-            series[key] = demand_inputs.build_daily_series(data)
+            series[key] = demand_inputs.build_forecast_series(data)
 
         main = self._config["main"]
         rates = demand_inputs.estimate_ad_rates(
@@ -150,14 +183,20 @@ class World:
         calibration = {}
         for key, rate in rates.items():
             s = series[key]
-            self._demand_profiles[key] = {"type": "stochastic", "rate": rate}
+            # The rate is per forecast period (day, week or month): convert it to per step
+            period_unit = unit_for_frequency(s.frequency)
+            step_rate = self._time_converter.period_prob_to_step_prob(rate, period_unit)
+            self._demand_profiles[key] = {"type": "stochastic", "rate": step_rate}
             calibration[key] = {
-                "rate": rate,
+                "rate": rate,  # per forecast period
+                "rate_per_step": step_rate,
+                "frequency": s.frequency,
+                "days_per_period": DAYS_PER_STEP[period_unit],
                 "start_date": s.dates[0].isoformat(),
                 "end_date": s.dates[-1].isoformat(),
-                "history_days": s.history_days,
-                "clipped_days": s.clipped_days,
-                "daily_values": list(s.values),
+                "history_periods": s.history_periods,
+                "clipped_periods": s.clipped_periods,
+                "values": list(s.values),
             }
         return calibration
 
@@ -177,6 +216,15 @@ class World:
 
         self._now += 1
         self.update_customer_state_counts()
+
+    def time_converter(self) -> ModelTimeConverter:
+        """
+        Returns the converter between real-world units and model steps for this run.
+
+        Returns:
+            ModelTimeConverter: The run's time converter.
+        """
+        return self._time_converter
 
     def now(self) -> int:
         """
@@ -230,7 +278,7 @@ class World:
 
     def generate_demand(self, rng):
         """
-        Calculates daily demand based on global product configurations and
+        Calculates this step's demand based on global product configurations and
         forcefully transitions selected POTENTIAL_USERs into the market.
         """
         from .customer import CustomerStatesEnum
@@ -255,22 +303,12 @@ class World:
             profile_type = profile["type"]
 
             if profile_type == "stochastic":
-                rate = profile["rate"]
-                if isinstance(rate, list):
-                    idx = self._now - 1
-                    if 0 <= idx < len(rate):
-                        current_rate = rate[idx]
-                    else:
-                        current_rate = 0.0
-                else:
-                    current_rate = rate
-
-                num_to_enter = rng.binomial(len(potential_users), current_rate)
+                num_to_enter = rng.binomial(len(potential_users), profile["rate"])
             elif profile_type == "deterministic":
-                amount = profile["amount_per_day"]
+                amount = profile["amount_per_step"]
 
                 if isinstance(amount, list):
-                    # _now is 1 on the first simulated day, so we subtract 1 for the 0-based list index
+                    # _now is 1 on the first simulated step, so we subtract 1 for the 0-based list index
                     idx = self._now - 1
                     if 0 <= idx < len(amount):
                         num_to_enter = amount[idx]
@@ -365,18 +403,22 @@ class World:
                 recipient.handle_message(message, rng)
         self._message_queue.clear()
 
-    async def run(
-        self, rng, simulation_length: int, progress_callback=None
-    ) -> tuple[dict, dict]:
+    async def run(self, rng, n_steps: int, progress_callback=None) -> tuple[dict, dict]:
         """
-        Executes the simulation loop for a specified number of ticks,
+        Executes the simulation loop for a specified number of steps,
         collects time-series results, and generates a final report.
+
+        Args:
+            rng (numpy.random.Generator): Seeded random number generator.
+            n_steps (int): Number of steps to simulate (see ModelTimeConverter.years_to_steps).
+            progress_callback: Optional function called with (step, n_steps) for progress bars.
         """
         # Find the OEM agent for data collection
         oem_id = self._agents_by_type[AgentEnum.OEM][0]
         oemAgent: OEM = self._agents[oem_id]  # type: ignore
 
         results = {
+            "step": [],
             "day": [],
             "potential_users": [],
             "wants_virgin": [],
@@ -399,11 +441,12 @@ class World:
             "new_customers_R": [],
         }
 
-        for i in range(simulation_length):
+        for i in range(n_steps):
             self.tick()
 
             # Record states
-            results["day"].append(self.now())
+            results["step"].append(self.now())
+            results["day"].append(self._time_converter.step_to_day(self.now()))
             results["potential_users"].append(self._num_potential_users)
             results["wants_virgin"].append(self._num_wants[ProductEnum.V])
             results["uses_virgin"].append(self._num_uses[ProductEnum.V])
@@ -424,9 +467,9 @@ class World:
             self.call_next(rng)
 
             if progress_callback is not None:
-                update_interval = max(1, simulation_length // 100)
+                update_interval = max(1, n_steps // 100)
                 if i % update_interval == 0:
-                    progress_callback(i, simulation_length)
+                    progress_callback(i, n_steps)
                     await asyncio.sleep(0)
 
         report = oemAgent.generate_financial_report()

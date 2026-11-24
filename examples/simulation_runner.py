@@ -18,7 +18,9 @@ async def run_simulation(config, seed=None, progress_callback=None):
 
     B2B_population: int = config["main"]["B2B_population"]
     B2C_population: int = config["main"]["B2C_population"]
-    simulation_length: int = config["main"]["simulation_length"]
+    n_steps: int = world.time_converter().years_to_steps(
+        config["main"]["simulation_years"]
+    )
 
     # Load geographic data
     cities = []
@@ -41,9 +43,10 @@ async def run_simulation(config, seed=None, progress_callback=None):
         probabilities[-1] = 1.0 - sum(
             probabilities[:-1]
         )  # To avoid precision float errors summing > 1.0
-
-    with open("examples/locations/italy_100x100_matrix.json", "r") as f:
-        distance_matrix = json.load(f)
+    distance_matrix = None
+    if config["oem"].get("routing_heuristics", False):
+        with open("examples/locations/italy_100x100_matrix.json", "r") as f:
+            distance_matrix = json.load(f)
 
     config["oem"]["location"] = "Brescia"
     config["oem"]["distance_matrix"] = distance_matrix
@@ -99,7 +102,7 @@ async def run_simulation(config, seed=None, progress_callback=None):
             customer_agents[idx].initialise_as_active_user(rng, ProductEnum.V)
 
     # Delegate execution to the World agent
-    results, report = await world.run(rng, simulation_length, progress_callback)
+    results, report = await world.run(rng, n_steps, progress_callback)
 
     # Record where any forecast-based advertising rates came from (empty if none were used)
     report["Demand Calibration"] = world.get_demand_calibration()

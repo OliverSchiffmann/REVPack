@@ -23,18 +23,18 @@ class Customer(BaseAgent):
     """
 
     _state: CustomerStatesEnum
-    _delivery_day: int
-    _end_of_life_day: int
+    _delivery_step: int
+    _end_of_life_step: int
     _active_product: ProductEnum | None
     _oem: OEM
-    _patience: int
+    _patience_steps: int  # -1 means infinite patience
     _product_lifespan: int
-    _end_of_patience_day: int
+    _end_of_patience_step: int
     _core_return_rate: float
     _config: dict
     _lifetime_method: str
-    _mean_lifetime: int
-    _lifetime_range: int
+    _mean_lifetime_days: float
+    _lifetime_range_days: float
     _customer_config: dict
 
     def __init__(
@@ -63,17 +63,26 @@ class Customer(BaseAgent):
             customer_type
         ]  # customer-specific params e.g. patience, lifetime. We know this is cursed
         self._location = location
-        self._delivery_day = -1
-        self._end_of_life_day = -1
+        self._delivery_step = -1
+        self._end_of_life_step = -1
         self._active_product = None
         super().__init__(id=id, type=AgentEnum.CUSTOMER, world=world)
         self._oem = oem
-        self._patience = self._customer_config["patience"]
+        # Patience is given in days. -1 means "never gives up" and is kept as-is.
+        # At least 1 step, so a customer always gets the in-step retry after the
+        # OEM has produced, before giving up (0 would skip it).
+        patience_days = self._customer_config["patience"]
+        if patience_days == -1:
+            self._patience_steps = -1
+        else:
+            self._patience_steps = max(
+                1, world.time_converter().days_to_steps(patience_days)
+            )
         self._core_return_rate = self._customer_config["core_return_rate"]
-        self._end_of_patience_day = -1
+        self._end_of_patience_step = -1
         self._lifetime_method = self._customer_config["lifetime_method"]
-        self._mean_lifetime = self._customer_config["mean_lifetime"]
-        self._lifetime_range = self._customer_config["lifetime_range"]
+        self._mean_lifetime_days = self._customer_config["mean_lifetime"]
+        self._lifetime_range_days = self._customer_config["lifetime_range"]
 
     def next(self, rng):
         """
@@ -119,13 +128,13 @@ class Customer(BaseAgent):
         """
         Handles logic for customers waiting for a specific product delivery or stock.
         """
-        if self._delivery_day != -1:
-            if self._world.now() >= self._delivery_day:
+        if self._delivery_step != -1:
+            if self._world.now() >= self._delivery_step:
                 if self._active_product:
                     self.become_user(rng, self._active_product)
         elif (
-            self._end_of_patience_day != -1
-            and self._world.now() >= self._end_of_patience_day
+            self._end_of_patience_step != -1
+            and self._world.now() >= self._end_of_patience_step
         ):
             # Patience ran out
             self._state = CustomerStatesEnum.WANTS_ANY
@@ -148,14 +157,14 @@ class Customer(BaseAgent):
         """
         Handles logic for customers currently using a product until it reaches end-of-life.
         """
-        if self._world.now() >= self._end_of_life_day:
+        if self._world.now() >= self._end_of_life_step:
 
             if self._active_product is not None:
                 self._state = CustomerStatesEnum.WANTS_ANY
                 self._active_product = None
 
-            self._delivery_day = -1
-            self._end_of_life_day = -1
+            self._delivery_step = -1
+            self._end_of_life_step = -1
             if ProductEnum.R in self._world.get_active_products():
                 if rng.random() < self._core_return_rate:
                     self._oem.schedule_core_return(self._location)
@@ -179,13 +188,13 @@ class Customer(BaseAgent):
             else:
                 self._state = CustomerStatesEnum.WAITING_FOR_DELIVERY
                 self._active_product = product
-                self._delivery_day = self._world.now() + delay
-            self._end_of_patience_day = -1
+                self._delivery_step = self._world.now() + delay
+            self._end_of_patience_step = -1
         else:
             if (
-                self._end_of_patience_day == -1 and self._patience != -1
+                self._end_of_patience_step == -1 and self._patience_steps != -1
             ):  # patience of -1 means infinite patience
-                self._end_of_patience_day = self._world.now() + self._patience
+                self._end_of_patience_step = self._world.now() + self._patience_steps
 
     def initialise_as_active_user(self, rng, product: ProductEnum):
         """
@@ -196,7 +205,7 @@ class Customer(BaseAgent):
         # Randomise the remaining lifespan to simulate users who bought the product at some point in the past
         if self._product_lifespan > 1:
             remaining_lifespan = int(rng.integers(1, self._product_lifespan + 1))
-            self._end_of_life_day = self._world.now() + remaining_lifespan
+            self._end_of_life_step = self._world.now() + remaining_lifespan
 
     def become_user(self, rng, product: ProductEnum):
         """
@@ -209,8 +218,8 @@ class Customer(BaseAgent):
         """
         self._state = product_params[product]["uses_state"]
         self._active_product = product
-        self._delivery_day = -1
-        self._end_of_patience_day = -1
+        self._delivery_step = -1
+        self._end_of_patience_step = -1
 
         if self._lifetime_method == "uniform":
             lifespan = self.get_uniform_lifetime(rng)
@@ -221,8 +230,11 @@ class Customer(BaseAgent):
         else:
             raise ValueError(f"Unknown lifetime method: {self._lifetime_method}")
 
-        self._product_lifespan = lifespan
-        self._end_of_life_day = self._world.now() + lifespan
+        # Lifetimes are drawn in days, then converted. At least 1 step: a product
+        # that is bought is always used for some time before it reaches end of life.
+        lifespan_steps = max(1, self._world.time_converter().days_to_steps(lifespan))
+        self._product_lifespan = lifespan_steps
+        self._end_of_life_step = self._world.now() + lifespan_steps
 
     def get_uniform_lifetime(self, rng):
         """
@@ -234,8 +246,8 @@ class Customer(BaseAgent):
         Returns:
             int: The generated lifetime.
         """
-        lifespan_mean = self._mean_lifetime
-        lifespan_variation = self._lifetime_range
+        lifespan_mean = self._mean_lifetime_days
+        lifespan_variation = self._lifetime_range_days
         lifespan_range = (
             lifespan_mean - lifespan_variation,
             lifespan_mean + lifespan_variation,
@@ -252,8 +264,8 @@ class Customer(BaseAgent):
         Returns:
             int: The generated lifetime.
         """
-        lifespan_mean = self._mean_lifetime
-        lifespan_variation = self._lifetime_range
+        lifespan_mean = self._mean_lifetime_days
+        lifespan_variation = self._lifetime_range_days
         raw_lifespan = rng.triangular(
             lifespan_mean - lifespan_variation,
             lifespan_mean,
@@ -271,7 +283,7 @@ class Customer(BaseAgent):
         Returns:
             int: The generated lifetime.
         """
-        lifespan_mean = self._mean_lifetime
+        lifespan_mean = self._mean_lifetime_days
 
         # Set up the Weibull parameters for the two halves (early failure and wear-out)
         defect_rate = 0.035  # 3.5% chance of early failure

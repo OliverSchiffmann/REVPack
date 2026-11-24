@@ -11,11 +11,11 @@ import json
 from datetime import date, timedelta
 from typing import NamedTuple
 import math
+from .model_time_converter import FREQUENCY_NAMES
 
 EXPECTED_RESULT_TYPE = "timeseries.forecast"
-EXPECTED_FREQUENCY = "daily"
 EXPECTED_AGGREGATION = "sum"
-
+ALLOWED_FREQUENCIES = tuple(FREQUENCY_NAMES.values())  # "daily", "weekly", "monthly"
 # The fields each row of each table must have
 REQUIRED_FIELDS = {
     "input": ("date", "y"),  # real (historic) data
@@ -27,13 +27,14 @@ class ForecastFormatError(ValueError):
     """Raised when a forecast is not in the expected Simplan format."""
 
 
-class DailySeries(NamedTuple):
-    """One value per day: real data first, then forecast."""
+class ForecastSeries(NamedTuple):
+    """One value per period (day, week or month): real data first, then forecast."""
 
     dates: list[date]
     values: list[float]
-    history_days: int  # how many of the values are real data
-    clipped_days: int  # how many negative forecast values were set to 0
+    history_periods: int  # how many of the values are real data
+    clipped_periods: int  # how many negative forecast values were set to 0
+    frequency: str = "daily"  # "daily", "weekly" or "monthly", from the forecast file
 
 
 def load_forecast_file(path: str) -> dict:
@@ -63,7 +64,8 @@ def validate_forecast(data: dict) -> None:
     Returns nothing if the forecast is fine.
 
     Args:
-        data (dict): A parsed Simplan forecast.
+        data (dict): A parsed Simplan forecast. Its frequency can be "daily",
+            "weekly" or "monthly", independent of the model's time step.
     """
     if not isinstance(data, dict):
         raise ForecastFormatError("Forecast must be a JSON object.")
@@ -75,13 +77,14 @@ def validate_forecast(data: dict) -> None:
         )
 
     params = data.get("parameters", {})
-    if params.get("frequency") != EXPECTED_FREQUENCY:
+    if params.get("frequency") not in ALLOWED_FREQUENCIES:
         raise ForecastFormatError(
-            f"Forecast must be daily, got frequency '{params.get('frequency')}'."
+            f"Forecast frequency must be one of {', '.join(ALLOWED_FREQUENCIES)}, "
+            f"got '{params.get('frequency')}'."
         )
     if params.get("aggregation") != EXPECTED_AGGREGATION:
         raise ForecastFormatError(
-            "Forecast values must be daily totals (aggregation 'sum'), "
+            "Forecast values must be totals per period (aggregation 'sum'), "
             f"got '{params.get('aggregation')}'."
         )
 
@@ -103,20 +106,33 @@ def _parse_date(text: str) -> date:
     return date.fromisoformat(text[:10])
 
 
-def build_daily_series(data: dict) -> DailySeries:
-    """
-    Join a forecast's real history and its future forecast into one daily series.
+def _is_next_period(previous: date, current: date, frequency: str) -> bool:
+    """True if `current` is the period straight after `previous` at this frequency."""
+    if frequency == "daily":
+        return current - previous == timedelta(days=1)
+    if frequency == "weekly":
+        return current - previous == timedelta(days=7)
+    # Monthly: Simplan labels each calendar month by a date in it, so compare months
+    months = lambda d: d.year * 12 + d.month
+    return months(current) - months(previous) == 1
 
-    Real values ('input' table, field 'y') are used for every day they exist.
-    Forecast values ('forecast' table, field 'yhat') are used only for the days
+
+def build_forecast_series(data: dict) -> ForecastSeries:
+    """
+    Join a forecast's real history and its future forecast into one series,
+    with one value per period (day, week or month).
+
+    Real values ('input' table, field 'y') are used for every period they exist.
+    Forecast values ('forecast' table, field 'yhat') are used only for the periods
     after the history ends. Negative forecast values are set to 0.
 
     Args:
-        data (dict): A parsed, validated Simplan forecast.
-
+        data (dict): A parsed, validated Simplan forecast. The frequency is read
+            from the forecast itself and stored in the returned series.
     Returns:
-        DailySeries: The joined series.
+        ForecastSeries: The joined series.
     """
+    frequency = data["parameters"]["frequency"]
     history = sorted(data["tables"]["input"], key=lambda r: r["date"])
     hist_dates = [_parse_date(r["date"]) for r in history]
     hist_values = [float(r["y"]) for r in history]
@@ -136,17 +152,18 @@ def build_daily_series(data: dict) -> DailySeries:
     dates = hist_dates + fut_dates
     values = hist_values + fut_values
 
-    # Every day must follow the previous one exactly: no gaps, no repeats
+    # Every period must follow the previous one exactly: no gaps, no repeats
     for previous, current in zip(dates, dates[1:]):
-        if current - previous != timedelta(days=1):
+        if not _is_next_period(previous, current, frequency):
             raise ForecastFormatError(
-                f"Dates are not consecutive days: {previous} is followed by {current}."
+                f"Dates are not consecutive {frequency} periods: "
+                f"{previous} is followed by {current}."
             )
 
     if any(v < 0 for v in hist_values):
         raise ForecastFormatError("The real (input) data contains negative values.")
 
-    return DailySeries(dates, values, len(hist_values), clipped)
+    return ForecastSeries(dates, values, len(hist_values), clipped, frequency)
 
 
 def round_sig(x: float, sig: int = 4) -> float:
@@ -157,21 +174,22 @@ def round_sig(x: float, sig: int = 4) -> float:
 
 
 def estimate_ad_rates(
-    series_v: DailySeries | None,
-    series_r: DailySeries | None,
+    series_v: ForecastSeries | None,
+    series_r: ForecastSeries | None,
     market_size: int,
     starting_customers: int = 0,
 ) -> dict[str, float]:
     """
-    Estimate a constant daily advertising rate for each product from its series.
+    Estimate a constant advertising rate per period (per day, week or month,
+    matching the series' frequency) for each product from its series.
 
-    Rate = total new customers / total customer-days in the pool, where the pool
-    on each day is the market size, minus starting customers, minus everyone
-    who became a V or R customer on an earlier day (both products share one pool).
+    Rate = total new customers / total customer-periods in the pool, where the pool
+    in each period is the market size, minus starting customers, minus everyone
+    who became a V or R customer in an earlier period (both products share one pool).
 
     Args:
-        series_v: Daily series for virgin products, or None.
-        series_r: Daily series for reman products, or None.
+        series_v: Forecast series for virgin products, or None.
+        series_r: Forecast series for reman products, or None.
         market_size (int): Total possible customers (N).
         starting_customers (int): Customers who already own the product on day 1 (S).
 
@@ -183,7 +201,13 @@ def estimate_ad_rates(
     if not given:
         raise ValueError("At least one forecast series is needed.")
 
-    # Both series must cover the same days, otherwise the shared pool is undefined
+    # Both series must have the same frequency and cover the same dates,
+    # otherwise the shared pool is undefined
+    frequencies = {k: s.frequency for k, s in given.items()}
+    if len(set(frequencies.values())) > 1:
+        raise ForecastFormatError(
+            f"V and R forecasts must have the same frequency, got {frequencies}."
+        )
     date_ranges = {k: (s.dates[0], s.dates[-1]) for k, s in given.items()}
     if len(set(date_ranges.values())) > 1:
         raise ForecastFormatError(

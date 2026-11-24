@@ -13,21 +13,8 @@
       };
     </script>
 
-    <style>
-      /* Invert Leaflet map tiles for an automatic dark mode map */
-      .dark .leaflet-layer {
-        filter: invert(100%) hue-rotate(180deg) brightness(95%) contrast(90%);
-      }
-    </style>
     <!-- Chart.js for visualization -->
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-
-    <!-- Leaflet.js for mapping -->
-    <link
-      rel="stylesheet"
-      href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
-    />
-    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 
     <!-- PyScript for running Python in the browser -->
     <link
@@ -42,7 +29,7 @@
     <!-- Dynamic PyScript Configuration with Cache Busting -->
     <script>
       // Use a static version to allow the browser to cache Python files and drastically improve load speed
-      const ts = "1.0.3"; // bump whenever any fetched .py file changes
+      const ts = "1.0.10"; // bump whenever any fetched .py file changes
       const pyConfig = document.createElement("py-config");
       pyConfig.innerHTML = JSON.stringify({
         packages: ["numpy", "matplotlib"],
@@ -56,6 +43,7 @@
           { from: `reuman/OEM.py?v=${ts}`, to_file: "reuman/OEM.py" },
           { from: `reuman/product.py?v=${ts}`, to_file: "reuman/product.py" },
           { from: `reuman/world.py?v=${ts}`, to_file: "reuman/world.py" },
+          { from: `reuman/model_time_converter.py?v=${ts}`, to_file: "reuman/model_time_converter.py" },
           { from: `reuman/demand_inputs.py?v=${ts}`, to_file: "reuman/demand_inputs.py" },
           { from: `reuman/states.py?v=${ts}`, to_file: "reuman/states.py" },
           { from: `examples/scenarios.py?v=${ts}`, to_file: "scenarios.py" },
@@ -281,8 +269,6 @@
                   </details>
                 </div>
 
-                <div id="col1-calibration" class="hidden"></div>
-
                 <div>
                   <canvas
                     id="col1-StatesChart"
@@ -295,21 +281,14 @@
                     style="min-height: 300px; width: 100%"
                   ></canvas>
                 </div>
-
-
-                <div class="mt-2">
-                  <details>
-                    <summary
-                      class="font-bold text-gray-600 dark:text-gray-300 mb-2"
-                    >
-                      Geographic Distribution
-                    </summary>
-                    <div
-                      id="map-1"
-                      class="w-full h-[300px] rounded-lg border border-gray-300 dark:border-gray-700 z-0"
-                    ></div>
-                  </details>
+                <!-- Zoomed sales chart covering only the forecast file's period (hidden if no forecast) -->
+                <div id="col1-ForecastSalesWrap" class="hidden">
+                  <canvas
+                    id="col1-ForecastSalesChart"
+                    style="min-height: 300px; width: 100%"
+                  ></canvas>
                 </div>
+
               </div>
 
               <!-- Column 2 -->
@@ -347,8 +326,6 @@
                   </details>
                 </div>
 
-                <div id="col2-calibration" class="hidden"></div>
-
                 <div>
                   <canvas
                     id="col2-StatesChart"
@@ -361,21 +338,14 @@
                     style="min-height: 300px; width: 100%"
                   ></canvas>
                 </div>
-
-
-                <div class="mt-2">
-                  <details>
-                    <summary
-                      class="font-bold text-gray-600 dark:text-gray-300 mb-2"
-                    >
-                      Geographic Distribution
-                    </summary>
-                    <div
-                      id="map-2"
-                      class="w-full h-[300px] rounded-lg border border-gray-300 dark:border-gray-700 z-0"
-                    ></div>
-                  </details>
+                <!-- Zoomed sales chart covering only the forecast file's period (hidden if no forecast) -->
+                <div id="col2-ForecastSalesWrap" class="hidden">
+                  <canvas
+                    id="col2-ForecastSalesChart"
+                    style="min-height: 300px; width: 100%"
+                  ></canvas>
                 </div>
+
               </div>
             </div>
           </div>
@@ -407,8 +377,6 @@
     <!-- Javascript Logic for handling the UI and drawing Charts -->
     <script>
       const charts = {};
-      let maps = { 1: null, 2: null };
-      let mapMarkers = { 1: [], 2: [] };
 
       // 2. Format numbers as currency
       const formatter = new Intl.NumberFormat("en-IE", {
@@ -421,11 +389,11 @@
       // Avoid writing a parameter name followed by a colon here: tests/test_webapp_sync.py
       // searches paramSchema for "name:" patterns and could be fooled.
       const DEMAND_HELP =
-        "How many new customers enter the market each day. Stochastic rate = the daily chance that each potential customer starts wanting this product. Deterministic qty = a fixed number of customers per day. A CSV array gives one value per day (row 1 = day 1). After the last row, demand drops to 0. Values are new customers, not total orders (repeat orders are made by the model). Not yet reviewed - non-integer CSV values may stop a deterministic run in the webapp.";
+        "How many new customers enter the market each day. Stochastic rate = the daily chance that each potential customer starts wanting this product. Deterministic qty = a fixed number of customers per day. For Deterministic qty, a CSV gives new customers per day (row 1 = day 1). After the last row, demand drops to 0. Values are new customers, not total orders (repeat orders are made by the model). Not yet reviewed - non-integer CSV values may stop a deterministic run in the webapp.";
 
       // Help text shown next to the forecast upload when "Forecast (Simplan JSON)" is selected.
       const FORECAST_HELP =
-        "Upload a Simplan forecast file (.json). Before the run, the model turns it into a fixed daily advertising rate: total new customers in the file divided by total potential-customer days. Real sales are used where the file has them, Simplan's forecast after that. V and R are worked out together because they share one pool of customers, so upload both if you have them. Assumes the file counts NEW customers only (repeat orders make the rate too high). The rate is only valid for the market size (B2B + B2C population) and starting customers set in Main. Day 1 of the simulation is the first date in the file.";
+        "Upload a Simplan forecast file (.json). The file can be daily, weekly or monthly, whatever the Time Step. Before the run, the model turns it into a fixed advertising rate per period of the file (total new customers divided by total potential-customer periods), then converts that rate to the Time Step. A forecast month counts as a model month (28 days). Real sales are used where the file has them, Simplan's forecast after that. V and R are worked out together because they share one pool of customers, so upload both if you have them. Assumes the file counts NEW customers only (repeat orders make the rate too high). The rate is only valid for the market size (B2B population) and starting customers set in Main. The start of the simulation is the first date in the file.";
 
       // Badge styles for the optional "status" key in paramSchema entries.
       const STATUS_STYLES = {
@@ -492,12 +460,9 @@
 
       const paramSchema = {
         main: {
-          simulation_length: {
-            type: "number",
-            label: "Simulation Length (Days)",
-          },
+          simulation_years: { type: "number", label: "Simulation Length (Years)" },
+          time_unit: { type: "select", options: ["day", "week", "month"], label: "Time Step" },
           B2B_population: { type: "number", label: "B2B Population" },
-          B2C_population: { type: "number", label: "B2C Population" },
           seed: { type: "number", label: "Random Seed" },
           starting_customers: {
             type: "number",
@@ -507,7 +472,6 @@
         },
         oem: {
           balance: { type: "number", label: "Balance (€)" },
-          location: { type: "text", label: "Location" },
           virgin_stock: { type: "number", label: "Virgin Stock (units)" },
           reman_stock: { type: "number", label: "Reman Stock (units)" },
           core_stock: { type: "number", label: "Core Stock (units)" },
@@ -574,40 +538,10 @@
             step: 0.1,
             label: "Inspection Cost (€)",
           },
-          local_delivery_cost: {
-            type: "number",
-            step: 0.1,
-            label: "Local Delivery Cost (€)",
-          },
-          shipping_cost_per_km: {
-            type: "number",
-            step: 0.01,
-            label: "Shipping Cost per km (€)",
-          },
-          ferry_fee: { type: "number", step: 0.1, label: "Ferry Fee (€)" },
-          driving_hours_per_day: {
-            type: "number",
-            step: 0.1,
-            label: "Driving Hours per Day",
-          },
           reman_implementation_cost: { type: "number", label: "Reman Implementation Cost (€)" },
           reman_annual_operating_cost: { type: "number", label: "Reman Annual Operating Cost (€/year)" },
         },
         b2b_customer: {
-          patience: { type: "number", label: "Patience (days)" },
-          mean_lifetime: { type: "number", label: "Mean Lifetime (days)" },
-          lifetime_method: {
-            type: "select",
-            options: ["triangular", "uniform", "weibull"],
-          },
-          lifetime_range: { type: "number", label: "Lifetime Range (days)" },
-          core_return_rate: {
-            type: "number",
-            step: 0.01,
-            label: "Core Return Rate",
-          },
-        },
-        b2c_customer: {
           patience: { type: "number", label: "Patience (days)" },
           mean_lifetime: { type: "number", label: "Mean Lifetime (days)" },
           lifetime_method: {
@@ -690,7 +624,7 @@
           results.classList.add("lg:col-span-2");
         }
 
-        // Force charts and maps to resize slightly after DOM transition
+        // Force charts to resize slightly after DOM transition
         setTimeout(() => window.dispatchEvent(new Event("resize")), 200);
       }
 
@@ -897,7 +831,7 @@
                   }
                 };
                 wrapBox.appendChild(valInp);
-                wrapBox.appendChild(fileLbl);
+                if (dp.type === "deterministic") wrapBox.appendChild(fileLbl); // CSV = daily sales
               }
               wrap.appendChild(wrapBox);
             } else {
@@ -1004,7 +938,7 @@
               <div>
                 <div class="flex justify-between text-sm text-gray-600 dark:text-gray-300 mb-1">
                   <span class="font-bold">${sc.name}</span>
-                  <span id="prog-text-${sc.id}">0 / 0 Days</span>
+                  <span id="prog-text-${sc.id}">Waiting…</span>
                 </div>
                 <div class="w-full bg-gray-200 dark:bg-gray-600 rounded-full h-2.5 mb-1">
                   <div id="prog-bar-${sc.id}" class="bg-blue-600 h-2.5 rounded-full transition-all duration-100" style="width: 0%"></div>
@@ -1063,77 +997,37 @@
         "#f97316",
       ];
 
+      // Compare scenarios on a shared day axis. Each point is {x: day, y: value}, so
+      // scenarios with different time steps (day / week / month) line up by day
+      // rather than by position in their results arrays.
       function drawComparisonCharts(allResults, scenarioList) {
-        const labels = allResults[scenarioList[0].id].day;
+        const byDay = (res, key) => res.day.map((day, i) => ({ x: day, y: res[key][i] }));
 
-        const balDatasets = scenarioList.map((sc, i) => ({
-          label: sc.name,
-          data: allResults[sc.id].oem_balance,
-          borderColor: chartColors[i % chartColors.length],
-          pointRadius: 0,
-          fill: false,
-        }));
-
-        if (charts["compBalanceChart"]) charts["compBalanceChart"].destroy();
-        charts["compBalanceChart"] = new Chart(
-          document.getElementById("compBalanceChart"),
-          {
+        const comparisonChart = (canvasId, key, titleText) => {
+          const datasets = scenarioList.map((sc, i) => ({
+            label: sc.name,
+            data: byDay(allResults[sc.id], key),
+            borderColor: chartColors[i % chartColors.length],
+            pointRadius: 0,
+            fill: false,
+          }));
+          if (charts[canvasId]) charts[canvasId].destroy();
+          charts[canvasId] = new Chart(document.getElementById(canvasId), {
             type: "line",
-            data: { labels: labels, datasets: balDatasets },
+            data: { datasets: datasets },
             options: {
               responsive: true,
               maintainAspectRatio: false,
-              interaction: { mode: "index", intersect: false },
-              plugins: {
-                title: { display: true, text: "Bank Balance Comparison (€)" },
-              },
+              // "index" would pair the 100th day with the 100th week; pick the nearest day instead
+              interaction: { mode: "nearest", axis: "x", intersect: false },
+              plugins: { title: { display: true, text: titleText } },
+              scales: { x: { type: "linear", title: { display: true, text: "Day" } } },
             },
-          },
-        );
+          });
+        };
 
-        const coreDatasets = scenarioList.map((sc, i) => ({
-          label: sc.name,
-          data: allResults[sc.id].core_stock,
-          borderColor: chartColors[i % chartColors.length],
-          pointRadius: 0,
-          fill: false,
-        }));
-
-        if (charts["compStockChart"]) charts["compStockChart"].destroy();
-        charts["compStockChart"] = new Chart(
-          document.getElementById("compStockChart"),
-          {
-            type: "line",
-            data: { labels: labels, datasets: coreDatasets },
-            options: {
-              responsive: true,
-              maintainAspectRatio: false,
-              interaction: { mode: "index", intersect: false },
-              plugins: {
-                title: { display: true, text: "Core Stock Comparison" },
-              },
-            },
-          },
-        );
-      }
-
-      function initMap(colIndex) {
-        if (maps[colIndex]) {
-          maps[colIndex].invalidateSize();
-          return maps[colIndex];
-        }
-        maps[colIndex] = L.map(`map-${colIndex}`, {
-          scrollWheelZoom: false,
-        }).setView([41.8719, 12.5674], 5);
-        L.tileLayer(
-          "https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png",
-          {
-            attribution: "&copy; OpenStreetMap contributors &copy; CARTO",
-            subdomains: "abcd",
-            maxZoom: 20,
-          },
-        ).addTo(maps[colIndex]);
-        return maps[colIndex];
+        comparisonChart("compBalanceChart", "oem_balance", "Bank Balance Comparison (€)");
+        comparisonChart("compStockChart", "core_stock", "Core Stock Comparison");
       }
 
       window.updateCol = function (colIndex, scId) {
@@ -1234,7 +1128,7 @@
           if (!calibration[key]) continue;
           salesDatasets.push({
             label: label,
-            data: forecastCumulative(calibration[key], res.day.length),
+            data: forecastCumulative(calibration[key], res),
             borderColor: colour,
             borderDash: [6, 4],
             pointRadius: 0,
@@ -1250,78 +1144,69 @@
           false,
         );
 
-        drawDemandCalibration(colIndex, rep["Demand Calibration"] || {});
+        drawForecastWindowChart(colIndex, res, salesDatasets, calibration);
 
-        const mapInstance = initMap(colIndex);
-        mapMarkers[colIndex].forEach((m) => mapInstance.removeLayer(m));
-        mapMarkers[colIndex] = [];
-        const geoData = rep["Geographic Distribution"]["City Data"];
-
-        for (const [cityName, data] of Object.entries(geoData)) {
-          if (data.customers > 0 || data.is_oem) {
-            let iconHtml = "";
-            if (data.is_oem)
-              iconHtml += `<div style="font-size: 26px; text-align: center; line-height: 1; filter: drop-shadow(0px 2px 2px rgba(0,0,0,0.3));">🏭</div>`;
-            if (data.customers > 0)
-              iconHtml += `<div class="bg-white dark:bg-gray-800 text-gray-800 dark:text-gray-100 border border-gray-300 dark:border-gray-600" style="border-radius: 12px; padding: 2px 6px; font-size: 12px; font-weight: bold; text-align: center; box-shadow: 0 1px 3px rgba(0,0,0,0.2); margin-top: ${data.is_oem ? "-5px" : "0"};">👤 ${data.customers}x</div>`;
-
-            const customIcon = L.divIcon({
-              html: `<div style="display: flex; flex-direction: column; align-items: center; justify-content: center;">${iconHtml}</div>`,
-              className: "",
-              iconSize: [40, 40],
-              iconAnchor: [20, 20],
-            });
-            const marker = L.marker([data.lat, data.lng], { icon: customIcon })
-              .bindTooltip(cityName)
-              .addTo(mapInstance);
-            mapMarkers[colIndex].push(marker);
-          }
-        }
       };
 
-      // Cumulative forecast customers, lined up with the model's "sold" results.
-      // results.virgin_sold / reman_sold are recorded at the START of each day, so
-      // entry i holds everything sold up to the end of the previous day. Entry i of
-      // this line therefore holds the forecast total for the first i days.
-      // Days after the forecast file ends are null, so the dashed line stops there.
-      function forecastCumulative(cal, nDays) {
-        if (!cal) return null;
-        const out = [];
-        let total = 0;
-        for (let i = 0; i < nDays; i++) {
-          if (i > cal.daily_values.length) {
-            out.push(null);
-            continue;
+      // Same sales lines as the main chart, cut to the period the forecast file covers,
+      // so model and forecast can be compared by eye. Hidden when no forecast was used.
+      function drawForecastWindowChart(colIndex, res, salesDatasets, calibration) {
+        const wrap = document.getElementById(`col${colIndex}-ForecastSalesWrap`);
+        const cals = Object.values(calibration);
+        if (cals.length === 0) {
+          wrap.classList.add("hidden");
+          if (charts[`col${colIndex}-ForecastSalesChart`]) {
+            charts[`col${colIndex}-ForecastSalesChart`].destroy();
+            delete charts[`col${colIndex}-ForecastSalesChart`];
           }
-          out.push(total);
-          if (i < cal.daily_values.length) total += cal.daily_values[i];
-        }
-        return out;
-      }
-
-      // Summary box of forecast-calibrated advertising rates (hidden if none were used).
-      function drawDemandCalibration(colIndex, calibration) {
-        const box = document.getElementById(`col${colIndex}-calibration`);
-        const keys = Object.keys(calibration);
-        if (keys.length === 0) {
-          box.classList.add("hidden");
           return;
         }
+        wrap.classList.remove("hidden");
 
-        let html = '<div class="bg-white dark:bg-gray-800 p-3 rounded border dark:border-gray-700 text-sm shadow-inner dark:text-gray-200">';
-        html += '<div class="font-bold mb-1">Advertising rates from forecast</div><ul class="space-y-1">';
-        for (const k of keys) {
-          const c = calibration[k];
-          const nForecast = c.daily_values.length - c.history_days;
-          html += `<li class="flex justify-between border-b dark:border-gray-600 pb-1 last:border-0">
-                     <span>${k === "V" ? "Virgin" : "Reman"}: ${c.start_date} to ${c.end_date}
-                       (${c.history_days} real + ${nForecast} forecast days)</span>
-                     <span class="font-mono">${c.rate.toExponential(3)}/day</span>
-                   </li>`;
-        }
-        html += "</ul></div>";
-        box.innerHTML = html;
-        box.classList.remove("hidden");
+        // Number of results entries that cover the forecast. +1 because entry i holds
+        // the first i steps (see forecastCumulative), so the last one sits after the end.
+        const daysPerStep = res.day[0];
+        const forecastEndDay = Math.max(...cals.map((c) => c.values.length * c.days_per_period));
+        const nEntries = Math.min(res.day.length, Math.ceil(forecastEndDay / daysPerStep) + 1);
+        const windowRes = { day: res.day.slice(0, nEntries) };
+        const windowDatasets = salesDatasets.map((ds) => ({
+          ...ds,
+          data: ds.data.slice(0, nEntries),
+        }));
+        const start = cals.map((c) => c.start_date).sort()[0];
+        const end = cals.map((c) => c.end_date).sort().slice(-1)[0];
+
+        buildGenericChart(
+          `col${colIndex}-ForecastSalesChart`,
+          windowRes,
+          windowDatasets,
+          `Sales during forecast period (${start} to ${end})`,
+          "Units",
+          false,
+        );
+      }
+
+      // Cumulative forecast customers, lined up with the model's "sold" results on the
+      // same day axis. Results are recorded at the START of each step, so entry i holds
+      // everything sold in the first i steps, i.e. up to day i × (days per step).
+      // Each forecast period is spread evenly over its days, so any forecast frequency
+      // can be drawn against any step length. Null after the forecast ends.
+      function forecastCumulative(cal, res) {
+        if (!cal) return null;
+        const daysPerStep = res.day[0];
+        const periodDays = cal.days_per_period;
+        const forecastEndDay = cal.values.length * periodDays;
+        return res.day.map((_, i) => {
+          const day = i * daysPerStep;
+          if (day > forecastEndDay) return null;
+          const fullPeriods = Math.floor(day / periodDays);
+          let total = 0;
+          for (let k = 0; k < fullPeriods; k++) total += cal.values[k];
+          if (fullPeriods < cal.values.length) {
+            total += (cal.values[fullPeriods] * (day % periodDays)) / periodDays;
+          }
+          return total;
+        });
       }
 
       // 3. Receive results from Python and plot them using Chart.js
@@ -1538,10 +1423,10 @@
 
       window.handle_py_import = handle_py_import
 
-      def update_progress(bar_id, text_id, current, total):
+      def update_progress(bar_id, text_id, current, total, step_label):
           percentage = (current / total) * 100 if total > 0 else 0
           document.getElementById(bar_id).style.width = f"{percentage}%"
-          document.getElementById(text_id).innerText = f"{current} / {total} Days"
+          document.getElementById(text_id).innerText = f"{current} / {total} {step_label}"
 
       async def run_sim_from_web(event):
           btn = document.getElementById('run-btn')
@@ -1556,15 +1441,18 @@
               all_results = {}
               all_reports = {}
 
-              def make_progress_callback(bar_id, text_id):
+              def make_progress_callback(bar_id, text_id, step_label):
                   def cb(current, total):
-                      update_progress(bar_id, text_id, current, total)
+                      update_progress(bar_id, text_id, current, total, step_label)
                   return cb
 
+              from reuman.model_time_converter import ModelTimeConverter
               for sc in scenarios_list:
                   sc_id = str(sc["id"])
                   config = sc["config"]
-                  sim_length = config["main"]["simulation_length"]
+                  time_converter = ModelTimeConverter.from_config(config)
+                  sim_length = time_converter.years_to_steps(config["main"]["simulation_years"])
+                  step_label = f"{time_converter.unit.value.capitalize()}s"  # Days / Weeks / Months
 
                   if "products_V" in config and "products_R" in config:
                       for p_key in ["products_V", "products_R"]:
@@ -1588,10 +1476,10 @@
                           "R": config.pop("products_R")
                       }
 
-                  cb = make_progress_callback(f"prog-bar-{sc_id}", f"prog-text-{sc_id}")
+                  cb = make_progress_callback(f"prog-bar-{sc_id}", f"prog-text-{sc_id}", step_label)
 
                   res, rep = await main_OS.run_simulation(config, seed=config["main"].get("seed", 1), progress_callback=cb)
-                  update_progress(f"prog-bar-{sc_id}", f"prog-text-{sc_id}", sim_length, sim_length)
+                  update_progress(f"prog-bar-{sc_id}", f"prog-text-{sc_id}", sim_length, sim_length, step_label)
 
                   all_results[sc_id] = res
                   all_reports[sc_id] = rep

@@ -1,7 +1,8 @@
 dict_default = {
     "description": "Standard run with default parameters",
     "main": {
-        "simulation_length": 1000,
+        "simulation_years": 3,
+        "time_unit": "day",
         "B2B_population": 1000,
         "B2C_population": 0,
         "seed": 1,
@@ -37,10 +38,7 @@ dict_default = {
         "core_storage_cost": 2,
         "inspection_cost": 20,
         # Heuristic Routing Logistics
-        "local_delivery_cost": 10.0,
-        "shipping_cost_per_km": 0.01,
-        "ferry_fee": 10.0,
-        "driving_hours_per_day": 8.0,
+        "routing_heuristics": False,  # True also needs local_delivery_cost, shipping_cost_per_km, ferry_fee, driving_hours_per_day
     },
     "b2b_customer": {
         "patience": 10,

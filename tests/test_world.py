@@ -6,7 +6,6 @@ import tempfile
 from reuman import demand_inputs
 from tests.test_demand_inputs import make_forecast
 import numpy as np
-import test
 from reuman import world, customer
 from reuman import world
 from reuman._agent import BaseAgent, AgentEnum
@@ -169,8 +168,8 @@ class TestWorldForecastProfiles(unittest.TestCase):
     def test_forecasts_become_stochastic_rates(self):
         w = world.World(config=self.config)
         expected = demand_inputs.estimate_ad_rates(
-            demand_inputs.build_daily_series(self.v_data),
-            demand_inputs.build_daily_series(self.r_data),
+            demand_inputs.build_forecast_series(self.v_data),
+            demand_inputs.build_forecast_series(self.r_data),
             market_size=1000,
             starting_customers=200,
         )
@@ -191,8 +190,8 @@ class TestWorldForecastProfiles(unittest.TestCase):
         self.assertEqual(set(cal), {"V", "R"})
         self.assertEqual(cal["V"]["start_date"], "2025-01-01")
         self.assertEqual(cal["V"]["end_date"], "2025-01-10")
-        self.assertEqual(cal["V"]["history_days"], 7)
-        self.assertEqual(cal["V"]["daily_values"], [1, 0, 2, 1, 0, 1, 1, 1, 2, 1])
+        self.assertEqual(cal["V"]["history_periods"], 7)
+        self.assertEqual(cal["V"]["values"], [1, 0, 2, 1, 0, 1, 1, 1, 2, 1])
 
     def test_file_path_route(self):
         with tempfile.TemporaryDirectory() as tmp:
@@ -221,6 +220,55 @@ class TestWorldForecastProfiles(unittest.TestCase):
     def test_no_forecasts_gives_empty_calibration(self):
         w = world.World(config=copy.deepcopy(TEST_SCENARIOS["Default"]))
         self.assertEqual(w.get_demand_calibration(), {})
+
+    def test_weekly_forecast_rate_is_not_converted_again(self):
+        """A weekly forecast gives a per-week rate directly; it must not be converted as if per day."""
+        self.config["main"]["time_unit"] = "week"
+        v_weekly = make_forecast([5, 3, 4], [6], frequency="weekly")
+        r_weekly = make_forecast([1, 0, 1], [1], frequency="weekly")
+        self.config["products"]["V"]["demand_profile"]["forecast"] = v_weekly
+        self.config["products"]["R"]["demand_profile"]["forecast"] = r_weekly
+        expected = demand_inputs.estimate_ad_rates(
+            demand_inputs.build_forecast_series(v_weekly),
+            demand_inputs.build_forecast_series(r_weekly),
+            market_size=1000,
+            starting_customers=200,
+        )
+        w = world.World(config=self.config)
+        self.assertEqual(w._demand_profiles["V"]["rate"], expected["V"])
+
+    def test_daily_forecast_is_converted_to_weekly_steps(self):
+        """The rate is estimated per day from the daily file, then converted to per week."""
+        self.config["main"]["time_unit"] = "week"
+        cal = world.World(config=self.config).get_demand_calibration()["V"]
+        self.assertEqual(cal["frequency"], "daily")
+        self.assertAlmostEqual(cal["rate_per_step"], 1 - (1 - cal["rate"]) ** 7)
+
+    def test_monthly_forecast_is_converted_to_daily_steps(self):
+        """Conversion also works from a longer period to a shorter step."""
+        self.config["products"]["V"]["demand_profile"]["forecast"] = make_forecast(
+            [30, 25], [28], frequency="monthly"
+        )
+        self.config["products"]["R"]["demand_profile"]["forecast"] = make_forecast(
+            [5, 4], [6], frequency="monthly"
+        )
+        w = world.World(config=self.config)
+        cal = w.get_demand_calibration()["V"]
+        self.assertEqual(cal["days_per_period"], 28)
+        self.assertAlmostEqual(cal["rate_per_step"], 1 - (1 - cal["rate"]) ** (1 / 28))
+        self.assertEqual(w._demand_profiles["V"]["rate"], cal["rate_per_step"])
+
+    def test_same_forecast_gives_same_daily_rate_at_every_step(self):
+        """One forecast file, three resolutions: the step rates all imply the same daily rate."""
+        for unit, days_per_step in [("day", 1), ("week", 7), ("month", 28)]:
+            with self.subTest(unit=unit):
+                self.config["main"]["time_unit"] = unit
+                w = world.World(config=self.config)
+                step_rate = w._demand_profiles["V"]["rate"]
+                implied_daily = 1 - (1 - step_rate) ** (1 / days_per_step)
+                self.assertAlmostEqual(
+                    implied_daily, w.get_demand_calibration()["V"]["rate"]
+                )
 
     def test_reman_forecast_with_reman_disabled_raises(self):
         self.config["main"]["enable_reman"] = False
@@ -275,12 +323,45 @@ class TestNewCustomerCounting(unittest.TestCase):
 
     def test_run_records_new_customers_each_day(self):
         w = self._world_with_customers(20)
-        results, _ = asyncio.run(w.run(np.random.default_rng(1), simulation_length=6))
+        results, _ = asyncio.run(w.run(np.random.default_rng(1), n_steps=6))
         self.assertEqual(len(results["new_customers_V"]), 6)
         self.assertEqual(len(results["new_customers_R"]), 6)
         # 5 a day until the 20 potential customers run out
         self.assertEqual(results["new_customers_V"], [5, 5, 5, 5, 0, 0])
         self.assertEqual(sum(results["new_customers_R"]), 0)
+
+
+class TestDemandProfileConversion(unittest.TestCase):
+    """Hand-entered demand profiles are per day and are converted to per step."""
+
+    def make_world(self, unit, v_profile):
+        config = copy.deepcopy(TEST_SCENARIOS["Default"])
+        config["main"]["time_unit"] = unit
+        config["products"]["V"]["demand_profile"] = v_profile
+        return world.World(config=config)
+
+    def test_stochastic_rate_unchanged_in_daily_steps(self):
+        w = self.make_world("day", {"type": "stochastic", "rate": 0.0006})
+        self.assertEqual(w._demand_profiles["V"]["rate"], 0.0006)
+
+    def test_stochastic_rate_converted_to_weekly(self):
+        w = self.make_world("week", {"type": "stochastic", "rate": 0.0006})
+        self.assertAlmostEqual(w._demand_profiles["V"]["rate"], 1 - (1 - 0.0006) ** 7)
+
+    def test_stochastic_rate_list_is_rejected(self):
+        """Per-day rate lists are not supported; a clear error points to the alternatives."""
+        with self.assertRaises(ValueError):
+            self.make_world("day", {"type": "stochastic", "rate": [0.1] * 14})
+
+    def test_deterministic_amount_converted_to_weekly(self):
+        w = self.make_world("week", {"type": "deterministic", "amount_per_day": 2})
+        self.assertEqual(w._demand_profiles["V"]["amount_per_step"], 14)
+
+    def test_deterministic_list_added_up_per_step(self):
+        w = self.make_world(
+            "week", {"type": "deterministic", "amount_per_day": [1] * 10}
+        )
+        self.assertEqual(w._demand_profiles["V"]["amount_per_step"], [7, 3])
 
 
 if __name__ == "__main__":
