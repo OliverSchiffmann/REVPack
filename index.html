@@ -29,7 +29,7 @@
     <!-- Dynamic PyScript Configuration with Cache Busting -->
     <script>
       // Use a static version to allow the browser to cache Python files and drastically improve load speed
-      const ts = "1.0.10"; // bump whenever any fetched .py file changes
+      const ts = "1.0.11"; // bump whenever any fetched .py file changes
       const pyConfig = document.createElement("py-config");
       pyConfig.innerHTML = JSON.stringify({
         packages: ["numpy", "matplotlib"],
@@ -41,6 +41,7 @@
           { from: `reuman/customer.py?v=${ts}`, to_file: "reuman/customer.py" },
           { from: `reuman/message.py?v=${ts}`, to_file: "reuman/message.py" },
           { from: `reuman/OEM.py?v=${ts}`, to_file: "reuman/OEM.py" },
+          { from: `reuman/collection_strategies.py?v=${ts}`, to_file: "reuman/collection_strategies.py" },
           { from: `reuman/product.py?v=${ts}`, to_file: "reuman/product.py" },
           { from: `reuman/world.py?v=${ts}`, to_file: "reuman/world.py" },
           { from: `reuman/model_time_converter.py?v=${ts}`, to_file: "reuman/model_time_converter.py" },
@@ -458,6 +459,44 @@
         return tip;
       }
 
+      // Settings for each core collection strategy (T5.3), shown in the OEM tab when
+      // remanufacturing is on. Which strategies can't be combined comes from Python at
+      // start-up (setStrategyRules), so that rule is only written in one place.
+      const strategySchema = {
+        buy_back: {
+          label: "Buy-back",
+          help: "Owners are paid a fixed amount for each returned core that passes inspection. This raises the share of owners who return their core.",
+          params: {
+            bounty_value: { type: "number", step: 0.1, label: "Bounty Value (€ per accepted core)" },
+            return_rate_uplift: { type: "number", step: 0.01, label: "Return Rate Uplift" },
+          },
+        },
+        lease: {
+          label: "Lease",
+          help: "Every customer leases instead of buying and pays a monthly fee. Products always come back at the end of the lease, so the lifetime, return rate and retail price settings are not used. Leased cores are accepted more often and cost less to collect.",
+          params: {
+            lease_period: { type: "number", label: "Lease Period (months of 28 days)" },
+            monthly_fee_V: { type: "number", step: 0.1, label: "Monthly Fee V (€)" },
+            monthly_fee_R: { type: "number", step: 0.1, label: "Monthly Fee R (€)" },
+            acceptance_uplift: { type: "number", step: 0.01, label: "Acceptance Rate Uplift" },
+            collection_cost_saving: { type: "number", step: 0.01, label: "Collection Cost Saving (share)" },
+          },
+        },
+      };
+
+      // For each strategy, the strategies it can't be combined with (from Python)
+      let strategyRules = {};
+      window.setStrategyRules = function (rulesStr) {
+        strategyRules = JSON.parse(rulesStr);
+      };
+
+      // True if a strategy is ticked AND will run (strategies only run with reman on)
+      function strategyOn(cfg, name) {
+        return Boolean(cfg.main.enable_reman && cfg.oem.collection_strategies?.[name]?.enabled);
+      }
+      // For fields the model ignores under a lease
+      const notLeased = (cfg) => !strategyOn(cfg, "lease");
+
       const paramSchema = {
         main: {
           simulation_years: { type: "number", label: "Simulation Length (Years)" },
@@ -468,7 +507,7 @@
             type: "number",
             label: "Starting Active Customers",
           },
-          enable_reman: { type: "boolean", label: "Enable Remanufacturing" },
+          enable_reman: { type: "boolean", label: "Enable Remanufacturing", rerender: true },
         },
         oem: {
           balance: { type: "number", label: "Balance (€)" },
@@ -493,11 +532,13 @@
             type: "number",
             step: 0.1,
             label: "Retail Price V (€)",
+            visibleWhen: notLeased,
           },
           retail_price_R: {
             type: "number",
             step: 0.1,
             label: "Retail Price R (€)",
+            visibleWhen: notLeased,
           },
           delivery_delay: { type: "number", label: "Delivery Delay (days)" },
           manufacture_delay: {
@@ -535,19 +576,27 @@
           },
           reman_implementation_cost: { type: "number", label: "Reman Implementation Cost (€)" },
           reman_annual_operating_cost: { type: "number", label: "Reman Annual Operating Cost (€/year)" },
+          collection_strategies: {
+            type: "strategies",
+            label: "Core Collection Strategies",
+            help: "Schemes that change how many used products (cores) come back, in what condition and at what cost (rEUman T5.3). Values are placeholders until agreed with partners.",
+            visibleWhen: (cfg) => cfg.main.enable_reman,
+          },
         },
         b2b_customer: {
           patience: { type: "number", label: "Patience (days)" },
-          mean_lifetime: { type: "number", label: "Mean Lifetime (days)" },
+          mean_lifetime: { type: "number", label: "Mean Lifetime (days)", visibleWhen: notLeased },
           lifetime_method: {
             type: "select",
             options: ["triangular", "uniform", "weibull"],
+            visibleWhen: notLeased,
           },
-          lifetime_range: { type: "number", label: "Lifetime Range (days)" },
+          lifetime_range: { type: "number", label: "Lifetime Range (days)", visibleWhen: notLeased },
           core_return_rate: {
             type: "number",
             step: 0.01,
             label: "Core Return Rate",
+            visibleWhen: notLeased,
             help: "Share of owners who return their used product at end of life with no incentive. Collection strategies such as buy-back add to this.",
           },
         },
@@ -652,6 +701,86 @@
         return `Loaded: ${nHist} days of real data from ${start}, plus ${nFut} forecast days.`;
       }
 
+      // A number input that writes its value back into obj[key]
+      function makeNumberInput(obj, key, fieldDef) {
+        const inp = document.createElement("input");
+        inp.type = "number";
+        inp.className =
+          "w-full border dark:border-gray-600 p-1 rounded text-sm bg-white dark:bg-gray-800 dark:text-white";
+        inp.value = obj[key];
+        if (fieldDef.step) inp.step = fieldDef.step;
+        inp.onchange = (e) => {
+          obj[key] = parseFloat(e.target.value);
+        };
+        return inp;
+      }
+
+      // One tick-box per collection strategy; a ticked strategy shows its settings below it
+      function makeStrategiesBox(cfg) {
+        const box = document.createElement("div");
+        box.className =
+          "flex flex-col gap-2 bg-white dark:bg-gray-800 p-2 border border-gray-200 dark:border-gray-600 rounded mt-1 shadow-inner";
+        const strategies = cfg.oem.collection_strategies;
+
+        for (const [name, def] of Object.entries(strategySchema)) {
+          const settings = strategies[name];
+          const clashes = (strategyRules[name]?.incompatible_with ?? []).filter(
+            (other) => strategies[other]?.enabled,
+          );
+
+          const row = document.createElement("div");
+          row.className = "flex items-center gap-1";
+          const label = document.createElement("label");
+          label.className =
+            "flex items-center gap-2 text-sm font-semibold text-gray-700 dark:text-gray-200";
+          const tick = document.createElement("input");
+          tick.type = "checkbox";
+          tick.checked = settings.enabled;
+          // A strategy that clashes with one already ticked can't be ticked
+          tick.disabled = !settings.enabled && clashes.length > 0;
+          tick.onchange = (e) => {
+            settings.enabled = e.target.checked;
+            renderForm(); // show or hide its settings and the fields it replaces
+          };
+          label.appendChild(tick);
+          label.appendChild(document.createTextNode(def.label));
+          row.appendChild(label);
+          if (def.help) row.appendChild(makeHelpTip(def.help));
+          box.appendChild(row);
+
+          if (tick.disabled) {
+            const note = document.createElement("div");
+            note.className = "text-xs text-gray-500 dark:text-gray-400 ml-6";
+            const names = clashes.map((other) => strategySchema[other]?.label ?? other);
+            note.innerText = `Can't be combined with ${names.join(", ")}.`;
+            box.appendChild(note);
+          }
+
+          if (settings.enabled) {
+            const grid = document.createElement("div");
+            grid.className = "grid grid-cols-2 gap-4 ml-6";
+            for (const [key, paramDef] of Object.entries(def.params)) {
+              const cell = document.createElement("div");
+              cell.appendChild(makeLabelRow(key, paramDef));
+              cell.appendChild(makeNumberInput(settings, key, paramDef));
+              grid.appendChild(cell);
+            }
+            box.appendChild(grid);
+          }
+        }
+        return box;
+      }
+
+      // Older scenario files may lack some strategies: add them, switched off, from the defaults
+      function addMissingStrategies(cfg) {
+        cfg.oem.collection_strategies ??= {};
+        for (const [name, settings] of Object.entries(defaultConfig.oem.collection_strategies)) {
+          if (!(name in cfg.oem.collection_strategies)) {
+            cfg.oem.collection_strategies[name] = { ...settings, enabled: false };
+          }
+        }
+      }
+
       function renderForm() {
         const container = document.getElementById("dynamic-form");
         // Remember which sections were open, so redrawing the form doesn't collapse them
@@ -681,6 +810,9 @@
           grid.className = "grid grid-cols-2 gap-4 mt-2";
 
           for (const [fieldKey, fieldDef] of Object.entries(fields)) {
+            // Hide fields that don't apply (e.g. retail price under a lease). Their
+            // values stay in the config, so they come back as they were if shown again.
+            if (fieldDef.visibleWhen && !fieldDef.visibleWhen(activeScen.config)) continue;
             const val = activeScen.config[group][fieldKey];
             const wrap = document.createElement("div");
 
@@ -693,6 +825,7 @@
               inp.className = "mt-1";
               inp.onchange = (e) => {
                 activeScen.config[group][fieldKey] = e.target.checked;
+                if (fieldDef.rerender) renderForm(); // other fields depend on this one
               };
               wrap.appendChild(inp);
             } else if (fieldDef.type === "select") {
@@ -830,17 +963,11 @@
                 if (dp.type === "deterministic") wrapBox.appendChild(fileLbl); // CSV = daily sales
               }
               wrap.appendChild(wrapBox);
+            } else if (fieldDef.type === "strategies") {
+              wrap.classList.add("col-span-2"); // full width
+              wrap.appendChild(makeStrategiesBox(activeScen.config));
             } else {
-              const inp = document.createElement("input");
-              inp.type = "number";
-              inp.className =
-                "w-full border dark:border-gray-600 p-1 rounded text-sm bg-white dark:bg-gray-800 dark:text-white";
-              inp.value = val;
-              if (fieldDef.step) inp.step = fieldDef.step;
-              inp.onchange = (e) => {
-                activeScen.config[group][fieldKey] = parseFloat(e.target.value);
-              };
-              wrap.appendChild(inp);
+              wrap.appendChild(makeNumberInput(activeScen.config[group], fieldKey, fieldDef));
             }
             grid.appendChild(wrap);
           }
@@ -919,6 +1046,7 @@
         const activeScen = scenarios.find((s) => s.id == activeScenarioId);
         if (!activeScen) return;
         activeScen.config = JSON.parse(configStr);
+        addMissingStrategies(activeScen.config);
         renderForm(); // Refresh the inputs dynamically
       };
 
@@ -1364,6 +1492,14 @@
           Returns a list of warnings to show the user.
           """
           warnings = []
+          oem = cfg.get("oem", {})
+          if "bounty_value" in oem:
+              old_bounty = oem.pop("bounty_value")
+              warnings.append(
+                  f"This file uses the old always-on bounty ({old_bounty} per collected core), "
+                  f"which has been removed. It will run without one: tick Buy-back in the "
+                  f"OEM tab to add a bounty for accepted cores."
+              )
           products = cfg.pop("products", {})
           for p_type in ["V", "R"]:
               if p_type in products:
@@ -1387,6 +1523,13 @@
       def load_default_config():
           try:
               import scenarios
+              from reuman.collection_strategies import STRATEGY_REGISTRY
+              # Send the clash rules first: the form is drawn by setDefaultConfig
+              rules = {
+                  name: {"incompatible_with": sorted(cls.incompatible_with)}
+                  for name, cls in STRATEGY_REGISTRY.items()
+              }
+              window.setStrategyRules(json.dumps(rules))
               cfg = copy.deepcopy(scenarios.SCENARIOS["Default"])
               config_to_ui(cfg)
               window.setDefaultConfig(json.dumps(cfg))

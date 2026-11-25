@@ -8,7 +8,7 @@ import warnings
 HIDDEN_CATEGORIES = {"b2c_customer"}  # whole groups hidden
 HIDDEN_PARAMS = {  # individual parameters hidden
     "main": {"B2C_population"},
-    "oem": {"routing_heuristics", "location", "collection_strategies"},
+    "oem": {"routing_heuristics", "location"},
 }
 
 
@@ -75,6 +75,41 @@ class TestWebappSync(unittest.TestCase):
             warnings.warn(
                 f"The following parameters from the 'Default' scenario are missing in index.html's paramSchema:\n{chr(10).join(missing_params)}"
             )
+
+    def test_strategy_settings_in_strategySchema(self):
+        """Every collection strategy and setting in the Default scenario has a webapp field."""
+        match = re.search(
+            r"const strategySchema = \{(.*?)\};", self.index_content, re.DOTALL
+        )
+        if match is None:
+            self.fail("Could not find 'strategySchema' block in index.html")
+        block = match.group(1)
+
+        missing = []
+        strategies = self.default_scenario["oem"]["collection_strategies"]
+        for name, settings in strategies.items():
+            if not re.search(rf"\b{name}\s*:", block):
+                missing.append(name)
+            for param in settings:
+                if param != "enabled" and not re.search(rf"\b{param}\s*:", block):
+                    missing.append(f"{name} -> {param}")
+        self.assertEqual(missing, [], "Missing from strategySchema in index.html")
+
+    def test_every_registered_strategy_is_in_default(self):
+        """A new strategy class needs default settings, or the webapp has nothing to show."""
+        from reuman.collection_strategies import STRATEGY_REGISTRY
+
+        strategies = self.default_scenario["oem"]["collection_strategies"]
+        self.assertEqual(set(STRATEGY_REGISTRY), set(strategies))
+
+    def test_webapp_fetches_every_reuman_module(self):
+        """The browser only has the .py files listed in index.html's py-config."""
+        base_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+        modules = sorted(
+            f for f in os.listdir(os.path.join(base_dir, "reuman")) if f.endswith(".py")
+        )
+        missing = [m for m in modules if f"reuman/{m}?v=" not in self.index_content]
+        self.assertEqual(missing, [], "Add these to the fetch list in index.html")
 
 
 if __name__ == "__main__":
