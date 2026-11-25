@@ -581,8 +581,10 @@
           production_policy: {
             type: "select",
             options: ["make_to_order", "make_to_stock"],
-            label: "Production Policy",
-            help: "make_to_order makes what waiting customers ask for. make_to_stock remanufactures every accepted core and makes virgin units only for orders the stock can't cover; customers take whatever is in stock, reman first.",
+            // Display names only, until the values are renamed (see GitHub issue)
+            optionLabels: { make_to_order: "Pull reman", make_to_stock: "Push reman" },
+            label: "Reman Production Policy",
+            help: "Pull: reman units are made only for customers who want reman. Push: every accepted core is remanufactured as it arrives, and customers take whatever is in stock, reman first. Virgin units are made to order in both.",
           },
           collection_strategies: {
             type: "strategies",
@@ -858,7 +860,7 @@
               fieldDef.options.forEach((opt) => {
                 const option = document.createElement("option");
                 option.value = opt;
-                option.innerText = opt;
+                option.innerText = fieldDef.optionLabels?.[opt] ?? opt; // shown text; value stays opt
                 if (val === opt) option.selected = true;
                 sel.appendChild(option);
               });
