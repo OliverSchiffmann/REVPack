@@ -76,7 +76,10 @@ class CollectionStrategy:
         name: Key used in the config, e.g. "lease".
         allowed_operators: Agent types that may run this strategy.
         incompatible_with: Names of strategies that cannot be enabled at the same time.
-    required_params: Config keys the strategy needs besides "enabled".
+        required_params: Config keys the strategy needs besides "enabled".
+    Every strategy can also have a one-off "setup_cost" (EUR, default 0): legal,
+    IT, training and launch marketing (T5.3 cost structure). The operator pays it
+    once at the start.
     """
 
     name: ClassVar[str] = ""
@@ -92,6 +95,12 @@ class CollectionStrategy:
             )
         self._params = params
         self._time_converter = time_converter
+        self.setup_cost = float(params.get("setup_cost", 0.0))
+        if self.setup_cost < 0:
+            raise ValueError(
+                f"Collection strategy '{self.name}' setup_cost must be >= 0. "
+                f"Received: {self.setup_cost}"
+            )
 
     def offer_contract(self, contract: Contract) -> Contract:
         """Terms offered for a new acquisition (e.g. a lease replaces OWNED)."""

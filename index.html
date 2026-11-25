@@ -29,7 +29,7 @@
     <!-- Dynamic PyScript Configuration with Cache Busting -->
     <script>
       // Use a static version to allow the browser to cache Python files and drastically improve load speed
-      const ts = "1.0.11"; // bump whenever any fetched .py file changes
+      const ts = "1.0.12"; // bump whenever any fetched .py file changes
       const pyConfig = document.createElement("py-config");
       pyConfig.innerHTML = JSON.stringify({
         packages: ["numpy", "matplotlib"],
@@ -469,6 +469,7 @@
           params: {
             bounty_value: { type: "number", step: 0.1, label: "Bounty Value (€ per accepted core)" },
             return_rate_uplift: { type: "number", step: 0.01, label: "Return Rate Uplift" },
+            setup_cost: { type: "number", label: "Set-up Cost (€, one-off)" },
           },
         },
         lease: {
@@ -480,6 +481,7 @@
             monthly_fee_R: { type: "number", step: 0.1, label: "Monthly Fee R (€)" },
             acceptance_uplift: { type: "number", step: 0.01, label: "Acceptance Rate Uplift" },
             collection_cost_saving: { type: "number", step: 0.01, label: "Collection Cost Saving (share)" },
+            setup_cost: { type: "number", label: "Set-up Cost (€, one-off)" },
           },
         },
       };
@@ -576,6 +578,12 @@
           },
           reman_implementation_cost: { type: "number", label: "Reman Implementation Cost (€)" },
           reman_annual_operating_cost: { type: "number", label: "Reman Annual Operating Cost (€/year)" },
+          production_policy: {
+            type: "select",
+            options: ["make_to_order", "make_to_stock"],
+            label: "Production Policy",
+            help: "make_to_order makes what waiting customers ask for. make_to_stock remanufactures every accepted core and makes virgin units only for orders the stock can't cover; customers take whatever is in stock, reman first.",
+          },
           collection_strategies: {
             type: "strategies",
             label: "Core Collection Strategies",
@@ -590,6 +598,21 @@
             type: "select",
             options: ["triangular", "uniform", "weibull"],
             visibleWhen: notLeased,
+            rerender: true,
+          },
+          lifetime_shape: {
+            type: "number",
+            step: 0.1,
+            label: "Weibull Shape",
+            help: "Wear-out shape of the Weibull lifetime. Above 1 means failures become more likely with age. The scale is set from the mean lifetime.",
+            visibleWhen: (cfg) => notLeased(cfg) && cfg.b2b_customer.lifetime_method === "weibull",
+          },
+          early_failure_share: {
+            type: "number",
+            step: 0.001,
+            label: "Early Failure Share",
+            help: "Share of units that fail almost straight away (infant mortality), on top of the wear-out curve. 0 gives a plain Weibull.",
+            visibleWhen: (cfg) => notLeased(cfg) && cfg.b2b_customer.lifetime_method === "weibull",
           },
           lifetime_range: { type: "number", label: "Lifetime Range (days)", visibleWhen: notLeased },
           core_return_rate: {
@@ -841,6 +864,7 @@
               });
               sel.onchange = (e) => {
                 activeScen.config[group][fieldKey] = e.target.value;
+                if (fieldDef.rerender) renderForm(); // other fields depend on this one
               };
               wrap.appendChild(sel);
             } else if (fieldDef.type === "text") {

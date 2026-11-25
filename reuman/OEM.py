@@ -29,6 +29,14 @@ class IncomingCore(NamedTuple):
     contract: Contract | None  # the terms the product was held on
 
 
+# Production policies (oem.production_policy)
+MAKE_TO_ORDER = "make_to_order"  # produce what waiting customers ask for
+MAKE_TO_STOCK = "make_to_stock"  # remanufacture every core, virgin only for the gap
+PRODUCTION_POLICIES = (MAKE_TO_ORDER, MAKE_TO_STOCK)
+# Under make_to_stock a customer gets the first of these that is in stock
+STOCK_PRIORITY = (ProductEnum.R, ProductEnum.V)
+
+
 class OEM(BaseAgent):
     """
     Original Equipment Manufacturer (OEM) agent.
@@ -73,6 +81,8 @@ class OEM(BaseAgent):
     _reman_enabled: bool
     _routing_enabled: bool
     _strategies: list[CollectionStrategy]
+    _strategy_setup_cost: float  # one-off cost of the enabled collection strategies
+    _production_policy: str
     _total_contract_fees: float
 
     def __init__(self, id: int, world: World, config: dict) -> None:
@@ -88,6 +98,7 @@ class OEM(BaseAgent):
             ValueError: If manufacture_delay or remanufacture_delay is less than 1 day.
             ValueError: if cores consumed is not a positive number greater than 0.
             ValueError: if the old oem.bounty_value setting is present.
+            ValueError: if production_policy is unknown.
         """
         self._config = config
         oem_config = config["oem"]
@@ -108,6 +119,14 @@ class OEM(BaseAgent):
                 "collection strategy. Remove bounty_value and set "
                 "oem.collection_strategies.buy_back = {'enabled': True, "
                 "'bounty_value': ..., 'return_rate_uplift': ...}."
+            )
+
+        # .get keeps older scenario files (without this setting) working
+        self._production_policy = oem_config.get("production_policy", MAKE_TO_ORDER)
+        if self._production_policy not in PRODUCTION_POLICIES:
+            raise ValueError(
+                f"production_policy must be one of {PRODUCTION_POLICIES}. "
+                f"Received: {self._production_policy!r}"
             )
 
         super().__init__(id=id, type=AgentEnum.OEM, world=world)
@@ -200,6 +219,10 @@ class OEM(BaseAgent):
             else []
         )
         self._total_contract_fees = 0.0
+
+        # One-off set-up cost of the collection strategies, paid at the start
+        self._strategy_setup_cost = sum(s.setup_cost for s in self._strategies)
+        self._balance -= self._strategy_setup_cost
 
     def get_shipping_delay(self, destination: str) -> int:
         """
@@ -295,6 +318,21 @@ class OEM(BaseAgent):
         """Records a core that was not collected from a customer."""
         self._total_cores_not_collected += 1
 
+    def supplies_from_stock(self) -> bool:
+        """
+        True if customers take whatever this OEM has in stock (make_to_stock),
+        False if they ask for a specific product (make_to_order).
+        """
+        return self._production_policy == MAKE_TO_STOCK
+
+    def _pick_from_stock(self) -> ProductEnum | None:
+        """The first product in STOCK_PRIORITY with a whole unit in stock, if any."""
+        active = self._world.get_active_products()
+        for product in STOCK_PRIORITY:
+            if product in active and self._factory_stock[product] >= 1:
+                return product
+        return None
+
     def contract_for(self, product: ProductEnum) -> Contract:
         """
         The terms a customer gets the product on. Owned by default; a strategy
@@ -342,19 +380,24 @@ class OEM(BaseAgent):
 
     # Checks the stock of a given product in storage
     def request_product(
-        self, product: ProductEnum, customer_location: str | None = None
+        self, product: ProductEnum | None, customer_location: str | None = None
     ) -> Contract | None:
         """
         Process a customer's request to purchase a product.
 
         Args:
-            product (ProductEnum): The type of product requested (Virgin or Reman).
+            product (ProductEnum | None): The type of product requested (Virgin or
+                Reman), or None for whatever is in stock (reman first).
             customer_location (str): The geographical location of the customer.
 
         Returns:
             Contract | None: The contract the customer gets the product on if it was
             in stock, None otherwise.
         """
+        if product is None:
+            product = self._pick_from_stock()
+            if product is None:
+                return None
         currentStock = self._factory_stock[product]
 
         if currentStock >= 1:
@@ -512,6 +555,11 @@ class OEM(BaseAgent):
                 elif agent.state() == CustomerStatesEnum.WANTS_REMAN:
                     self._num_to_man[ProductEnum.R] += 1
                 elif agent.state() == CustomerStatesEnum.WANTS_ANY:
+                    if self._production_policy == MAKE_TO_STOCK:
+                        # Reman is made from cores, not orders: only virgin
+                        # production follows the customers who are waiting
+                        self._num_to_man[ProductEnum.V] += 1
+                        continue
                     # note that whilst this add two units to the queue to be made, it is deliberate
                     # this is just a way to resolve customers being stuck in the wants_any state for now
                     # also the production of reman or virgin units may be constrained by something else
@@ -523,54 +571,67 @@ class OEM(BaseAgent):
         """
         Update production rates and inventory levels for both virgin and reman products.
 
-        Virgin production is determined by current demand and manufacture delay.
-        Remanufactured product production is limited by both current demand and available core stock.
+        make_to_order: each product is made for the customers waiting for it, less the
+        stock already on the shelf; reman is also limited by core stock.
+        make_to_stock: every core in stock is remanufactured first, whatever the
+        demand; virgin units are then made only for waiting customers that the
+        virgin and reman stock can't cover.
         """
-
-        for product in ProductEnum:
-            # Only produce for demand not already covered by stock on the shelf
-            still_needed = max(
-                0.0, self._num_to_man[product] - self._factory_stock[product]
+        V, R = ProductEnum.V, ProductEnum.R
+        if self._production_policy == MAKE_TO_STOCK:
+            cores_per_unit = self._config["products"]["R"]["cores_consumed"]
+            self._make_reman(self._core_stock / cores_per_unit)
+            uncovered = (
+                self._num_to_man[V] - self._factory_stock[V] - self._factory_stock[R]
             )
-            match product:
-                case ProductEnum.V:
-                    self._production_rate[product] = (
-                        still_needed / self._manufacture_delay_steps
-                    )
-                    # if self._production_rate[product] > 3: # Could set a maximum production capacity
-                    #     self._production_rate[product] = 3
-                    self._factory_stock[product] += self._production_rate[product]
-                    self._total_products_produced[product] += self._production_rate[
-                        product
-                    ]
-
-                    self._balance -= (
-                        self._production_rate[product] * self._unit_production_cost_V
-                    )
-
-                case ProductEnum.R:
-                    if self._reman_enabled:
-                        desired_production = (
-                            still_needed / self._remanufacture_delay_steps
-                        )
-                        cores_per_unit = self._config["products"]["R"]["cores_consumed"]
-
-                        # Production is limited by whichever runs out first: demand or cores
-                        max_from_cores = self._core_stock / cores_per_unit
-                        actual_production = min(desired_production, max_from_cores)
-
-                        self._production_rate[product] = actual_production
-                        self._factory_stock[product] += actual_production
-                        self._total_products_produced[product] += actual_production
-                        self._core_stock -= actual_production * cores_per_unit
-                        self._balance -= (
-                            actual_production * self._unit_production_cost_R
-                        )
-                    else:
-                        self._production_rate[product] = 0
+            self._make_virgin(max(0.0, uncovered))
+        else:
+            # Only produce for demand not already covered by stock on the shelf
+            self._make_virgin(max(0.0, self._num_to_man[V] - self._factory_stock[V]))
+            self._make_reman(max(0.0, self._num_to_man[R] - self._factory_stock[R]))
 
         for product in ProductEnum:
             self._num_to_man[product] = 0
+
+    def _make_virgin(self, still_needed: float) -> None:
+        """
+        Make virgin units: the units still needed, spread over the manufacture delay.
+
+        Args:
+            still_needed (float): Units wanted and not covered by stock.
+        """
+        product = ProductEnum.V
+        self._production_rate[product] = still_needed / self._manufacture_delay_steps
+        # if self._production_rate[product] > 3: # Could set a maximum production capacity
+        #     self._production_rate[product] = 3
+        self._factory_stock[product] += self._production_rate[product]
+        self._total_products_produced[product] += self._production_rate[product]
+        self._balance -= self._production_rate[product] * self._unit_production_cost_V
+
+    def _make_reman(self, target: float) -> None:
+        """
+        Make reman units: the target spread over the remanufacture delay, limited
+        by the cores in stock. Does nothing if reman is disabled.
+
+        Args:
+            target (float): Reman units wanted this time (demand or available cores).
+        """
+        product = ProductEnum.R
+        if not self._reman_enabled:
+            self._production_rate[product] = 0
+            return
+        cores_per_unit = self._config["products"]["R"]["cores_consumed"]
+        desired_production = target / self._remanufacture_delay_steps
+
+        # Production is limited by whichever runs out first: demand or cores
+        max_from_cores = self._core_stock / cores_per_unit
+        actual_production = min(desired_production, max_from_cores)
+
+        self._production_rate[product] = actual_production
+        self._factory_stock[product] += actual_production
+        self._total_products_produced[product] += actual_production
+        self._core_stock -= actual_production * cores_per_unit
+        self._balance -= actual_production * self._unit_production_cost_R
 
     def generate_financial_report(self) -> dict:
         """
@@ -623,6 +684,7 @@ class OEM(BaseAgent):
             + cost_inspection
             + cost_reman_impl
             + cost_reman_op
+            + self._strategy_setup_cost
         )
 
         # Revenue as actually booked (a leased unit earns no sale price)
@@ -650,6 +712,7 @@ class OEM(BaseAgent):
                 "Sale of lease contracts (fees)": revenue_lease,
                 "Reman implementation cost": cost_reman_impl,
                 "Reman operating cost": cost_reman_op,
+                "Collection strategy set-up cost": self._strategy_setup_cost,
             },
             "Statistics": {
                 "Total units produced": self._total_products_produced[ProductEnum.V]

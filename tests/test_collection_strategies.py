@@ -387,13 +387,14 @@ class TestLease(unittest.TestCase):
         )
         self.assertEqual(report["Statistics"]["Units on lease at end"], 1)
 
-    def test_starting_customer_is_a_lessee(self):
+    def test_starting_customer_owns_their_unit(self):
+        """Units bought before the scheme stay owned; only replacements are leased."""
         world, _, customer = self._make("month")
         customer.initialise_as_active_user(self.rng, ProductEnum.V)
         contract = customer.contract()
         assert contract is not None
-        self.assertEqual(contract.kind, ContractKind.LEASED)
-        self.assertLessEqual(customer.end_of_life_step(), world.now() + 12)
+        self.assertEqual(contract.kind, ContractKind.OWNED)
+        self.assertEqual(contract.fee_per_step, 0.0)
 
     def test_ignored_without_reman(self):
         self.config["main"]["enable_reman"] = False

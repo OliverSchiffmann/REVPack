@@ -3,15 +3,16 @@ Module for the Customer agents.
 """
 
 from __future__ import annotations
+import math
 from typing import TYPE_CHECKING
 from ._agent import AgentEnum, BaseAgent
 from .states import CustomerStatesEnum
 from .product import ProductEnum, ProductDetails, product_params
+from .collection_strategies import Contract, ContractKind
 
 if TYPE_CHECKING:
     from .world import World
     from .OEM import OEM
-    from .collection_strategies import Contract
 
 
 class Customer(BaseAgent):
@@ -86,6 +87,20 @@ class Customer(BaseAgent):
         self._lifetime_method = self._customer_config["lifetime_method"]
         self._mean_lifetime_days = self._customer_config["mean_lifetime"]
         self._lifetime_range_days = self._customer_config["lifetime_range"]
+        # Only used by the "weibull" method. .get keeps older scenario files working.
+        self._lifetime_shape = self._customer_config.get("lifetime_shape", 4.0)
+        self._early_failure_share = self._customer_config.get(
+            "early_failure_share", 0.035
+        )
+        if self._lifetime_shape <= 0:
+            raise ValueError(
+                f"lifetime_shape must be > 0. Received: {self._lifetime_shape}"
+            )
+        if not 0 <= self._early_failure_share <= 1:
+            raise ValueError(
+                "early_failure_share must be between 0 and 1. "
+                f"Received: {self._early_failure_share}"
+            )
 
     def next(self, rng):
         """
@@ -123,6 +138,13 @@ class Customer(BaseAgent):
 
     def force_market_entry(self, rng, product: ProductEnum):
         """Called centrally by the World to transition agent out of POTENTIAL_USER state."""
+        if self._oem.supplies_from_stock():
+            # The customer takes whatever the OEM has in stock, so the product
+            # the demand profile picked doesn't matter
+            self._state = CustomerStatesEnum.WANTS_ANY
+            self._active_product = None
+            self.try_and_buy(rng, None)
+            return
         self._state = product_params[product]["wants_state"]
         self._active_product = product
         self.try_and_buy(rng, product)
@@ -149,6 +171,9 @@ class Customer(BaseAgent):
         """
         Handles logic for customers who have lost patience and will take any available product.
         """
+        if self._oem.supplies_from_stock():
+            self.try_and_buy(rng, None)  # the OEM picks from its stock
+            return
         productsToConsider = self._world.get_active_products()
         rng.shuffle(productsToConsider)
         for product in productsToConsider:
@@ -192,18 +217,20 @@ class Customer(BaseAgent):
         """Step at which the product in use reaches end of life (-1 if not in use)."""
         return self._end_of_life_step
 
-    def try_and_buy(self, rng, product: ProductEnum):
+    def try_and_buy(self, rng, product: ProductEnum | None):
         """
         Attempt to purchase a specified product from the OEM.
 
         Args:
             rng (numpy.random.Generator): Random number generator.
-            product (ProductEnum): The type of product to attempt to buy.
+            product (ProductEnum | None): The type of product to attempt to buy,
+                or None to take whatever the OEM has in stock.
         """
         contract = self._oem.request_product(product, self._location)
 
         if contract is not None:
             self._contract = contract
+            product = contract.product  # the product actually received
             delay = self._oem.get_shipping_delay(self._location)
             if delay == 0:  # checking if delivery is instant
                 self.become_user(rng, product)
@@ -222,7 +249,14 @@ class Customer(BaseAgent):
         """
         Initialises the customer as an active user of the specified product with a random remaining lifespan.
         For creating some existing users at the start of the simulation.
+
+        These units were bought before the simulation (and before any collection
+        strategy), so they are always owned, even when a lease is on: their owners
+        lease only when they replace them.
         """
+        self._contract = Contract(
+            kind=ContractKind.OWNED, operator=self._oem, product=product
+        )
         self.become_user(rng, product)
         # Randomise the remaining lifespan to simulate users who bought the product at some point in the past
         if self._product_lifespan > 1:
@@ -317,13 +351,14 @@ class Customer(BaseAgent):
         lifespan_mean = self._mean_lifetime_days
 
         # Set up the Weibull parameters for the two halves (early failure and wear-out)
-        defect_rate = 0.035  # 3.5% chance of early failure
+        defect_rate = self._early_failure_share  # chance of early failure
         early_shape = 0.8  # Distribution shape (steep)
         early_scale = 0.5  # Dies very quickly
-        normal_shape = 4.0  # Regular wear-out shape
+        normal_shape = self._lifetime_shape  # wear-out shape
 
-        # For a Weibull with shape=4.0, Mean ≈ Scale * 0.906
-        normal_scale = lifespan_mean / 0.906
+        # The mean of a Weibull is scale * Gamma(1 + 1/shape), so this scale gives
+        # the requested mean (Gamma(1.25) = 0.906 for the old fixed shape of 4)
+        normal_scale = lifespan_mean / math.gamma(1 + 1 / normal_shape)
 
         if rng.random() < defect_rate:
             raw_lifespan = rng.weibull(early_shape) * early_scale
