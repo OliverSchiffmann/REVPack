@@ -26,6 +26,10 @@ dict_default = {
         "reman_implementation_cost": 10000.0,  # One off to buy inspection equipment and such
         "reman_annual_operating_cost": 5000.0,  # Fixed annual costs for reman production
         "unit_production_cost_R": 300.0,
+        # Production: "make_to_order" (make what waiting customers ask for) or
+        # "make_to_stock" (reman from every accepted core, virgin only for orders the
+        # stock can't cover; customers take whatever is in stock, reman first)
+        "production_policy": "make_to_order",
         # Processing Rates
         "delivery_delay": 3,
         "manufacture_delay": 5,
@@ -45,6 +49,7 @@ dict_default = {
                 "enabled": False,
                 "bounty_value": 10.0,  # EUR paid per accepted core (assumed)
                 "return_rate_uplift": 0.1,  # added to core_return_rate (assumed)
+                "setup_cost": 0.0,  # EUR one-off: legal, IT, training, marketing (assumed)
             },
             "lease": {
                 "enabled": False,
@@ -53,6 +58,7 @@ dict_default = {
                 "monthly_fee_R": 55.0,  # EUR per month (assumed)
                 "acceptance_uplift": 0.15,  # added to core_acceptance_rate (assumed)
                 "collection_cost_saving": 0.25,  # share of core_collection_cost saved (assumed)
+                "setup_cost": 0.0,  # EUR one-off: legal, IT, training, marketing (assumed)
             },
         },
     },
@@ -61,6 +67,8 @@ dict_default = {
         "mean_lifetime": 500,
         "lifetime_method": "triangular",
         "lifetime_range": 100,
+        "lifetime_shape": 4.0,  # Weibull wear-out shape (weibull method only)
+        "early_failure_share": 0.035,  # share of near-instant failures (weibull method only)
         "core_return_rate": 0.8,
     },
     "b2c_customer": {

@@ -8,6 +8,7 @@ __pycache__/
 .DS_Store
 .github/.DS_Store
 examples/parameterSweepStudy/.DS_Store
+examples/scenarios_os.py
 
 slurm*
 examples/parameterSweepStudy/saltelli_*.csv
